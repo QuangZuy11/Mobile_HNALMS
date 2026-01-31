@@ -1,9 +1,12 @@
 // API Configuration
-// Backend server: http://192.168.0.110:9999
-// Thay đổi địa chỉ IP theo máy của bạn (chạy 'ipconfig' để tìm)
+// Backend server: Xem cấu hình trong env.js
+// Thay đổi địa chỉ IP trong file env.js
+
+import { ENV } from './env';
 
 export const API_CONFIG = {
-    BASE_URL: 'http://192.168.0.110:9999/api',
+    BASE_URL: ENV.API_URL,
+    TIMEOUT: ENV.API_TIMEOUT,
 
     // API Endpoints
     ENDPOINTS: {
@@ -13,13 +16,14 @@ export const API_CONFIG = {
             LOGOUT: '/auth/logout',
             FORGOT_PASSWORD: '/auth/forgot-password',
             RESET_PASSWORD: '/auth/reset-password',
+            ME: '/auth/me',
         },
 
         // Profile
         PROFILE: {
-            GET: '/profile',
-            UPDATE: '/profile/update',
-            CHANGE_PASSWORD: '/profile/change-password',
+            GET: '/auth/me',
+            UPDATE: '/auth/profile',
+            CHANGE_PASSWORD: '/auth/change-password',
             MY_ROOM: '/profile/my-room',
         },
 

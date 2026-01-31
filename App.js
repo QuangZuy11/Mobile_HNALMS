@@ -1,11 +1,12 @@
 import { StatusBar } from 'expo-status-bar';
-import TestDBScreen from './src/screens/TestDBScreen';
+import { AuthContextProvider } from './src/contexts/AuthContext';
+import { AppNavigator } from './src/navigation/AppNavigator';
 
 export default function App() {
   return (
-    <>
-      <TestDBScreen />
-      <StatusBar style="auto" />
-    </>
+    <AuthContextProvider>
+      <AppNavigator />
+      <StatusBar style="dark" />
+    </AuthContextProvider>
   );
 }
