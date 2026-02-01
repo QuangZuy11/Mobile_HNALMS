@@ -9,10 +9,10 @@ import {
     RefreshControl,
 } from 'react-native';
 import axios from 'axios';
+import { ENV } from '../config/env';
 
-// Thay đổi địa chỉ IP này theo máy của bạn
-// Để tìm IP: Chạy lệnh 'ipconfig' trong terminal
-const API_BASE_URL = 'http://192.168.0.110:9999';
+// Thay đổi địa chỉ IP trong file src/config/env.js
+const API_BASE_URL = `http://${ENV.API_HOST}:${ENV.API_PORT}`;
 
 const TestDBScreen = () => {
     const [loading, setLoading] = useState(false);
@@ -26,7 +26,7 @@ const TestDBScreen = () => {
             setError(null);
 
             const response = await axios.get(`${API_BASE_URL}/test-db`, {
-                timeout: 10000,
+                timeout: 30000,
             });
 
             setData(response.data);
