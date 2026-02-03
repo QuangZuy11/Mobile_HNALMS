@@ -8,7 +8,7 @@ import ProfileScreen from '../screens/Profile/ProfileScreen';
 import ChangePasswordScreen from '../screens/Profile/ChangePasswordScreen';
 import MyRoomScreen from '../screens/Profile/MyRoomScreen';
 import UpdateProfileScreen from '../screens/Profile/UpdateProfileScreen';
-import ContractListScreen from '../screens/Contract/ContractListScreen';
+import MyContractScreen from '../screens/Contract/MyContractScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -57,7 +57,7 @@ function HomeStack() {
       />
       <Stack.Screen
         name="ContractList"
-        component={ContractListScreen}
+        component={MyContractScreen}
         options={{
           title: 'Hợp đồng của tôi',
         }}
