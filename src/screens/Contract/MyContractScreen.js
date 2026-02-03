@@ -19,7 +19,7 @@ import { handleCallManager } from '../../utils/phoneHelper';
 
 const { width, height } = Dimensions.get('window');
 
-export default function ContractListScreen({ navigation }) {
+export default function MyContractScreen({ navigation }) {
   const [contractData, setContractData] = useState(null);
   const [roomData, setRoomData] = useState(null);
   const [loading, setLoading] = useState(true);
