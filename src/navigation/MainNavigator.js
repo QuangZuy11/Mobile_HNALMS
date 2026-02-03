@@ -8,6 +8,7 @@ import ProfileScreen from '../screens/Profile/ProfileScreen';
 import ChangePasswordScreen from '../screens/Profile/ChangePasswordScreen';
 import MyRoomScreen from '../screens/Profile/MyRoomScreen';
 import UpdateProfileScreen from '../screens/Profile/UpdateProfileScreen';
+import ContractListScreen from '../screens/Contract/ContractListScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -47,13 +48,20 @@ function HomeStack() {
           title: 'Đổi mật khẩu',
         }}
       />
-      {/* <Stack.Screen
+      <Stack.Screen
         name="MyRoom"
         component={MyRoomScreen}
         options={{
           title: 'Phòng của tôi',
         }}
-      /> */}
+      />
+      <Stack.Screen
+        name="ContractList"
+        component={ContractListScreen}
+        options={{
+          title: 'Hợp đồng của tôi',
+        }}
+      />
     </Stack.Navigator>
   );
 }
