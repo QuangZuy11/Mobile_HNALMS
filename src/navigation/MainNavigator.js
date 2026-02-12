@@ -10,6 +10,19 @@ import MyRoomScreen from '../screens/Profile/MyRoomScreen';
 import UpdateProfileScreen from '../screens/Profile/UpdateProfileScreen';
 import MyContractScreen from '../screens/Contract/MyContractScreen';
 
+// Request Screens
+import RequestListScreen from '../screens/Request/RequestListScreen';
+import CreateMaintenanceRequestScreen from '../screens/Request/CreateMaintenanceRequestScreen';
+import CreateComplaintRequestScreen from '../screens/Request/CreateComplaintRequestScreen';
+import CreateMovingRoomRequestScreen from '../screens/Request/CreateMovingRoomRequestScreen';
+import RequestDetailScreen from '../screens/Request/RequestDetailScreen';
+import UpdateRequestScreen from '../screens/Request/UpdateRequestScreen';
+
+// Additional Screens
+import NotificationListScreen from '../screens/Notification/NotificationListScreen';
+import InvoiceListScreen from '../screens/Invoice/InvoiceListScreen';
+import ServiceListScreen from '../screens/Service/ServiceListScreen';
+
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
@@ -60,6 +73,69 @@ function HomeStack() {
         component={MyContractScreen}
         options={{
           title: 'Hợp đồng của tôi',
+        }}
+      />
+      <Stack.Screen
+        name="RequestList"
+        component={RequestListScreen}
+        options={{
+          title: 'Yêu cầu',
+        }}
+      />
+      <Stack.Screen
+        name="CreateMaintenanceRequest"
+        component={CreateMaintenanceRequestScreen}
+        options={{
+          title: 'Yêu cầu sửa chữa/Bảo trì',
+        }}
+      />
+      <Stack.Screen
+        name="CreateComplaintRequest"
+        component={CreateComplaintRequestScreen}
+        options={{
+          title: 'Yêu cầu khiếu nại',
+        }}
+      />
+      <Stack.Screen
+        name="CreateMovingRoomRequest"
+        component={CreateMovingRoomRequestScreen}
+        options={{
+          title: 'Yêu cầu chuyển phòng',
+        }}
+      />
+      <Stack.Screen
+        name="RequestDetail"
+        component={RequestDetailScreen}
+        options={{
+          title: 'Chi tiết yêu cầu',
+        }}
+      />
+      <Stack.Screen
+        name="UpdateRequest"
+        component={UpdateRequestScreen}
+        options={{
+          title: 'Cập nhật yêu cầu',
+        }}
+      />
+      <Stack.Screen
+        name="NotificationList"
+        component={NotificationListScreen}
+        options={{
+          title: 'Thông báo',
+        }}
+      />
+      <Stack.Screen
+        name="InvoiceList"
+        component={InvoiceListScreen}
+        options={{
+          title: 'Hóa đơn',
+        }}
+      />
+      <Stack.Screen
+        name="ServiceList"
+        component={ServiceListScreen}
+        options={{
+          title: 'Dịch vụ',
         }}
       />
     </Stack.Navigator>
