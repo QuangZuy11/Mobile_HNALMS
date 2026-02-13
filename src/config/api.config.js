@@ -54,7 +54,7 @@ export const API_CONFIG = {
             LIST: '/requests',
             DETAIL: '/requests/:id',
             CREATE_MOVING_ROOM: '/requests/moving-room',
-            CREATE_COMPLAINT: '/requests/complaint',
+            CREATE_COMPLAINT: '/requests/complaints',
             CREATE_REPAIR: '/requests/repair',
             CREATE_MAINTENANCE: '/requests/maintenance',
             UPDATE: '/requests/:id/update',
