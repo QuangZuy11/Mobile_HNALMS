@@ -9,20 +9,141 @@ import {
   FlatList,
   SectionList,
   Alert,
+  ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
+import { getComplaintRequestsAPI } from '../../services/request.service';
 
 export default function RequestListScreen({ navigation }) {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [selectedFilter, setSelectedFilter] = useState('all'); // 'all', 'complaint', 'maintenance', 'moving'
 
-  // Simulate fetching requests when screen is focused
+  // Format date helper
+  const formatDate = (dateString) => {
+    try {
+      const date = new Date(dateString);
+      const day = String(date.getDate()).padStart(2, '0');
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const year = date.getFullYear();
+      const hours = String(date.getHours()).padStart(2, '0');
+      const minutes = String(date.getMinutes()).padStart(2, '0');
+      return `${day}/${month}/${year} ${hours}:${minutes}`;
+    } catch (error) {
+      return dateString;
+    }
+  };
+
+  // Map status from API to Vietnamese
+  const getStatusText = (status) => {
+    switch (status) {
+      case 'Pending':
+        return 'Chờ xử lý';
+      case 'Processing':
+        return 'Đang xử lý';
+      case 'Done':
+        return 'Hoàn thành';
+      default:
+        return status;
+    }
+  };
+
+  // Filter options
+  const filterOptions = [
+    { id: 'all', label: 'Tất cả', icon: 'format-list-bulleted' },
+    { id: 'complaint', label: 'Khiếu nại', icon: 'alert-circle' },
+    { id: 'maintenance', label: 'Sửa chữa/Bảo trì', icon: 'tools' },
+    { id: 'moving', label: 'Chuyển phòng', icon: 'home-move-outline' },
+  ];
+
+  // Load requests from API
+  const loadRequests = async (filter = selectedFilter) => {
+    try {
+      setLoading(true);
+      console.log('Loading requests with filter:', filter);
+      
+      // Currently only complaint API is available
+      if (filter === 'all' || filter === 'complaint') {
+        const response = await getComplaintRequestsAPI({ page: 1, limit: 10 });
+      
+      console.log('API Response:', JSON.stringify(response, null, 2));
+      
+        if (response.success && response.data) {
+          console.log('Number of requests:', response.data.data.length);
+          // Map API data to UI format
+          const mappedRequests = response.data.data.map((item) => ({
+            id: item._id,
+            type: 'complaint',
+            title: `${item.category} - ${item.content.substring(0, 50)}${item.content.length > 50 ? '...' : ''}`,
+            status: getStatusText(item.status),
+            createdDate: formatDate(item.createdDate),
+            rawStatus: item.status,
+            category: item.category,
+            priority: item.priority,
+            fullContent: item.content,
+          }));
+          setRequests(mappedRequests);
+        } else {
+          console.error('API response not successful or no data');
+        }
+      } else if (filter === 'maintenance') {
+        // TODO: Add maintenance API when available
+        console.log('Maintenance API not yet implemented');
+        setRequests([]);
+      } else if (filter === 'moving') {
+        // TODO: Add moving room API when available
+        console.log('Moving room API not yet implemented');
+        setRequests([]);
+      }
+    } catch (error) {
+      console.error('Error loading requests:', error);
+      console.error('Error details:', {
+        message: error.message,
+        status: error.status,
+        data: error.data,
+        isNetworkError: error.isNetworkError,
+      });
+      
+      let errorMessage = 'Không thể tải danh sách yêu cầu. Vui lòng thử lại.';
+      
+      // Handle specific error cases
+      if (error.status === 403) {
+        errorMessage = 'Bạn không có quyền xem danh sách yêu cầu';
+      } else if (error.status === 401) {
+        errorMessage = 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại';
+      } else if (error.isNetworkError) {
+        errorMessage = 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối internet';
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      Alert.alert('Lỗi', errorMessage);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  // Refresh handler
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadRequests();
+  };
+
+  // Handle filter change
+  const handleFilterChange = (filterId) => {
+    setSelectedFilter(filterId);
+    loadRequests(filterId);
+  };
+
+  // Fetch requests when screen is focused
   useFocusEffect(
     useCallback(() => {
-      // TODO: Fetch requests from API
-      // loadRequests();
-    }, [])
+      loadRequests();
+    }, [selectedFilter])
   );
 
   const requestTypes = [
@@ -60,6 +181,9 @@ export default function RequestListScreen({ navigation }) {
       <ScrollView
         contentContainerStyle={styles.scrollContainer}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
       >
         {/* Header */}
         <View style={styles.header}>
@@ -75,6 +199,40 @@ export default function RequestListScreen({ navigation }) {
               Tạo yêu cầu hoặc xem lịch sử yêu cầu
             </Text>
           </View>
+        </View>
+
+        {/* Filter Tabs */}
+        <View style={styles.filterContainer}>
+          <ScrollView 
+            horizontal 
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.filterScrollContent}
+          >
+            {filterOptions.map((option) => (
+              <TouchableOpacity
+                key={option.id}
+                style={[
+                  styles.filterTab,
+                  selectedFilter === option.id && styles.filterTabActive,
+                ]}
+                onPress={() => handleFilterChange(option.id)}
+              >
+                <MaterialCommunityIcons
+                  name={option.icon}
+                  size={18}
+                  color={selectedFilter === option.id ? '#EF4444' : '#6B7280'}
+                />
+                <Text
+                  style={[
+                    styles.filterTabText,
+                    selectedFilter === option.id && styles.filterTabTextActive,
+                  ]}
+                >
+                  {option.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
         </View>
 
         {/* Create Request Section */}
@@ -125,7 +283,12 @@ export default function RequestListScreen({ navigation }) {
             </TouchableOpacity>
           </View>
 
-          {requests.length === 0 ? (
+          {loading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color="#EF4444" />
+              <Text style={styles.loadingText}>Đang tải...</Text>
+            </View>
+          ) : requests.length === 0 ? (
             <View style={styles.emptyState}>
               <MaterialCommunityIcons
                 name="inbox-outline"
@@ -133,22 +296,26 @@ export default function RequestListScreen({ navigation }) {
                 color="#D1D5DB"
               />
               <Text style={styles.emptyStateText}>
-                Chưa có yêu cầu nào
+                {selectedFilter === 'maintenance' || selectedFilter === 'moving'
+                  ? 'API cho loại yêu cầu này đang được phát triển'
+                  : 'Chưa có yêu cầu nào'}
               </Text>
               <Text style={styles.emptyStateSubtext}>
-                Tạo yêu cầu mới từ phía trên
+                {selectedFilter === 'maintenance' || selectedFilter === 'moving'
+                  ? 'Vui lòng quay lại sau'
+                  : 'Tạo yêu cầu mới từ phía trên'}
               </Text>
             </View>
           ) : (
             <FlatList
               data={requests}
               scrollEnabled={false}
-              keyExtractor={(item, index) => index.toString()}
+              keyExtractor={(item) => item.id}
               renderItem={({ item }) => (
                 <TouchableOpacity
                   style={styles.requestItem}
                   onPress={() => {
-                    // TODO: Navigate to request detail
+                    navigation.navigate('RequestDetail', { requestId: item.id });
                   }}
                 >
                   <View style={styles.requestItemContent}>
@@ -168,6 +335,8 @@ export default function RequestListScreen({ navigation }) {
                             ? '#D1FAE5'
                             : item.status === 'Chờ xử lý'
                             ? '#FEF3C7'
+                            : item.status === 'Đang xử lý'
+                            ? '#DBEAFE'
                             : '#FEE2E2',
                       },
                     ]}
@@ -181,6 +350,8 @@ export default function RequestListScreen({ navigation }) {
                               ? '#10B981'
                               : item.status === 'Chờ xử lý'
                               ? '#F59E0B'
+                              : item.status === 'Đang xử lý'
+                              ? '#3B82F6'
                               : '#EF4444',
                         },
                       ]}
@@ -357,5 +528,54 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
     marginTop: 4,
     textAlign: 'center',
+  },
+
+  // Loading State
+  loadingContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  loadingText: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginTop: 12,
+  },
+
+  // Filter Tabs
+  filterContainer: {
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  filterScrollContent: {
+    paddingHorizontal: 16,
+    gap: 8,
+  },
+  filterTab: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    marginRight: 8,
+  },
+  filterTabActive: {
+    backgroundColor: '#FEE2E2',
+    borderColor: '#EF4444',
+  },
+  filterTabText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#6B7280',
+    marginLeft: 6,
+  },
+  filterTabTextActive: {
+    color: '#EF4444',
+    fontWeight: '600',
   },
 });
