@@ -55,10 +55,17 @@ export const API_CONFIG = {
             DETAIL: '/requests/:id',
             CREATE_MOVING_ROOM: '/requests/moving-room',
             CREATE_COMPLAINT: '/requests/complaints',
+            MY_COMPLAINTS: '/requests/complaints',
             CREATE_REPAIR: '/requests/repair',
+            MY_REPAIRS: '/requests/repair/my-requests',
             CREATE_MAINTENANCE: '/requests/maintenance',
             UPDATE: '/requests/:id/update',
             DELETE: '/requests/:id/delete',
+        },
+
+        // Device
+        DEVICE: {
+            LIST: '/devices',
         },
 
         // Notification
