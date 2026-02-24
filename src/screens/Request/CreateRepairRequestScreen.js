@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,64 +9,247 @@ import {
   TextInput,
   Alert,
   ActivityIndicator,
+  Image,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
+import { createRepairRequestAPI } from '../../services/request.service';
+import { getDevicesAPI } from '../../services/device.service';
+import { uploadMultipleImages } from '../../services/upload.service';
 
 export default function CreateRepairRequestScreen({ navigation }) {
+  const [type, setType] = useState('Sửa chữa'); // "Sửa chữa" or "Bảo trì"
   const [itemType, setItemType] = useState('');
   const [description, setDescription] = useState('');
-  const [location, setLocation] = useState('');
-  const [urgency, setUrgency] = useState('normal');
+  const [images, setImages] = useState([]);
+  const [uploadProgress, setUploadProgress] = useState({ current: 0, total: 0 });
   const [loading, setLoading] = useState(false);
+  const [devices, setDevices] = useState([]);
+  const [fetchingDevices, setFetchingDevices] = useState(true);
+  const [devicesError, setDevicesError] = useState(null);
 
-  const itemTypes = [
-    { id: 'door', label: 'Cửa/Khóa cửa', icon: 'door' },
-    { id: 'window', label: 'Cửa sổ', icon: 'window-closed' },
-    { id: 'electrical', label: 'Hệ thống điện', icon: 'flash' },
-    { id: 'plumbing', label: 'Hệ thống nước', icon: 'pipe' },
-    { id: 'furniture', label: 'Đồ nội thất', icon: 'sofa' },
-    { id: 'flooring', label: 'Sàn nhà', icon: 'floor-plan' },
-    { id: 'ceiling', label: 'Trần/Tường', icon: 'wall' },
-    { id: 'other', label: 'Khác', icon: 'tools' },
-  ];
+  // Map device types to icons
+  const getDeviceIcon = (deviceName) => {
+    const name = deviceName?.toLowerCase() || '';
+    if (name.includes('cửa') || name.includes('khóa')) return 'door';
+    if (name.includes('sổ') || name.includes('cửa sổ')) return 'window-closed';
+    if (name.includes('điện') || name.includes('đèn')) return 'flash';
+    if (name.includes('nước') || name.includes('vòi')) return 'pipe';
+    if (name.includes('giường') || name.includes('bàn') || name.includes('ghế') || name.includes('tủ')) return 'bed';
+    if (name.includes('sàn')) return 'floor-plan';
+    if (name.includes('tường') || name.includes('trần')) return 'wall';
+    if (name.includes('máy') || name.includes('điều hòa') || name.includes('lạnh')) return 'air-conditioner';
+    if (name.includes('tủ lạnh')) return 'fridge';
+    return 'tools';
+  };
 
-  const urgencies = [
-    { id: 'low', label: 'Thấp', color: '#3B82F6' },
-    { id: 'normal', label: 'Bình thường', color: '#F59E0B' },
-    { id: 'high', label: 'Cao/Khẩn cấp', color: '#EF4444' },
+  // Fetch devices from API
+  useEffect(() => {
+    const fetchDevices = async () => {
+      try {
+        setFetchingDevices(true);
+        setDevicesError(null);
+        const response = await getDevicesAPI();
+        
+        if (response.success && response.data) {
+          console.log('Raw devices from API:', response.data);
+          
+          // Map devices to the format needed for UI
+          const mappedDevices = response.data.map((device) => {
+            // Backend uses: _id, name, category
+            const deviceId = device._id;
+            const deviceName = device.name;
+            const deviceCategory = device.category;
+            
+            console.log('Mapping device:', { 
+              id: deviceId, 
+              name: deviceName, 
+              category: deviceCategory 
+            });
+            
+            return {
+              id: deviceId,
+              label: deviceName,
+              icon: getDeviceIcon(deviceName),
+              category: deviceCategory,
+            };
+          });
+          
+          setDevices(mappedDevices);
+          console.log('Total devices loaded:', mappedDevices.length);
+        }
+      } catch (error) {
+        console.error('Error fetching devices:', error);
+        setDevicesError(error.message);
+        Alert.alert(
+          'Lỗi',
+          'Không thể tải danh sách thiết bị. ' + error.message,
+          [
+            { text: 'Thử lại', onPress: () => fetchDevices() },
+            { text: 'Hủy', onPress: () => navigation.goBack() },
+          ]
+        );
+      } finally {
+        setFetchingDevices(false);
+      }
+    };
+
+    fetchDevices();
+  }, []);
+
+  // Request camera/gallery permissions
+  useEffect(() => {
+    (async () => {
+      const { status: cameraStatus } = await ImagePicker.requestCameraPermissionsAsync();
+      const { status: galleryStatus } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      
+      if (cameraStatus !== 'granted' || galleryStatus !== 'granted') {
+        console.log('Camera/Gallery permissions not granted');
+      }
+    })();
+  }, []);
+
+  const pickImage = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsMultipleSelection: true,
+        quality: 0.7,
+        base64: false,
+      });
+
+      if (!result.canceled) {
+        const newImages = result.assets.map(asset => asset.uri);
+        setImages([...images, ...newImages]);
+      }
+    } catch (error) {
+      console.error('Error picking image:', error);
+      Alert.alert('Lỗi', 'Không thể chọn ảnh');
+    }
+  };
+
+  const takePhoto = async () => {
+    try {
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        quality: 0.7,
+        base64: false,
+      });
+
+      if (!result.canceled) {
+        setImages([...images, result.assets[0].uri]);
+      }
+    } catch (error) {
+      console.error('Error taking photo:', error);
+      Alert.alert('Lỗi', 'Không thể chụp ảnh');
+    }
+  };
+
+  const removeImage = (index) => {
+    setImages(images.filter((_, i) => i !== index));
+  };
+
+  const showImageOptions = () => {
+    Alert.alert(
+      'Chọn ảnh',
+      'Đính kèm hình ảnh vấn đề',
+      [
+        { text: 'Chụp ảnh', onPress: takePhoto },
+        { text: 'Chọn từ thư viện', onPress: pickImage },
+        { text: 'Hủy', style: 'cancel' },
+      ]
+    );
+  };
+
+  const types = [
+    { id: 'repair', label: 'Sửa chữa', value: 'Sửa chữa', icon: 'hammer-wrench' },
+    { id: 'maintenance', label: 'Bảo trì', value: 'Bảo trì', icon: 'cog' },
   ];
 
   const handleSubmit = async () => {
     // Validation
-    if (!itemType.trim()) {
-      Alert.alert('Lỗi', 'Vui lòng chọn vật phẩm cần sửa');
+    if (!itemType) {
+      Alert.alert('Lỗi', 'Vui lòng chọn thiết bị cần ' + type.toLowerCase());
       return;
     }
     if (!description.trim()) {
       Alert.alert('Lỗi', 'Vui lòng mô tả vấn đề');
       return;
     }
-    if (!location.trim()) {
-      Alert.alert('Lỗi', 'Vui lòng nhập vị trí');
+    if (description.trim().length < 10) {
+      Alert.alert('Lỗi', 'Mô tả phải có ít nhất 10 ký tự');
       return;
     }
 
     setLoading(true);
     try {
-      // TODO: Call API to create repair request
-      // const response = await createRepairRequest({
-      //   itemType,
-      //   description,
-      //   location,
-      //   urgency,
-      // });
+      // Upload images to Cloudinary if any
+      let imageUrls = [];
+      if (images.length > 0) {
+        console.log(`Uploading ${images.length} images to Cloudinary...`);
+        
+        try {
+          imageUrls = await uploadMultipleImages(
+            images,
+            'ml_default', // Upload preset - ensure this exists in Cloudinary
+            (current, total) => {
+              setUploadProgress({ current, total });
+              console.log(`Upload progress: ${current}/${total}`);
+            }
+          );
+          
+          console.log(`Successfully uploaded ${imageUrls.length} images`);
+          
+          if (imageUrls.length < images.length) {
+            Alert.alert(
+              'Cảnh báo',
+              `Chỉ tải lên được ${imageUrls.length}/${images.length} ảnh. Bạn có muốn tiếp tục?`,
+              [
+                { text: 'Hủy', style: 'cancel', onPress: () => { setLoading(false); return; } },
+                { text: 'Tiếp tục', onPress: () => {} },
+              ]
+            );
+          }
+        } catch (uploadError) {
+          console.error('Error uploading images:', uploadError);
+          Alert.alert(
+            'Lỗi tải ảnh',
+            uploadError.message + '\n\nBạn có muốn tiếp tục không có ảnh?',
+            [
+              { text: 'Hủy', style: 'cancel', onPress: () => { setLoading(false); return; } },
+              { text: 'Tiếp tục', onPress: () => {} },
+            ]
+          );
+          imageUrls = [];
+        }
+        
+        // Reset upload progress
+        setUploadProgress({ current: 0, total: 0 });
+      }
+      
+      // Find selected device
+      const selectedDevice = devices.find((d) => d.id === itemType);
+      
+      console.log('Submitting repair request:');
+      console.log('- Type:', type);
+      console.log('- Selected device ID:', itemType);
+      console.log('- Selected device info:', selectedDevice);
+      console.log('- Image URLs:', imageUrls);
+      
+      const repairData = {
+        devicesId: itemType, // Device ID from database (_id)
+        type: type, // "Sửa chữa" or "Bảo trì"
+        description: description.trim(),
+        images: imageUrls, // Array of Cloudinary URLs
+      };
+      
+      console.log('- Request data:', repairData);
 
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      const response = await createRepairRequestAPI(repairData);
 
       Alert.alert(
         'Thành công',
-        'Yêu cầu sửa chữa đã được gửi thành công',
+        response.message || `Yêu cầu ${type.toLowerCase()} đã được gửi thành công`,
         [
           {
             text: 'OK',
@@ -75,14 +258,12 @@ export default function CreateRepairRequestScreen({ navigation }) {
         ]
       );
     } catch (error) {
-      Alert.alert('Lỗi', 'Không thể gửi yêu cầu. Vui lòng thử lại.');
+      Alert.alert('Lỗi', error.message || 'Không thể gửi yêu cầu. Vui lòng thử lại.');
       console.error('Error creating repair request:', error);
     } finally {
       setLoading(false);
     }
   };
-
-  const selectedItemType = itemTypes.find((item) => item.id === itemType);
 
   return (
     <SafeAreaView style={styles.safeContainer}>
@@ -94,7 +275,7 @@ export default function CreateRepairRequestScreen({ navigation }) {
         >
           <MaterialCommunityIcons name="chevron-left" size={28} color="#1F2937" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Yêu cầu sửa chữa</Text>
+        <Text style={styles.headerTitle}>{type}</Text>
         <View style={{ width: 28 }} />
       </View>
 
@@ -104,107 +285,143 @@ export default function CreateRepairRequestScreen({ navigation }) {
       >
         {/* Form Section */}
         <View style={styles.formContainer}>
-          {/* Item Type Selection */}
+          {/* Type Selection */}
           <View style={styles.formGroup}>
-            <Text style={styles.label}>Vật phẩm cần sửa *</Text>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              style={styles.itemTypeScroll}
-            >
-              {itemTypes.map((item) => (
+            <Text style={styles.label}>Loại yêu cầu *</Text>
+            <View style={styles.typeGrid}>
+              {types.map((t) => (
                 <TouchableOpacity
-                  key={item.id}
+                  key={t.id}
                   style={[
-                    styles.itemTypeButton,
-                    itemType === item.id && styles.itemTypeButtonSelected,
+                    styles.typeButton,
+                    type === t.value && styles.typeButtonSelected,
                   ]}
-                  onPress={() => setItemType(item.id)}
+                  onPress={() => setType(t.value)}
                 >
                   <MaterialCommunityIcons
-                    name={item.icon}
+                    name={t.icon}
                     size={24}
-                    color={
-                      itemType === item.id ? '#3B82F6' : '#9CA3AF'
-                    }
+                    color={type === t.value ? '#3B82F6' : '#9CA3AF'}
                   />
                   <Text
                     style={[
-                      styles.itemTypeLabel,
-                      itemType === item.id && styles.itemTypeLabelSelected,
+                      styles.typeButtonText,
+                      type === t.value && styles.typeButtonTextSelected,
                     ]}
                   >
-                    {item.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-
-          {/* Location Input */}
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>Vị trí *</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Nhập vị trí cụ thể (ví dụ: Phòng 101, Phòng tắm)"
-              placeholderTextColor="#9CA3AF"
-              value={location}
-              onChangeText={setLocation}
-              maxLength={100}
-            />
-          </View>
-
-          {/* Description Input */}
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>Mô tả chi tiết *</Text>
-            <TextInput
-              style={[styles.input, styles.textArea]}
-              placeholder="Xác định chính xác vấn đề (hỏng, rò rỉ, không chức năng, v.v.)"
-              placeholderTextColor="#9CA3AF"
-              value={description}
-              onChangeText={setDescription}
-              multiline
-              numberOfLines={5}
-              maxLength={500}
-              textAlignVertical="top"
-            />
-            <Text style={styles.charCount}>{description.length}/500</Text>
-          </View>
-
-          {/* Urgency Selection */}
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>Mức độ khẩn cấp</Text>
-            <View style={styles.urgencyGrid}>
-              {urgencies.map((u) => (
-                <TouchableOpacity
-                  key={u.id}
-                  style={[
-                    styles.urgencyButton,
-                    urgency === u.id && {
-                      borderWidth: 2,
-                      borderColor: u.color,
-                      backgroundColor: '#F3F4F6',
-                    },
-                  ]}
-                  onPress={() => setUrgency(u.id)}
-                >
-                  <View
-                    style={[
-                      styles.urgencyBadge,
-                      { backgroundColor: u.color },
-                    ]}
-                  />
-                  <Text
-                    style={[
-                      styles.urgencyLabel,
-                      urgency === u.id && { fontWeight: '600' },
-                    ]}
-                  >
-                    {u.label}
+                    {t.label}
                   </Text>
                 </TouchableOpacity>
               ))}
             </View>
+          </View>
+
+          {/* Item Type Selection */}
+          <View style={styles.formGroup}>
+            <Text style={styles.label}>Thiết bị cần {type.toLowerCase()} *</Text>
+            {fetchingDevices ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="small" color="#3B82F6" />
+                <Text style={styles.loadingText}>Đang tải danh sách thiết bị...</Text>
+              </View>
+            ) : devices.length === 0 ? (
+              <View style={styles.emptyContainer}>
+                <MaterialCommunityIcons name="alert-circle-outline" size={24} color="#9CA3AF" />
+                <Text style={styles.emptyText}>Không có thiết bị nào</Text>
+              </View>
+            ) : (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.itemTypeScroll}
+              >
+                {devices.map((item) => (
+                  <TouchableOpacity
+                    key={item.id}
+                    style={[
+                      styles.itemTypeButton,
+                      itemType === item.id && styles.itemTypeButtonSelected,
+                    ]}
+                    onPress={() => {
+                      console.log('Selected device:', { id: item.id, label: item.label });
+                      setItemType(item.id); // Store device ID, not name
+                    }}
+                  >
+                    <MaterialCommunityIcons
+                      name={item.icon}
+                      size={24}
+                      color={
+                        itemType === item.id ? '#3B82F6' : '#9CA3AF'
+                      }
+                    />
+                    <Text
+                      style={[
+                        styles.itemTypeLabel,
+                        itemType === item.id && styles.itemTypeLabelSelected,
+                      ]}
+                    >
+                      {item.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            )}
+          </View>
+
+          {/* Description Input */}
+          <View style={styles.formGroup}>
+            <Text style={styles.label}>Mô tả chi tiết * (tối thiểu 10 ký tự)</Text>
+            <TextInput
+              style={[styles.input, styles.textArea]}
+              placeholder="Mô tả chi tiết vấn đề:\n- Tình trạng hiện tại (hỏng, rò rỉ, không hoạt động...)\n- Thời gian bắt đầu xảy ra\n- Mức độ ảnh hưởng\n- Các triệu chứng khác"
+              placeholderTextColor="#9CA3AF"
+              value={description}
+              onChangeText={setDescription}
+              multiline
+              numberOfLines={6}
+              maxLength={1000}
+              textAlignVertical="top"
+            />
+            <Text style={styles.charCount}>{description.length}/1000</Text>
+          </View>
+
+          {/* Images Section */}
+          <View style={styles.formGroup}>
+            <Text style={styles.label}>Hình ảnh (tùy chọn)</Text>
+            
+            {images.length > 0 && (
+              <ScrollView 
+                horizontal 
+                showsHorizontalScrollIndicator={false}
+                style={styles.imagePreviewContainer}
+              >
+                {images.map((uri, index) => (
+                  <View key={index} style={styles.imagePreviewWrapper}>
+                    <Image source={{ uri }} style={styles.imagePreview} />
+                    <TouchableOpacity
+                      style={styles.removeImageButton}
+                      onPress={() => removeImage(index)}
+                    >
+                      <MaterialCommunityIcons name="close-circle" size={24} color="#EF4444" />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </ScrollView>
+            )}
+            
+            <TouchableOpacity
+              style={styles.imagePickerButton}
+              onPress={showImageOptions}
+            >
+              <MaterialCommunityIcons name="camera-plus" size={32} color="#9CA3AF" />
+              <Text style={styles.imagePickerText}>Thêm hình ảnh</Text>
+              <Text style={styles.imagePickerSubtext}>
+                Hình ảnh giúp xác định vấn đề nhanh hơn
+              </Text>
+            </TouchableOpacity>
+            {images.length > 0 && (
+              <Text style={styles.imageCount}>{images.length} ảnh đã chọn</Text>
+            )}
           </View>
 
           {/* Info Box */}
@@ -215,7 +432,7 @@ export default function CreateRepairRequestScreen({ navigation }) {
               color="#3B82F6"
             />
             <Text style={styles.infoText}>
-              Các vấn đề khẩn cấp sẽ được ưu tiên xử lý trong vòng 24 giờ.
+              Yêu cầu sẽ được xử lý trong vòng 24-48 giờ. Chi phí (nếu có) sẽ được thông báo sau khi kiểm tra.
             </Text>
           </View>
         </View>
@@ -229,7 +446,16 @@ export default function CreateRepairRequestScreen({ navigation }) {
           disabled={loading}
         >
           {loading ? (
-            <ActivityIndicator color="#FFFFFF" size="small" />
+            <View style={styles.loadingContent}>
+              <ActivityIndicator color="#FFFFFF" size="small" />
+              {uploadProgress.total > 0 ? (
+                <Text style={styles.loadingText}>
+                  Đang tải ảnh {uploadProgress.current}/{uploadProgress.total}...
+                </Text>
+              ) : (
+                <Text style={styles.loadingText}>Đang gửi...</Text>
+              )}
+            </View>
           ) : (
             <>
               <MaterialCommunityIcons name="send" size={20} color="#FFFFFF" />
@@ -305,6 +531,36 @@ const styles = StyleSheet.create({
   itemTypeScroll: {
     marginHorizontal: -4,
   },
+  loadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F9FAFB',
+    paddingVertical: 20,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  loadingText: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginLeft: 10,
+  },
+  emptyContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F9FAFB',
+    paddingVertical: 20,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  emptyText: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginLeft: 10,
+  },
   itemTypeButton: {
     alignItems: 'center',
     paddingHorizontal: 12,
@@ -330,31 +586,82 @@ const styles = StyleSheet.create({
     color: '#3B82F6',
     fontWeight: '600',
   },
-  urgencyGrid: {
+  typeGrid: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    gap: 12,
   },
-  urgencyButton: {
+  typeButton: {
     flex: 1,
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: '#E5E7EB',
     borderRadius: 10,
-    paddingVertical: 12,
-    paddingHorizontal: 8,
-    marginHorizontal: 4,
+    paddingVertical: 16,
+    paddingHorizontal: 12,
     alignItems: 'center',
   },
-  urgencyBadge: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    marginBottom: 6,
+  typeButtonSelected: {
+    borderWidth: 2,
+    borderColor: '#3B82F6',
+    backgroundColor: '#DBEAFE',
   },
-  urgencyLabel: {
-    fontSize: 12,
+  typeButtonText: {
+    fontSize: 13,
     color: '#6B7280',
+    marginTop: 8,
     textAlign: 'center',
+  },
+  typeButtonTextSelected: {
+    color: '#3B82F6',
+    fontWeight: '600',
+  },
+  imagePickerButton: {
+    backgroundColor: '#F9FAFB',
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+    borderStyle: 'dashed',
+    borderRadius: 10,
+    paddingVertical: 24,
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  imagePickerText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#6B7280',
+    marginTop: 8,
+  },
+  imagePickerSubtext: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  imagePreviewContainer: {
+    marginBottom: 12,
+  },
+  imagePreviewWrapper: {
+    position: 'relative',
+    marginRight: 12,
+  },
+  imagePreview: {
+    width: 100,
+    height: 100,
+    borderRadius: 10,
+    backgroundColor: '#F3F4F6',
+  },
+  removeImageButton: {
+    position: 'absolute',
+    top: -8,
+    right: -8,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+  },
+  imageCount: {
+    fontSize: 13,
+    color: '#3B82F6',
+    marginTop: 8,
+    fontWeight: '500',
   },
   infoBox: {
     flexDirection: 'row',
@@ -399,6 +706,15 @@ const styles = StyleSheet.create({
   },
   submitButtonDisabled: {
     backgroundColor: '#9CA3AF',
+  },
+  loadingContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  loadingText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    marginLeft: 10,
   },
   submitButtonText: {
     color: '#FFFFFF',

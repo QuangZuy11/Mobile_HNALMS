@@ -14,13 +14,47 @@ import {
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import { getComplaintRequestsAPI } from '../../services/request.service';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { 
+  getAllRequestsAPI, 
+  getComplaintRequestsAPI,
+  getRepairRequestsAPI 
+} from '../../services/request.service';
 
 export default function RequestListScreen({ navigation }) {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedFilter, setSelectedFilter] = useState('all'); // 'all', 'complaint', 'maintenance', 'moving'
+  const [userInfo, setUserInfo] = useState(null);
+
+  // Check user authentication
+  const checkAuth = async () => {
+    try {
+      const token = await AsyncStorage.getItem('authToken');
+      const userDataStr = await AsyncStorage.getItem('userData');
+      
+      console.log('=== Auth Check ===');
+      console.log('Token exists:', !!token);
+      console.log('Token preview:', token ? token.substring(0, 30) + '...' : 'null');
+      
+      if (userDataStr) {
+        const userData = JSON.parse(userDataStr);
+        setUserInfo(userData);
+        console.log('User info:', userData);
+      }
+      
+      if (!token) {
+        Alert.alert('Thông báo', 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
+        return false;
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('Error checking auth:', error);
+      return false;
+    }
+  };
 
   // Format date helper
   const formatDate = (dateString) => {
@@ -59,47 +93,160 @@ export default function RequestListScreen({ navigation }) {
     { id: 'moving', label: 'Chuyển phòng', icon: 'home-move-outline' },
   ];
 
+  // Map request type from API
+  const getRequestType = (request) => {
+    // Check if it's a complaint request (has category field)
+    if (request.category) return 'complaint';
+    
+    // Check if it's a repair/maintenance request (has type field with "Sửa chữa" or "Bảo trì")
+    if (request.type === 'Sửa chữa' || request.type === 'Bảo trì') return 'maintenance';
+    
+    // Check if it's a moving room request
+    if (request.roomId || request.desiredRoomId) return 'moving';
+    
+    return 'unknown';
+  };
+
+  // Format request for display
+  const formatRequest = (item) => {
+    try {
+      if (!item || !item._id) {
+        console.error('Invalid request item:', item);
+        return null;
+      }
+
+      const requestType = getRequestType(item);
+      
+      let title = '';
+      let typeLabel = '';
+      
+      if (requestType === 'complaint') {
+        const content = item.content || '';
+        title = `${item.category || 'Khiếu nại'} - ${content.substring(0, 50)}${content.length > 50 ? '...' : ''}`;
+        typeLabel = 'Khiếu nại';
+      } else if (requestType === 'maintenance') {
+        const deviceName = item.devicesId?.name || item.deviceName || 'Thiết bị';
+        title = `${item.type || 'Yêu cầu'} - ${deviceName}`;
+        typeLabel = 'Sửa chữa/Bảo trì';
+      } else if (requestType === 'moving') {
+        title = `Chuyển phòng - ${item.reason || 'Yêu cầu chuyển phòng'}`;
+        typeLabel = 'Chuyển phòng';
+      } else {
+        title = item.content || item.description || item.reason || 'Yêu cầu';
+        typeLabel = 'Khác';
+      }
+
+      return {
+        id: item._id,
+        type: requestType,
+        typeLabel,
+        title,
+        status: getStatusText(item.status || 'Pending'),
+        createdDate: formatDate(item.createdDate || item.createdAt || new Date()),
+        rawStatus: item.status || 'Pending',
+        priority: item.priority,
+        fullData: item,
+      };
+    } catch (error) {
+      console.error('Error formatting request:', error);
+      console.error('Item causing error:', item);
+      return null;
+    }
+  };
+
   // Load requests from API
   const loadRequests = async (filter = selectedFilter) => {
     try {
       setLoading(true);
-      console.log('Loading requests with filter:', filter);
+      console.log('=== Loading Requests ===');
+      console.log('Filter:', filter);
       
-      // Currently only complaint API is available
-      if (filter === 'all' || filter === 'complaint') {
-        const response = await getComplaintRequestsAPI({ page: 1, limit: 10 });
-      
-      console.log('API Response:', JSON.stringify(response, null, 2));
-      
-        if (response.success && response.data) {
-          console.log('Number of requests:', response.data.data.length);
-          // Map API data to UI format
-          const mappedRequests = response.data.data.map((item) => ({
-            id: item._id,
-            type: 'complaint',
-            title: `${item.category} - ${item.content.substring(0, 50)}${item.content.length > 50 ? '...' : ''}`,
-            status: getStatusText(item.status),
-            createdDate: formatDate(item.createdDate),
-            rawStatus: item.status,
-            category: item.category,
-            priority: item.priority,
-            fullContent: item.content,
-          }));
-          setRequests(mappedRequests);
-        } else {
-          console.error('API response not successful or no data');
-        }
-      } else if (filter === 'maintenance') {
-        // TODO: Add maintenance API when available
-        console.log('Maintenance API not yet implemented');
+      // Check authentication first
+      const isAuthenticated = await checkAuth();
+      if (!isAuthenticated) {
+        setLoading(false);
         setRequests([]);
+        return;
+      }
+      
+      let response;
+      
+      if (filter === 'all') {
+        // Get all requests
+        console.log('Calling getAllRequestsAPI...');
+        response = await getAllRequestsAPI({ page: 1, limit: 50 });
+      } else if (filter === 'complaint') {
+        // Get complaint requests only
+        console.log('Calling getComplaintRequestsAPI...');
+        response = await getComplaintRequestsAPI({ page: 1, limit: 50 });
+      } else if (filter === 'maintenance') {
+        // Get repair/maintenance requests only
+        console.log('Calling getRepairRequestsAPI...');
+        response = await getRepairRequestsAPI({ page: 1, limit: 50 });
       } else if (filter === 'moving') {
-        // TODO: Add moving room API when available
-        console.log('Moving room API not yet implemented');
+        // For now, get all and filter moving requests
+        console.log('Calling getAllRequestsAPI for moving...');
+        response = await getAllRequestsAPI({ page: 1, limit: 50 });
+      }
+      
+      console.log('=== API Response Structure ===');
+      console.log('Response:', JSON.stringify(response, null, 2));
+      console.log('Response.success:', response?.success);
+      console.log('Response.data type:', typeof response?.data);
+      console.log('Response.data:', response?.data);
+      
+      if (response && response.success) {
+        // Try multiple possible data structures
+        let rawData = [];
+        
+        if (Array.isArray(response.data)) {
+          // Case 1: response.data is directly an array
+          rawData = response.data;
+          console.log('Data structure: response.data is array');
+        } else if (response.data?.data && Array.isArray(response.data.data)) {
+          // Case 2: response.data.data is an array
+          rawData = response.data.data;
+          console.log('Data structure: response.data.data is array');
+        } else if (response.data?.requests && Array.isArray(response.data.requests)) {
+          // Case 3: response.data.requests is an array
+          rawData = response.data.requests;
+          console.log('Data structure: response.data.requests is array');
+        } else if (response.data?.list && Array.isArray(response.data.list)) {
+          // Case 4: response.data.list is an array
+          rawData = response.data.list;
+          console.log('Data structure: response.data.list is array');
+        } else {
+          console.error('Unknown data structure:', response.data);
+          rawData = [];
+        }
+        
+        console.log('Total requests found:', rawData.length);
+        
+        if (rawData.length > 0) {
+          console.log('First request sample:', JSON.stringify(rawData[0], null, 2));
+        }
+        
+        // Map API data to UI format
+        let mappedRequests = rawData
+          .map(formatRequest)
+          .filter(req => req !== null); // Filter out any failed formats
+        
+        // Apply additional filter if needed
+        if (filter === 'moving') {
+          mappedRequests = mappedRequests.filter(req => req.type === 'moving');
+          console.log('Filtered moving requests:', mappedRequests.length);
+        }
+        
+        console.log('Final mapped requests:', mappedRequests.length);
+        console.log('=== Load Requests Complete ===');
+        setRequests(mappedRequests);
+      } else {
+        console.error('API response not successful or no response');
+        console.error('Response success:', response?.success);
         setRequests([]);
       }
     } catch (error) {
-      console.error('Error loading requests:', error);
+      console.log('Error loading requests:', error);
       console.error('Error details:', {
         message: error.message,
         status: error.status,
@@ -114,13 +261,17 @@ export default function RequestListScreen({ navigation }) {
         errorMessage = 'Bạn không có quyền xem danh sách yêu cầu';
       } else if (error.status === 401) {
         errorMessage = 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại';
-      } else if (error.isNetworkError) {
-        errorMessage = 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối internet';
+      } else if (error.isNetworkError || error.message?.includes('Network')) {
+        errorMessage = 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra:\n- Backend đã chạy chưa?\n- Kết nối internet';
       } else if (error.message) {
         errorMessage = error.message;
       }
       
+      console.error('=== Error Summary ===');
+      console.error('Message to show user:', errorMessage);
+      
       Alert.alert('Lỗi', errorMessage);
+      setRequests([]);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -296,15 +447,18 @@ export default function RequestListScreen({ navigation }) {
                 color="#D1D5DB"
               />
               <Text style={styles.emptyStateText}>
-                {selectedFilter === 'maintenance' || selectedFilter === 'moving'
-                  ? 'API cho loại yêu cầu này đang được phát triển'
-                  : 'Chưa có yêu cầu nào'}
+                Bạn chưa có yêu cầu nào
               </Text>
               <Text style={styles.emptyStateSubtext}>
-                {selectedFilter === 'maintenance' || selectedFilter === 'moving'
-                  ? 'Vui lòng quay lại sau'
-                  : 'Tạo yêu cầu mới từ phía trên'}
+                {selectedFilter === 'all' 
+                  ? 'Tạo yêu cầu mới từ các tùy chọn phía trên'
+                  : `Bạn chưa có yêu cầu ${filterOptions.find(f => f.id === selectedFilter)?.label.toLowerCase()} nào`}
               </Text>
+              {userInfo && (
+                <Text style={styles.emptyStateSubtext}>
+                  Đăng nhập với: {userInfo.email || userInfo.username || userInfo.phone}
+                </Text>
+              )}
             </View>
           ) : (
             <FlatList
@@ -315,9 +469,48 @@ export default function RequestListScreen({ navigation }) {
                 <TouchableOpacity
                   style={styles.requestItem}
                   onPress={() => {
-                    navigation.navigate('RequestDetail', { requestId: item.id });
+                    navigation.navigate('RequestDetail', { 
+                      requestId: item.id,
+                      requestType: item.type 
+                    });
                   }}
                 >
+                  <View style={styles.requestItemHeader}>
+                    <View style={[
+                      styles.requestTypeBadge,
+                      {
+                        backgroundColor: 
+                          item.type === 'complaint' ? '#FEE2E2' :
+                          item.type === 'maintenance' ? '#DBEAFE' :
+                          item.type === 'moving' ? '#FEF3C7' : '#F3F4F6'
+                      }
+                    ]}>
+                      <MaterialCommunityIcons
+                        name={
+                          item.type === 'complaint' ? 'alert-circle' :
+                          item.type === 'maintenance' ? 'tools' :
+                          item.type === 'moving' ? 'home-move-outline' : 'file-document'
+                        }
+                        size={14}
+                        color={
+                          item.type === 'complaint' ? '#EF4444' :
+                          item.type === 'maintenance' ? '#3B82F6' :
+                          item.type === 'moving' ? '#F59E0B' : '#6B7280'
+                        }
+                      />
+                      <Text style={[
+                        styles.requestTypeBadgeText,
+                        {
+                          color: 
+                            item.type === 'complaint' ? '#EF4444' :
+                            item.type === 'maintenance' ? '#3B82F6' :
+                            item.type === 'moving' ? '#F59E0B' : '#6B7280'
+                        }
+                      ]}>
+                        {item.typeLabel}
+                      </Text>
+                    </View>
+                  </View>
                   <View style={styles.requestItemContent}>
                     <Text style={styles.requestItemTitle}>
                       {item.title}
@@ -478,17 +671,32 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 16,
     marginBottom: 12,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
     elevation: 1,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 3,
   },
+  requestItemHeader: {
+    marginBottom: 8,
+  },
+  requestTypeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    gap: 4,
+  },
+  requestTypeBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    marginLeft: 4,
+  },
   requestItemContent: {
     flex: 1,
+    marginBottom: 8,
   },
   requestItemTitle: {
     fontSize: 14,
@@ -504,7 +712,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     paddingHorizontal: 12,
     borderRadius: 8,
-    marginLeft: 12,
+    alignSelf: 'flex-start',
   },
   requestStatusText: {
     fontSize: 12,
