@@ -12,7 +12,7 @@ import MyContractScreen from '../screens/Contract/MyContractScreen';
 
 // Request Screens
 import RequestListScreen from '../screens/Request/RequestListScreen';
-import CreateMaintenanceRequestScreen from '../screens/Request/CreateMaintenanceRequestScreen';
+import CreateRepairRequestScreen from '../screens/Request/CreateRepairRequestScreen';
 import CreateComplaintRequestScreen from '../screens/Request/CreateComplaintRequestScreen';
 import CreateMovingRoomRequestScreen from '../screens/Request/CreateMovingRoomRequestScreen';
 import RequestDetailScreen from '../screens/Request/RequestDetailScreen';
@@ -84,7 +84,7 @@ function HomeStack() {
       />
       <Stack.Screen
         name="CreateMaintenanceRequest"
-        component={CreateMaintenanceRequestScreen}
+        component={CreateRepairRequestScreen}
         options={{
           title: 'Yêu cầu sửa chữa/Bảo trì',
         }}
