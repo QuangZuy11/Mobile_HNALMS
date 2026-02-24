@@ -90,7 +90,202 @@ export const getComplaintRequestsAPI = async (filters = {}) => {
       response: error.response?.data,
     });
     
+    // Add network error flag
+    if (error.message?.includes('Network request failed') || 
+        error.message?.includes('Failed to fetch') ||
+        error.code === 'ECONNREFUSED') {
+      error.isNetworkError = true;
+    }
+    
     // Handle 403 specifically
+    if (error.status === 403 || error.response?.status === 403) {
+      throw new Error('Bạn không có quyền truy cập danh sách yêu cầu');
+    }
+    
+    throw error;
+  }
+};
+
+/**
+ * Get all requests (complaint, repair, moving room)
+ * Since backend doesn't have a single endpoint for all requests,
+ * we fetch from multiple endpoints and merge results
+ * @param {Object} filters - Filter parameters
+ * @param {string} filters.status - Status filter: "Pending", "Processing", "Done"
+ * @param {string} filters.type - Request type filter
+ * @param {number} filters.page - Page number (default: 1)
+ * @param {number} filters.limit - Items per page (default: 10)
+ * @returns {Promise} - Response with requests list and pagination
+ */
+export const getAllRequestsAPI = async (filters = {}) => {
+  try {
+    const token = await AsyncStorage.getItem('authToken');
+    
+    console.log('Getting all requests (merging from multiple endpoints)');
+    console.log('Token exists:', !!token);
+    
+    if (!token) {
+      throw new Error('Vui lòng đăng nhập để tiếp tục');
+    }
+    
+    // Fetch from both complaint and repair endpoints
+    const [complaintsResponse, repairsResponse] = await Promise.allSettled([
+      getComplaintRequestsAPI(filters),
+      getRepairRequestsAPI(filters),
+    ]);
+    
+    console.log('Complaints response:', complaintsResponse.status);
+    console.log('Repairs response:', repairsResponse.status);
+    
+    // Merge results
+    let allRequests = [];
+    
+    if (complaintsResponse.status === 'fulfilled' && complaintsResponse.value?.success) {
+      const complaints = complaintsResponse.value.data?.data || complaintsResponse.value.data || [];
+      allRequests = allRequests.concat(complaints);
+      console.log('Complaints count:', complaints.length);
+    }
+    
+    if (repairsResponse.status === 'fulfilled' && repairsResponse.value?.success) {
+      const repairs = repairsResponse.value.data?.data || repairsResponse.value.data || [];
+      allRequests = allRequests.concat(repairs);
+      console.log('Repairs count:', repairs.length);
+    }
+    
+    console.log('Total merged requests:', allRequests.length);
+    
+    // Return in same format as other APIs
+    return {
+      success: true,
+      data: allRequests,
+    };
+  } catch (error) {
+    console.error('API Error in getAllRequestsAPI:', {
+      message: error.message,
+      status: error.status,
+      response: error.response?.data,
+    });
+    
+    // Add network error flag
+    if (error.message?.includes('Network request failed') || 
+        error.message?.includes('Failed to fetch') ||
+        error.code === 'ECONNREFUSED') {
+      error.isNetworkError = true;
+    }
+    
+    if (error.status === 403 || error.response?.status === 403) {
+      throw new Error('Bạn không có quyền truy cập danh sách yêu cầu');
+    }
+    
+    throw error;
+  }
+};
+
+/**
+ * Get repair/maintenance request detail
+ * GET /api/requests/repair/:id
+ * @param {string} id - Repair request ID
+ * @returns {Promise} - Response with repair request details
+ */
+export const getRepairRequestDetailAPI = async (id) => {
+  try {
+    const token = await AsyncStorage.getItem('authToken');
+    
+    console.log('Getting repair request detail for ID:', id);
+    console.log('Token exists:', !!token);
+    
+    if (!token) {
+      throw new Error('Vui lòng đăng nhập để tiếp tục');
+    }
+    
+    const endpoint = `${API_CONFIG.ENDPOINTS.REQUEST.CREATE_REPAIR}/${id}`;
+    console.log('Request endpoint:', endpoint);
+    
+    const response = await apiClient.get(
+      endpoint,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+    
+    console.log('Response status:', response.status);
+    return response.data;
+  } catch (error) {
+    console.error('API Error in getRepairRequestDetailAPI:', {
+      message: error.message,
+      status: error.status,
+      response: error.response?.data,
+    });
+    
+    // Handle 403 specifically
+    if (error.status === 403 || error.response?.status === 403) {
+      throw new Error('Bạn không có quyền xem yêu cầu này');
+    } else if (error.status === 404 || error.response?.status === 404) {
+      throw new Error('Không tìm thấy yêu cầu');
+    }
+    
+    throw error;
+  }
+};
+
+/**
+ * Get repair/maintenance requests (user's own requests)
+ * GET /api/requests/repair/my-requests
+ * @param {Object} filters - Filter parameters
+ * @param {string} filters.status - Status filter: "Pending", "Processing", "Done"
+ * @param {string} filters.type - Type filter: "Sửa chữa", "Bảo trì"
+ * @param {number} filters.page - Page number (default: 1)
+ * @param {number} filters.limit - Items per page (default: 10)
+ * @returns {Promise} - Response with repair requests list and pagination
+ */
+export const getRepairRequestsAPI = async (filters = {}) => {
+  try {
+    const token = await AsyncStorage.getItem('authToken');
+    
+    console.log('Getting repair requests (my requests)');
+    console.log('Token exists:', !!token);
+    
+    if (!token) {
+      throw new Error('Vui lòng đăng nhập để tiếp tục');
+    }
+    
+    // Build query string
+    const queryParams = new URLSearchParams();
+    if (filters.status) queryParams.append('status', filters.status);
+    if (filters.type) queryParams.append('type', filters.type);
+    if (filters.page) queryParams.append('page', filters.page);
+    if (filters.limit) queryParams.append('limit', filters.limit);
+    
+    const endpoint = `${API_CONFIG.ENDPOINTS.REQUEST.MY_REPAIRS}${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
+    console.log('Request endpoint:', endpoint);
+    
+    const response = await apiClient.get(
+      endpoint,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+    
+    console.log('Response status:', response.status);
+    return response.data;
+  } catch (error) {
+    console.error('API Error in getRepairRequestsAPI:', {
+      message: error.message,
+      status: error.status,
+      response: error.response?.data,
+    });
+    
+    // Add network error flag
+    if (error.message?.includes('Network request failed') || 
+        error.message?.includes('Failed to fetch') ||
+        error.code === 'ECONNREFUSED') {
+      error.isNetworkError = true;
+    }
+    
     if (error.status === 403 || error.response?.status === 403) {
       throw new Error('Bạn không có quyền truy cập danh sách yêu cầu');
     }
@@ -201,6 +396,122 @@ export const updateComplaintRequestAPI = async (id, updateData) => {
       throw new Error('Bạn không có quyền cập nhật yêu cầu này');
     } else if (error.status === 400 || error.response?.status === 400) {
       throw new Error(error.response?.data?.message || 'Dữ liệu không hợp lệ');
+    }
+    
+    throw error;
+  }
+};
+
+/**
+ * Create a repair/maintenance request
+ * POST /api/requests/repair
+ * @param {Object} repairData - Repair request data
+ * @param {string} repairData.devicesId - Device/Item ID that needs repair
+ * @param {string} repairData.type - Type of repair needed
+ * @param {string} repairData.description - Description of the issue
+ * @param {Array} repairData.images - Optional array of image URLs
+ * @returns {Promise} - Response with created repair request data
+ */
+export const createRepairRequestAPI = async (repairData) => {
+  try {
+    const token = await AsyncStorage.getItem('authToken');
+    
+    console.log('Creating repair request with data:', repairData);
+    console.log('Token exists:', !!token);
+    
+    if (!token) {
+      throw new Error('Vui lòng đăng nhập để tiếp tục');
+    }
+    
+    const response = await apiClient.post(
+      API_CONFIG.ENDPOINTS.REQUEST.CREATE_REPAIR,
+      repairData,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+    
+    console.log('Response status:', response.status);
+    
+    // Check if response is successful
+    if (!response.data.success) {
+      throw new Error(response.data.message || 'Không thể tạo yêu cầu sửa chữa/bảo trì');
+    }
+    
+    return response.data;
+  } catch (error) {
+    console.error('API Error in createRepairRequestAPI:', {
+      message: error.message,
+      status: error.status,
+      response: error.response?.data,
+    });
+    
+    // Handle specific errors
+    if (error.status === 401 || error.response?.status === 401) {
+      throw new Error('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại');
+    } else if (error.status === 404 || error.response?.status === 404) {
+      throw new Error(error.response?.data?.message || 'Không tìm thấy thiết bị');
+    } else if (error.status === 400 || error.response?.status === 400) {
+      throw new Error(error.response?.data?.message || 'Dữ liệu không hợp lệ');
+    }
+    
+    throw new Error(error.response?.data?.message || error.message || 'Có lỗi xảy ra. Vui lòng thử lại');
+  }
+};
+
+/**
+ * Delete a repair/maintenance request
+ * DELETE /api/requests/repair/:id
+ * Only owner can delete, and only if status is Pending
+ * @param {string} id - Repair request ID
+ * @returns {Promise} - Response with success status
+ */
+export const deleteRepairRequestAPI = async (id) => {
+  try {
+    const token = await AsyncStorage.getItem('authToken');
+    
+    console.log('Deleting repair request ID:', id);
+    console.log('Token exists:', !!token);
+    
+    if (!token) {
+      throw new Error('Vui lòng đăng nhập để tiếp tục');
+    }
+    
+    const endpoint = `${API_CONFIG.ENDPOINTS.REQUEST.CREATE_REPAIR}/${id}`;
+    console.log('Request endpoint:', endpoint);
+    
+    const response = await apiClient.delete(
+      endpoint,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+    
+    console.log('Response status:', response.status);
+    
+    if (!response.data.success) {
+      throw new Error(response.data.message || 'Không thể xóa yêu cầu');
+    }
+    
+    return response.data;
+  } catch (error) {
+    console.error('API Error in deleteRepairRequestAPI:', {
+      message: error.message,
+      status: error.status,
+      response: error.response?.data,
+    });
+    
+    // Handle specific errors
+    if (error.status === 403 || error.response?.status === 403) {
+      throw new Error('Bạn không có quyền xóa yêu cầu này hoặc yêu cầu đã được xử lý');
+    } else if (error.status === 404 || error.response?.status === 404) {
+      throw new Error('Không tìm thấy yêu cầu');
+    } else if (error.status === 400 || error.response?.status === 400) {
+      throw new Error(error.response?.data?.message || 'Không thể xóa yêu cầu này');
     }
     
     throw error;
