@@ -10,6 +10,8 @@ import {
   Alert,
   ActivityIndicator,
   RefreshControl,
+  Modal,
+  Platform,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
@@ -17,7 +19,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { 
   getAllRequestsAPI, 
   getComplaintRequestsAPI,
-  getRepairRequestsAPI 
+  getRepairRequestsAPI,
+  getMyTransferRequestsAPI,
+  getComplaintRequestDetailAPI,
+  getRepairRequestDetailAPI,
 } from '../../services/request.service';
 
 export default function RequestListScreen({ navigation }) {
@@ -26,6 +31,12 @@ export default function RequestListScreen({ navigation }) {
   const [refreshing, setRefreshing] = useState(false);
   const [selectedFilter, setSelectedFilter] = useState('all');
   const [userInfo, setUserInfo] = useState(null);
+
+  // Detail modal state
+  const [showDetailModal, setShowDetailModal] = useState(false);
+  const [detailItem, setDetailItem] = useState(null);   // formatted item from list
+  const [detailData, setDetailData] = useState(null);   // full API detail response
+  const [loadingDetail, setLoadingDetail] = useState(false);
 
   // Check user authentication
   const checkAuth = async () => {
@@ -73,14 +84,26 @@ export default function RequestListScreen({ navigation }) {
   // Map status from API to Vietnamese
   const getStatusText = (status) => {
     switch (status) {
-      case 'Pending':
-        return 'Chờ xử lý';
-      case 'Processing':
-        return 'Đang xử lý';
-      case 'Done':
-        return 'Hoàn thành';
-      default:
-        return status;
+      case 'Pending':    return 'Chờ xử lý';
+      case 'Processing': return 'Đang xử lý';
+      case 'Done':       return 'Hoàn thành';
+      case 'Approved':   return 'Đã duyệt';
+      case 'Rejected':   return 'Từ chối';
+      case 'Cancelled':  return 'Đã hủy';
+      default:           return status || 'Chờ xử lý';
+    }
+  };
+
+  // Map status to colour
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'Hoàn thành':
+      case 'Đã duyệt':  return { bg: '#D1FAE5', text: '#10B981' };
+      case 'Chờ xử lý': return { bg: '#FEF3C7', text: '#F59E0B' };
+      case 'Đang xử lý': return { bg: '#DBEAFE', text: '#3B82F6' };
+      case 'Từ chối':
+      case 'Đã hủy':    return { bg: '#FEE2E2', text: '#EF4444' };
+      default:           return { bg: '#F3F4F6', text: '#6B7280' };
     }
   };
 
@@ -94,15 +117,14 @@ export default function RequestListScreen({ navigation }) {
 
   // Map request type from API
   const getRequestType = (request) => {
-    // Check if it's a complaint request (has category field)
+    // Transfer room request — has targetRoomId
+    if (request.targetRoomId !== undefined) return 'moving';
+    // Complaint — has category
     if (request.category) return 'complaint';
-    
-    // Check if it's a repair/maintenance request (has type field with "Sửa chữa" or "Bảo trì")
+    // Repair / maintenance
     if (request.type === 'Sửa chữa' || request.type === 'Bảo trì') return 'maintenance';
-    
-    // Check if it's a moving room request
+    // Legacy moving
     if (request.roomId || request.desiredRoomId) return 'moving';
-    
     return 'unknown';
   };
 
@@ -128,7 +150,13 @@ export default function RequestListScreen({ navigation }) {
         title = `${item.type || 'Yêu cầu'} - ${deviceName}`;
         typeLabel = 'Sửa chữa/Bảo trì';
       } else if (requestType === 'moving') {
-        title = `Chuyển phòng - ${item.reason || 'Yêu cầu chuyển phòng'}`;
+        const targetName =
+          item.targetRoomId?.name ||
+          item.targetRoomId?.roomCode ||
+          item.desiredRoomId?.name ||
+          'Phòng đích';
+        const reasonShort = (item.reason || '').substring(0, 40);
+        title = `Chuyển sang ${targetName}${reasonShort ? ` - ${reasonShort}` : ''}`;
         typeLabel = 'Chuyển phòng';
       } else {
         title = item.content || item.description || item.reason || 'Yêu cầu';
@@ -153,6 +181,61 @@ export default function RequestListScreen({ navigation }) {
     }
   };
 
+  // ─── Detail modal helpers ──────────────────────────────────────────────────
+  const getDetailStatusInfo = (status) => {
+    switch (status) {
+      case 'Pending':    return { label: 'Chờ xử lý',  color: '#F59E0B', bg: '#FEF3C7', icon: 'clock-outline' };
+      case 'Processing': return { label: 'Đang xử lý', color: '#3B82F6', bg: '#DBEAFE', icon: 'cog' };
+      case 'Done':       return { label: 'Hoàn thành', color: '#10B981', bg: '#D1FAE5', icon: 'check-circle' };
+      case 'Approved':   return { label: 'Đã duyệt',   color: '#10B981', bg: '#D1FAE5', icon: 'check-circle' };
+      case 'Rejected':   return { label: 'Từ chối',    color: '#EF4444', bg: '#FEE2E2', icon: 'close-circle' };
+      case 'Cancelled':  return { label: 'Đã hủy',     color: '#EF4444', bg: '#FEE2E2', icon: 'cancel' };
+      default:           return { label: status || 'Không xác định', color: '#6B7280', bg: '#F3F4F6', icon: 'help-circle' };
+    }
+  };
+
+  const openDetail = async (item) => {
+    setDetailItem(item);
+    setDetailData(null);
+    setShowDetailModal(true);
+    setLoadingDetail(true);
+    try {
+      if (item.type === 'complaint') {
+        const res = await getComplaintRequestDetailAPI(item.id);
+        if (res?.success && res?.data) setDetailData(res.data);
+      } else if (item.type === 'maintenance') {
+        const res = await getRepairRequestDetailAPI(item.id);
+        if (res?.success && res?.data) setDetailData(res.data);
+      } else {
+        // transfer — fullData from list is sufficient
+        setDetailData(item.fullData);
+      }
+    } catch (e) {
+      // fallback to list data
+      setDetailData(item.fullData);
+    } finally {
+      setLoadingDetail(false);
+    }
+  };
+
+  const closeDetail = () => {
+    setShowDetailModal(false);
+    setDetailItem(null);
+    setDetailData(null);
+  };
+
+  // Render detail row helper
+  const DetailRow = ({ icon, label, value, valueColor }) => (
+    <View style={styles.detailRow}>
+      <MaterialCommunityIcons name={icon} size={18} color="#3B82F6" style={{ marginTop: 1 }} />
+      <View style={styles.detailRowContent}>
+        <Text style={styles.detailRowLabel}>{label}</Text>
+        <Text style={[styles.detailRowValue, valueColor && { color: valueColor }]}>{value}</Text>
+      </View>
+    </View>
+  );
+  // ─────────────────────────────────────────────────────────────────────────────
+
   // Load requests from API (initial or refresh)
   const loadRequests = async (filter = selectedFilter) => {
     try {
@@ -165,50 +248,56 @@ export default function RequestListScreen({ navigation }) {
         return;
       }
       
-      let response;
-      
-      if (filter === 'all') {
-        response = await getAllRequestsAPI({ page: 1, limit: 200 });
+      // Helper to extract array from various API response shapes
+      const extractArray = (res) => {
+        if (!res || !res.success) return [];
+        const d = res.data;
+        if (Array.isArray(d)) return d;
+        if (d?.data && Array.isArray(d.data)) return d.data;
+        if (d?.requests && Array.isArray(d.requests)) return d.requests;
+        if (d?.list && Array.isArray(d.list)) return d.list;
+        return [];
+      };
+
+      let rawData = [];
+
+      if (filter === 'moving') {
+        // Only fetch transfer room requests
+        const transferRes = await getMyTransferRequestsAPI();
+        rawData = extractArray(transferRes);
       } else if (filter === 'complaint') {
-        response = await getComplaintRequestsAPI({ page: 1, limit: 200 });
+        const res = await getComplaintRequestsAPI({ page: 1, limit: 200 });
+        rawData = extractArray(res);
       } else if (filter === 'maintenance') {
-        response = await getRepairRequestsAPI({ page: 1, limit: 200 });
-      } else if (filter === 'moving') {
-        response = await getAllRequestsAPI({ page: 1, limit: 200 });
-      }
-      
-      if (response && response.success) {
-        let rawData = [];
-        
-        if (Array.isArray(response.data)) {
-          rawData = response.data;
-        } else if (response.data?.data && Array.isArray(response.data.data)) {
-          rawData = response.data.data;
-        } else if (response.data?.requests && Array.isArray(response.data.requests)) {
-          rawData = response.data.requests;
-        } else if (response.data?.list && Array.isArray(response.data.list)) {
-          rawData = response.data.list;
-        }
-        
-        let mappedRequests = rawData
-          .map(formatRequest)
-          .filter(req => req !== null);
-        
-        if (filter === 'moving') {
-          mappedRequests = mappedRequests.filter(req => req.type === 'moving');
-        }
-
-        // Sort by date descending
-        mappedRequests.sort((a, b) => {
-          const dateA = new Date(a.fullData?.createdDate || a.fullData?.createdAt || 0);
-          const dateB = new Date(b.fullData?.createdDate || b.fullData?.createdAt || 0);
-          return dateB - dateA;
-        });
-
-        setRequests(mappedRequests);
+        const res = await getRepairRequestsAPI({ page: 1, limit: 200 });
+        rawData = extractArray(res);
       } else {
-        setRequests([]);
+        // 'all': merge general requests + transfer requests
+        const [generalRes, transferRes] = await Promise.all([
+          getAllRequestsAPI({ page: 1, limit: 200 }),
+          getMyTransferRequestsAPI(),
+        ]);
+        const generalData = extractArray(generalRes);
+        const transferData = extractArray(transferRes);
+        // Deduplicate by _id
+        const seen = new Set(generalData.map((r) => r._id));
+        const merged = [...generalData];
+        transferData.forEach((r) => { if (!seen.has(r._id)) merged.push(r); });
+        rawData = merged;
       }
+
+      let mappedRequests = rawData
+        .map(formatRequest)
+        .filter((req) => req !== null);
+
+      // Sort by date descending
+      mappedRequests.sort((a, b) => {
+        const dateA = new Date(a.fullData?.createdDate || a.fullData?.createdAt || 0);
+        const dateB = new Date(b.fullData?.createdDate || b.fullData?.createdAt || 0);
+        return dateB - dateA;
+      });
+
+      setRequests(mappedRequests);
     } catch (error) {
       console.error('Error loading requests:', error);
       
@@ -414,12 +503,7 @@ export default function RequestListScreen({ navigation }) {
               renderItem={({ item }) => (
                 <TouchableOpacity
                   style={styles.requestItem}
-                  onPress={() => {
-                    navigation.navigate('RequestDetail', {
-                      requestId: item.id,
-                      requestType: item.type,
-                    });
-                  }}
+                  onPress={() => openDetail(item)}
                 >
                   <View style={styles.requestItemHeader}>
                     <View style={[
@@ -464,23 +548,13 @@ export default function RequestListScreen({ navigation }) {
                   <View
                     style={[
                       styles.requestStatus,
-                      {
-                        backgroundColor:
-                          item.status === 'Hoàn thành' ? '#D1FAE5' :
-                          item.status === 'Chờ xử lý' ? '#FEF3C7' :
-                          item.status === 'Đang xử lý' ? '#DBEAFE' : '#FEE2E2',
-                      },
+                      { backgroundColor: getStatusColor(item.status).bg },
                     ]}
                   >
                     <Text
                       style={[
                         styles.requestStatusText,
-                        {
-                          color:
-                            item.status === 'Hoàn thành' ? '#10B981' :
-                            item.status === 'Chờ xử lý' ? '#F59E0B' :
-                            item.status === 'Đang xử lý' ? '#3B82F6' : '#EF4444',
-                        },
+                        { color: getStatusColor(item.status).text },
                       ]}
                     >
                       {item.status}
@@ -492,6 +566,156 @@ export default function RequestListScreen({ navigation }) {
           )}
         </View>
       </ScrollView>
+
+      {/* ───── Detail Modal ─────────────────────────────────────────────────── */}
+      <Modal
+        visible={showDetailModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={closeDetail}
+      >
+        <SafeAreaView style={styles.detailModalSafe}>
+          {/* Modal header */}
+          <View style={styles.detailModalHeader}>
+            <Text style={styles.detailModalTitle}>Chi tiết yêu cầu</Text>
+            <TouchableOpacity onPress={closeDetail} style={styles.detailModalClose}>
+              <MaterialCommunityIcons name="close" size={24} color="#1F2937" />
+            </TouchableOpacity>
+          </View>
+
+          {loadingDetail ? (
+            <View style={styles.detailCenter}>
+              <ActivityIndicator size="large" color="#3B82F6" />
+              <Text style={styles.detailLoadingText}>Đang tải chi tiết...</Text>
+            </View>
+          ) : !detailData && !detailItem ? (
+            <View style={styles.detailCenter}>
+              <MaterialCommunityIcons name="alert-circle-outline" size={48} color="#EF4444" />
+              <Text style={styles.detailErrorText}>Không thể tải dữ liệu</Text>
+            </View>
+          ) : (() => {
+            const data = detailData || detailItem?.fullData || {};
+            const rawStatus = data.status || detailItem?.rawStatus || 'Pending';
+            const si = getDetailStatusInfo(rawStatus);
+            const type = detailItem?.type;
+
+            return (
+              <ScrollView
+                contentContainerStyle={styles.detailScroll}
+                showsVerticalScrollIndicator={false}
+              >
+                {/* Status banner */}
+                <View style={[styles.detailStatusBanner, { backgroundColor: si.bg }]}>
+                  <MaterialCommunityIcons name={si.icon} size={22} color={si.color} />
+                  <Text style={[styles.detailStatusText, { color: si.color }]}>{si.label}</Text>
+                </View>
+
+                {/* Type badge */}
+                <View style={styles.detailSection}>
+                  <Text style={styles.detailSectionTitle}>Thông tin yêu cầu</Text>
+
+                  {/* Common: type */}
+                  <DetailRow
+                    icon={type === 'complaint' ? 'alert-circle' : type === 'maintenance' ? 'tools' : 'home-move-outline'}
+                    label="Loại yêu cầu"
+                    value={detailItem?.typeLabel || 'Yêu cầu'}
+                  />
+
+                  {/* Complaint fields */}
+                  {type === 'complaint' && (
+                    <>
+                      {data.category && <DetailRow icon="tag" label="Loại khiếu nại" value={data.category} />}
+                      {data.priority && <DetailRow icon="flag" label="Ưu tiên" value={data.priority} />}
+                    </>
+                  )}
+
+                  {/* Maintenance/Repair fields */}
+                  {type === 'maintenance' && (
+                    <>
+                      {(data.type) && <DetailRow icon="cog" label="Loại" value={data.type} />}
+                      {(data.devicesId?.name || data.deviceName) && (
+                        <DetailRow icon="devices" label="Thiết bị" value={data.devicesId?.name || data.deviceName} />
+                      )}
+                      {(data.devicesId?.category || data.deviceCategory) && (
+                        <DetailRow icon="shape" label="Phân loại" value={data.devicesId?.category || data.deviceCategory} />
+                      )}
+                    </>
+                  )}
+
+                  {/* Transfer fields */}
+                  {type === 'moving' && (
+                    <>
+                      {(data.targetRoomId?.name || data.targetRoomId?.roomCode) && (
+                        <DetailRow icon="door-open" label="Phòng muốn chuyển đến" value={data.targetRoomId?.name || data.targetRoomId?.roomCode} />
+                      )}
+                      {data.targetRoomId?.floorId?.name && (
+                        <DetailRow icon="layers" label="Tầng" value={data.targetRoomId.floorId.name} />
+                      )}
+                      {data.targetRoomId?.roomTypeId?.typeName && (
+                        <DetailRow icon="home-city" label="Loại phòng" value={data.targetRoomId.roomTypeId.typeName} />
+                      )}
+                      {data.transferDate && (
+                        <DetailRow icon="calendar" label="Ngày chuyển" value={formatDate(data.transferDate)} />
+                      )}
+                    </>
+                  )}
+
+                  {/* Created date */}
+                  <DetailRow
+                    icon="clock-outline"
+                    label="Ngày tạo"
+                    value={formatDate(data.createdDate || data.createdAt)}
+                  />
+                </View>
+
+                {/* Description */}
+                {(data.content || data.description || data.reason) && (
+                  <View style={styles.detailSection}>
+                    <Text style={styles.detailSectionTitle}>
+                      {type === 'moving' ? 'Lý do chuyển phòng' : 'Mô tả'}
+                    </Text>
+                    <View style={styles.detailDescBox}>
+                      <Text style={styles.detailDescText}>
+                        {data.content || data.description || data.reason}
+                      </Text>
+                    </View>
+                  </View>
+                )}
+
+                {/* Manager response (complaint) */}
+                {data.response && (
+                  <View style={styles.detailSection}>
+                    <Text style={styles.detailSectionTitle}>Phản hồi từ quản lý</Text>
+                    <View style={styles.detailResponseBox}>
+                      <View style={styles.detailResponseMeta}>
+                        <MaterialCommunityIcons name="account-tie" size={16} color="#3B82F6" />
+                        <Text style={styles.detailResponseAuthor}>
+                          {data.responseBy?.username || data.responseBy?.email || 'Quản lý'}
+                        </Text>
+                        {data.responseDate && (
+                          <Text style={styles.detailResponseDate}>{formatDate(data.responseDate)}</Text>
+                        )}
+                      </View>
+                      <Text style={styles.detailResponseContent}>{data.response}</Text>
+                    </View>
+                  </View>
+                )}
+
+                {/* Rejection note (transfer) */}
+                {(rawStatus === 'Rejected' || rawStatus === 'Cancelled') && data.note && (
+                  <View style={styles.detailSection}>
+                    <Text style={styles.detailSectionTitle}>Ghi chú</Text>
+                    <View style={styles.detailNoteBox}>
+                      <Text style={styles.detailNoteText}>{data.note}</Text>
+                    </View>
+                  </View>
+                )}
+              </ScrollView>
+            );
+          })()}
+        </SafeAreaView>
+      </Modal>
+      {/* ─────────────────────────────────────────────────────────────────────── */}
     </SafeAreaView>
   );
 }
@@ -719,5 +943,158 @@ const styles = StyleSheet.create({
     color: '#EF4444',
     fontWeight: '600',
   },
+
+  // ─── Detail Modal ────────────────────────────────────────────────────────────
+  detailModalSafe: {
+    flex: 1,
+    backgroundColor: '#F9FAFB',
+  },
+  detailModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  detailModalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1F2937',
+  },
+  detailModalClose: {
+    padding: 4,
+  },
+  detailCenter: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 12,
+  },
+  detailLoadingText: {
+    fontSize: 14,
+    color: '#6B7280',
+  },
+  detailErrorText: {
+    fontSize: 15,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
+  detailScroll: {
+    paddingBottom: Platform.OS === 'ios' ? 40 : 24,
+  },
+  detailStatusBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 16,
+    marginHorizontal: 16,
+    marginTop: 16,
+    marginBottom: 4,
+    borderRadius: 12,
+  },
+  detailStatusText: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  detailSection: {
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 16,
+    marginTop: 12,
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    elevation: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+  },
+  detailSectionTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1F2937',
+    marginBottom: 12,
+  },
+  detailRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingVertical: 9,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+    gap: 10,
+  },
+  detailRowContent: {
+    flex: 1,
+  },
+  detailRowLabel: {
+    fontSize: 11,
+    color: '#9CA3AF',
+    marginBottom: 2,
+  },
+  detailRowValue: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#1F2937',
+  },
+  detailDescBox: {
+    backgroundColor: '#F9FAFB',
+    borderLeftWidth: 3,
+    borderLeftColor: '#3B82F6',
+    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+  },
+  detailDescText: {
+    fontSize: 14,
+    color: '#374151',
+    lineHeight: 21,
+  },
+  detailResponseBox: {
+    backgroundColor: '#EFF6FF',
+    borderLeftWidth: 3,
+    borderLeftColor: '#3B82F6',
+    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+  },
+  detailResponseMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 6,
+  },
+  detailResponseAuthor: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#1F2937',
+    flex: 1,
+  },
+  detailResponseDate: {
+    fontSize: 11,
+    color: '#9CA3AF',
+  },
+  detailResponseContent: {
+    fontSize: 14,
+    color: '#374151',
+    lineHeight: 20,
+  },
+  detailNoteBox: {
+    backgroundColor: '#FEF3C7',
+    borderLeftWidth: 3,
+    borderLeftColor: '#F59E0B',
+    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+  },
+  detailNoteText: {
+    fontSize: 14,
+    color: '#92400E',
+    lineHeight: 20,
+  },
+  // ────────────────────────────────────────────────────────────────────────────
 
 });
