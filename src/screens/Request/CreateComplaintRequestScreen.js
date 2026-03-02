@@ -17,7 +17,6 @@ import { createComplaintRequestAPI } from '../../services/request.service';
 export default function CreateComplaintRequestScreen({ navigation }) {
   const [category, setCategory] = useState('');
   const [content, setContent] = useState('');
-  const [priority, setPriority] = useState('Medium');
   const [loading, setLoading] = useState(false);
 
   // Categories now use API values directly
@@ -28,12 +27,6 @@ export default function CreateComplaintRequestScreen({ navigation }) {
     { id: 'Cơ sở vật chất', label: 'Cơ sở vật chất' },
     { id: 'Thái độ phục vụ', label: 'Thái độ phục vụ' },
     { id: 'Khác', label: 'Khác' },
-  ];
-
-  const priorities = [
-    { id: 'Low', label: 'Thấp', color: '#3B82F6' },
-    { id: 'Medium', label: 'Trung bình', color: '#F59E0B' },
-    { id: 'High', label: 'Cao', color: '#EF4444' },
   ];
 
   const handleSubmit = async () => {
@@ -61,7 +54,6 @@ export default function CreateComplaintRequestScreen({ navigation }) {
       const response = await createComplaintRequestAPI({
         content: content.trim(),
         category: category,
-        priority: priority,
       });
 
       // Show success message
@@ -148,42 +140,6 @@ export default function CreateComplaintRequestScreen({ navigation }) {
               textAlignVertical="top"
             />
             <Text style={styles.charCount}>{content.length}/2000</Text>
-          </View>
-
-          {/* Priority Selection */}
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>Mức độ ưu tiên</Text>
-            <View style={styles.priorityGrid}>
-              {priorities.map((p) => (
-                <TouchableOpacity
-                  key={p.id}
-                  style={[
-                    styles.priorityButton,
-                    priority === p.id && {
-                      borderWidth: 2,
-                      borderColor: p.color,
-                      backgroundColor: '#F3F4F6',
-                    },
-                  ]}
-                  onPress={() => setPriority(p.id)}
-                >
-                  <View
-                    style={[
-                      styles.priorityBadge,
-                      { backgroundColor: p.color },
-                    ]}
-                  />
-                  <Text
-                    style={[
-                      styles.priorityLabel,
-                      priority === p.id && { fontWeight: '600' },
-                    ]}
-                  >
-                    {p.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
           </View>
 
           {/* Warning Box */}
@@ -321,32 +277,6 @@ const styles = StyleSheet.create({
   categoryButtonTextSelected: {
     color: '#EF4444',
     fontWeight: '600',
-  },
-  priorityGrid: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  priorityButton: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 10,
-    paddingVertical: 12,
-    paddingHorizontal: 8,
-    marginHorizontal: 4,
-    alignItems: 'center',
-  },
-  priorityBadge: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    marginBottom: 6,
-  },
-  priorityLabel: {
-    fontSize: 12,
-    color: '#6B7280',
-    textAlign: 'center',
   },
   warningBox: {
     flexDirection: 'row',
