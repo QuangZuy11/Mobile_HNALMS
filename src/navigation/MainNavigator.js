@@ -24,6 +24,7 @@ import UpdateRequestScreen from '../screens/Request/UpdateRequestScreen';
 // Additional Screens
 import NotificationListScreen from '../screens/Notification/NotificationListScreen';
 import InvoiceListScreen from '../screens/Invoice/InvoiceListScreen';
+import InvoiceDetailScreen from '../screens/Invoice/InvoiceDetailScreen';
 import ServiceListScreen from '../screens/Service/ServiceListScreen';
 
 const Stack = createNativeStackNavigator();
@@ -132,6 +133,13 @@ function HomeStack() {
         component={InvoiceListScreen}
         options={{
           title: 'Hóa đơn',
+        }}
+      />
+      <Stack.Screen
+        name="InvoiceDetail"
+        component={InvoiceDetailScreen}
+        options={{
+          title: 'Chi tiết hóa đơn',
         }}
       />
       <Stack.Screen
