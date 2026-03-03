@@ -81,7 +81,7 @@ export default function RequestDetailScreen({ navigation, route }) {
           createdTime: formatTime(data.createdDate),
           response: data.response,
           responseBy: data.responseBy ? 
-            (data.responseBy.username || data.responseBy.email) : null,
+            (data.responseBy.fullname || data.responseBy.username || data.responseBy.email) : null,
           responseDate: data.responseDate ? formatDateTime(data.responseDate) : null,
         };
         
@@ -346,16 +346,7 @@ export default function RequestDetailScreen({ navigation, route }) {
             </View>
           )}
 
-          {/* Priority (for complaint) */}
-          {request.priority && (
-            <View style={styles.infoRow}>
-              <MaterialCommunityIcons name="priority-high" size={20} color="#3B82F6" />
-              <View style={styles.infoContent}>
-                <Text style={styles.infoLabel}>Ưu tiên</Text>
-                <Text style={styles.infoValue}>{getPriorityLabel(request.priority)}</Text>
-              </View>
-            </View>
-          )}
+
 
           {/* Cost (for repair/maintenance) */}
           {request.cost && (
