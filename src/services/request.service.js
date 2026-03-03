@@ -321,6 +321,9 @@ export const getComplaintRequestDetailAPI = async (id) => {
         headers: {
           Authorization: `Bearer ${token}`,
         },
+        params: {
+          populate: 'responseBy',
+        },
       }
     );
     
