@@ -89,26 +89,31 @@ export default function RequestListScreen({ navigation }) {
   // Map status from API to Vietnamese
   const getStatusText = (status) => {
     switch (status) {
-      case 'Pending':    return 'Chờ xử lý';
-      case 'Processing': return 'Đang xử lý';
-      case 'Done':       return 'Hoàn thành';
-      case 'Approved':   return 'Đã duyệt';
-      case 'Rejected':   return 'Từ chối';
-      case 'Cancelled':  return 'Đã hủy';
-      default:           return status || 'Chờ xử lý';
+      case 'Pending':        return 'Chờ xử lý';
+      case 'Processing':     return 'Đang xử lý';
+      case 'Done':           return 'Đã xử lý';
+      case 'Unpaid':         return 'Chờ thanh toán';
+      case 'Paid':           return 'Đã thanh toán';
+      case 'Approved':       return 'Đã duyệt';
+      case 'Rejected':       return 'Từ chối';
+      case 'Cancelled':      return 'Đã hủy';
+      default:               return status || 'Chờ xử lý';
     }
   };
 
   // Map status to colour
   const getStatusColor = (status) => {
     switch (status) {
-      case 'Hoàn thành':
-      case 'Đã duyệt':  return { bg: '#D1FAE5', text: '#10B981' };
-      case 'Chờ xử lý': return { bg: '#FEF3C7', text: '#F59E0B' };
-      case 'Đang xử lý': return { bg: '#DBEAFE', text: '#3B82F6' };
+      case 'Đã xử lý':
+      case 'Đã thanh toán':
+      case 'Đã duyệt':      return { bg: '#D1FAE5', text: '#10B981' };
+      case 'Chờ xử lý':    return { bg: '#FEF3C7', text: '#F59E0B' };
+      case 'Đang xử lý':    return { bg: '#DBEAFE', text: '#3B82F6' };
+      case 'Chờ thanh toán':  return { bg: '#FEF9C3', text: '#CA8A04' };
       case 'Từ chối':
-      case 'Đã hủy':    return { bg: '#FEE2E2', text: '#EF4444' };
-      default:           return { bg: '#F3F4F6', text: '#6B7280' };
+      case 'Đã hủy':         return { bg: '#FEE2E2', text: '#EF4444' };
+      case 'Chưa phân công': return { bg: '#F3E8FF', text: '#7C3AED' };
+      default:               return { bg: '#F3F4F6', text: '#6B7280' };
     }
   };
 
@@ -189,13 +194,12 @@ export default function RequestListScreen({ navigation }) {
   // ─── Detail modal helpers ──────────────────────────────────────────────────
   const getDetailStatusInfo = (status) => {
     switch (status) {
-      case 'Pending':    return { label: 'Chờ xử lý',  color: '#F59E0B', bg: '#FEF3C7', icon: 'clock-outline' };
-      case 'Processing': return { label: 'Đang xử lý', color: '#3B82F6', bg: '#DBEAFE', icon: 'cog' };
-      case 'Done':       return { label: 'Hoàn thành', color: '#10B981', bg: '#D1FAE5', icon: 'check-circle' };
-      case 'Approved':   return { label: 'Đã duyệt',   color: '#10B981', bg: '#D1FAE5', icon: 'check-circle' };
-      case 'Rejected':   return { label: 'Từ chối',    color: '#EF4444', bg: '#FEE2E2', icon: 'close-circle' };
-      case 'Cancelled':  return { label: 'Đã hủy',     color: '#EF4444', bg: '#FEE2E2', icon: 'cancel' };
-      default:           return { label: status || 'Không xác định', color: '#6B7280', bg: '#F3F4F6', icon: 'help-circle' };
+      case 'Pending':        return { label: 'Chờ xử lý',      color: '#F59E0B', bg: '#FEF3C7', icon: 'clock-outline' };
+      case 'Processing':     return { label: 'Đang xử lý',    color: '#3B82F6', bg: '#DBEAFE', icon: 'cog' };
+      case 'Done':           return { label: 'Đã xử lý',      color: '#10B981', bg: '#D1FAE5', icon: 'check-circle-outline' };
+      case 'Unpaid':         return { label: 'Chờ thanh toán', color: '#CA8A04', bg: '#FEF9C3', icon: 'cash-clock' };
+      case 'Paid':           return { label: 'Đã thanh toán',  color: '#10B981', bg: '#D1FAE5', icon: 'cash-check' };
+      default:               return { label: status || 'Không xác định', color: '#6B7280', bg: '#F3F4F6', icon: 'help-circle' };
     }
   };
 
