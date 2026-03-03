@@ -1,7 +1,10 @@
-import React from 'react';
+import React, { useContext } from 'react';
+import { Alert, View } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { AuthContext } from '../contexts/AuthContext';
+import { logoutAPI } from '../services/auth.service';
 
 import HomeScreen from '../screens/home/HomeScreen';
 import ProfileScreen from '../screens/Profile/ProfileScreen';
@@ -143,7 +146,48 @@ function HomeStack() {
 }
 
 
+function ProfileStack() {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="ProfileMain" component={ProfileScreen} options={{ title: 'Thông tin cá nhân' }} />
+      <Stack.Screen name="UpdateProfile" component={UpdateProfileScreen} options={{ title: 'Cập nhật thông tin' }} />
+      <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} options={{ title: 'Đổi mật khẩu' }} />
+      <Stack.Screen name="MyRoom" component={MyRoomScreen} options={{ title: 'Phòng của tôi' }} />
+      <Stack.Screen name="ContractList" component={MyContractScreen} options={{ title: 'Hợp đồng của tôi' }} />
+    </Stack.Navigator>
+  );
+}
+
+function EmptyScreen() {
+  return <View />;
+}
+
 export function MainNavigator() {
+  const { signOut } = useContext(AuthContext);
+
+  const handleLogout = () => {
+    Alert.alert(
+      'Đăng xuất',
+      'Bạn có chắc chắn muốn đăng xuất?',
+      [
+        { text: 'Hủy', style: 'cancel' },
+        {
+          text: 'Đăng xuất',
+          onPress: async () => {
+            try {
+              await logoutAPI();
+            } catch (error) {
+              console.log('Logout API error (ignored):', error.message);
+            } finally {
+              await signOut();
+            }
+          },
+          style: 'destructive',
+        },
+      ]
+    );
+  };
+
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -151,9 +195,13 @@ export function MainNavigator() {
         tabBarIcon: ({ focused, color, size }) => {
           let iconName;
 
-          if (route.name === 'Home') {
+          if (route.name === 'Profile') {
+            iconName = focused ? 'account' : 'account-outline';
+          } else if (route.name === 'Home') {
             iconName = focused ? 'home' : 'home-outline';
-          } 
+          } else if (route.name === 'Logout') {
+            iconName = 'logout';
+          }
 
           return (
             <MaterialCommunityIcons
@@ -168,13 +216,36 @@ export function MainNavigator() {
       })}
     >
       <Tab.Screen
+        name="Profile"
+        component={ProfileStack}
+        options={{
+          tabBarLabel: 'Cá nhân',
+        }}
+      />
+      <Tab.Screen
         name="Home"
         component={HomeStack}
         options={{
           tabBarLabel: 'Trang chủ',
         }}
       />
-    
+      <Tab.Screen
+        name="Logout"
+        component={EmptyScreen}
+        options={{
+          tabBarLabel: 'Đăng xuất',
+          tabBarIcon: ({ size }) => (
+            <MaterialCommunityIcons name="logout" size={size} color="#DC2626" />
+          ),
+          tabBarLabelStyle: { color: '#DC2626' },
+        }}
+        listeners={{
+          tabPress: (e) => {
+            e.preventDefault();
+            handleLogout();
+          },
+        }}
+      />
     </Tab.Navigator>
   );
 }

@@ -1,4 +1,4 @@
-import React, { useContext } from 'react';
+import React from 'react';
 import {
   View,
   Text,
@@ -6,50 +6,12 @@ import {
   TouchableOpacity,
   SafeAreaView,
   StyleSheet,
-  Alert,
   Image,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { AuthContext } from '../../contexts/AuthContext';
-import { logoutAPI } from '../../services/auth.service';
 import logoImage from '../../../assets/images/z7463676981543_494642986e53789b49de728b4f4a3a1e.jpg';
 
 export default function HomeScreen({ navigation }) {
-  const { signOut } = useContext(AuthContext);
-
-  const handleLogout = () => {
-    Alert.alert(
-      'Đăng xuất',
-      'Bạn có chắc chắn muốn đăng xuất?',
-      [
-        {
-          text: 'Hủy',
-          style: 'cancel',
-        },
-        {
-          text: 'Đăng xuất',
-          onPress: async () => {
-            try {
-              await logoutAPI();
-            } catch (error) {
-              // Bỏ qua lỗi API (token hết hạn hoặc không tồn tại)
-              console.log('Logout API error (ignored):', error.message);
-            } finally {
-              // Luôn logout ở client và hiển thị thông báo thành công
-              await signOut();
-              Alert.alert(
-                'Thành công',
-                'Đã đăng xuất thành công',
-                [{ text: 'OK' }]
-              );
-            }
-          },
-          style: 'destructive',
-        },
-      ]
-    );
-  };
-
   return (
     <SafeAreaView style={styles.safeContainer}>
       <ScrollView
@@ -58,17 +20,11 @@ export default function HomeScreen({ navigation }) {
       >
         {/* Logo Header */}
         <View style={styles.logoHeader}>
-          <Image 
+          <Image
             source={logoImage}
             style={styles.logo}
             resizeMode="contain"
           />
-          <TouchableOpacity
-            style={styles.logoutButton}
-            onPress={handleLogout}
-          >
-            <MaterialCommunityIcons name="logout" size={24} color="#DC2626" />
-          </TouchableOpacity>
         </View>
 
         {/* Main Content */}
@@ -189,13 +145,6 @@ const styles = StyleSheet.create({
     width: 300,
     height: 140,
   },
-  logoutButton: {
-    position: 'absolute',
-    right: 16,
-    top: 20,
-    padding: 8,
-  },
-
   // Content
   contentContainer: {
     flex: 1,
