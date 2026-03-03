@@ -12,6 +12,8 @@ import {
   RefreshControl,
   Modal,
   Platform,
+  Image,
+  Dimensions,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
@@ -37,6 +39,9 @@ export default function RequestListScreen({ navigation }) {
   const [detailItem, setDetailItem] = useState(null);   // formatted item from list
   const [detailData, setDetailData] = useState(null);   // full API detail response
   const [loadingDetail, setLoadingDetail] = useState(false);
+
+  // Full-screen image preview
+  const [selectedImage, setSelectedImage] = useState(null);
 
   // Check user authentication
   const checkAuth = async () => {
@@ -203,11 +208,9 @@ export default function RequestListScreen({ navigation }) {
       if (item.type === 'complaint') {
         const res = await getComplaintRequestDetailAPI(item.id);
         if (res?.success && res?.data) setDetailData(res.data);
-      } else if (item.type === 'maintenance') {
-        const res = await getRepairRequestDetailAPI(item.id);
-        if (res?.success && res?.data) setDetailData(res.data);
+        else setDetailData(item.fullData);
       } else {
-        // transfer — fullData from list is sufficient
+        // maintenance & transfer — dùng fullData từ list (endpoint detail yêu cầu quyền admin)
         setDetailData(item.fullData);
       }
     } catch (e) {
@@ -625,7 +628,6 @@ export default function RequestListScreen({ navigation }) {
                   {type === 'complaint' && (
                     <>
                       {data.category && <DetailRow icon="tag" label="Loại khiếu nại" value={data.category} />}
-                      {data.priority && <DetailRow icon="flag" label="Ưu tiên" value={data.priority} />}
                     </>
                   )}
 
@@ -682,6 +684,28 @@ export default function RequestListScreen({ navigation }) {
                   </View>
                 )}
 
+                {/* Images (repair/maintenance) */}
+                {type === 'maintenance' && data.images && data.images.length > 0 && (
+                  <View style={styles.detailSection}>
+                    <Text style={styles.detailSectionTitle}>Hình ảnh đính kèm ({data.images.length})</Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.imagesScrollContent}>
+                      {data.images.map((url, idx) => (
+                        <TouchableOpacity
+                          key={idx}
+                          activeOpacity={0.8}
+                          onPress={() => setSelectedImage(url)}
+                        >
+                          <Image
+                            source={{ uri: url }}
+                            style={styles.detailThumb}
+                            resizeMode="cover"
+                          />
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  </View>
+                )}
+
                 {/* Manager response (complaint) */}
                 {data.response && (
                   <View style={styles.detailSection}>
@@ -690,7 +714,7 @@ export default function RequestListScreen({ navigation }) {
                       <View style={styles.detailResponseMeta}>
                         <MaterialCommunityIcons name="account-tie" size={16} color="#3B82F6" />
                         <Text style={styles.detailResponseAuthor}>
-                          {data.responseBy?.username || data.responseBy?.email || 'Quản lý'}
+                          {data.responseBy?.fullname || data.responseBy?.username || data.responseBy?.email || 'Quản lý'}
                         </Text>
                         {data.responseDate && (
                           <Text style={styles.detailResponseDate}>{formatDate(data.responseDate)}</Text>
@@ -714,6 +738,31 @@ export default function RequestListScreen({ navigation }) {
             );
           })()}
         </SafeAreaView>
+      </Modal>
+
+      {/* Full-screen image preview modal */}
+      <Modal
+        visible={!!selectedImage}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setSelectedImage(null)}
+        statusBarTranslucent
+      >
+        <View style={styles.imageFullscreenOverlay}>
+          <TouchableOpacity
+            style={styles.imageFullscreenClose}
+            onPress={() => setSelectedImage(null)}
+          >
+            <MaterialCommunityIcons name="close" size={28} color="#FFFFFF" />
+          </TouchableOpacity>
+          {selectedImage && (
+            <Image
+              source={{ uri: selectedImage }}
+              style={styles.imageFullscreen}
+              resizeMode="contain"
+            />
+          )}
+        </View>
       </Modal>
       {/* ─────────────────────────────────────────────────────────────────────── */}
     </SafeAreaView>
@@ -1094,6 +1143,34 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#92400E',
     lineHeight: 20,
+  },
+  imagesScrollContent: {
+    paddingVertical: 4,
+    gap: 10,
+  },
+  detailThumb: {
+    width: 110,
+    height: 110,
+    borderRadius: 10,
+    backgroundColor: '#E5E7EB',
+    marginRight: 10,
+  },
+  imageFullscreenOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.92)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  imageFullscreenClose: {
+    position: 'absolute',
+    top: 48,
+    right: 20,
+    zIndex: 10,
+    padding: 6,
+  },
+  imageFullscreen: {
+    width: Dimensions.get('window').width,
+    height: Dimensions.get('window').height * 0.8,
   },
   // ────────────────────────────────────────────────────────────────────────────
 
