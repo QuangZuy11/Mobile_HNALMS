@@ -7,10 +7,13 @@ import {
   SafeAreaView,
   StyleSheet,
   FlatList,
-  SectionList,
   Alert,
   ActivityIndicator,
   RefreshControl,
+  Modal,
+  Platform,
+  Image,
+  Dimensions,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
@@ -18,15 +21,27 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { 
   getAllRequestsAPI, 
   getComplaintRequestsAPI,
-  getRepairRequestsAPI 
+  getRepairRequestsAPI,
+  getMyTransferRequestsAPI,
+  getComplaintRequestDetailAPI,
+  getRepairRequestDetailAPI,
 } from '../../services/request.service';
 
 export default function RequestListScreen({ navigation }) {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [selectedFilter, setSelectedFilter] = useState('all'); // 'all', 'complaint', 'maintenance', 'moving'
+  const [selectedFilter, setSelectedFilter] = useState('all');
   const [userInfo, setUserInfo] = useState(null);
+
+  // Detail modal state
+  const [showDetailModal, setShowDetailModal] = useState(false);
+  const [detailItem, setDetailItem] = useState(null);   // formatted item from list
+  const [detailData, setDetailData] = useState(null);   // full API detail response
+  const [loadingDetail, setLoadingDetail] = useState(false);
+
+  // Full-screen image preview
+  const [selectedImage, setSelectedImage] = useState(null);
 
   // Check user authentication
   const checkAuth = async () => {
@@ -74,14 +89,31 @@ export default function RequestListScreen({ navigation }) {
   // Map status from API to Vietnamese
   const getStatusText = (status) => {
     switch (status) {
-      case 'Pending':
-        return 'Chờ xử lý';
-      case 'Processing':
-        return 'Đang xử lý';
-      case 'Done':
-        return 'Hoàn thành';
-      default:
-        return status;
+      case 'Pending':        return 'Chờ xử lý';
+      case 'Processing':     return 'Đang xử lý';
+      case 'Done':           return 'Đã xử lý';
+      case 'Unpaid':         return 'Chờ thanh toán';
+      case 'Paid':           return 'Đã thanh toán';
+      case 'Approved':       return 'Đã duyệt';
+      case 'Rejected':       return 'Từ chối';
+      case 'Cancelled':      return 'Đã hủy';
+      default:               return status || 'Chờ xử lý';
+    }
+  };
+
+  // Map status to colour
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'Đã xử lý':
+      case 'Đã thanh toán':
+      case 'Đã duyệt':      return { bg: '#D1FAE5', text: '#10B981' };
+      case 'Chờ xử lý':    return { bg: '#FEF3C7', text: '#F59E0B' };
+      case 'Đang xử lý':    return { bg: '#DBEAFE', text: '#3B82F6' };
+      case 'Chờ thanh toán':  return { bg: '#FEF9C3', text: '#CA8A04' };
+      case 'Từ chối':
+      case 'Đã hủy':         return { bg: '#FEE2E2', text: '#EF4444' };
+      case 'Chưa phân công': return { bg: '#F3E8FF', text: '#7C3AED' };
+      default:               return { bg: '#F3F4F6', text: '#6B7280' };
     }
   };
 
@@ -95,15 +127,14 @@ export default function RequestListScreen({ navigation }) {
 
   // Map request type from API
   const getRequestType = (request) => {
-    // Check if it's a complaint request (has category field)
+    // Transfer room request — has targetRoomId
+    if (request.targetRoomId !== undefined) return 'moving';
+    // Complaint — has category
     if (request.category) return 'complaint';
-    
-    // Check if it's a repair/maintenance request (has type field with "Sửa chữa" or "Bảo trì")
+    // Repair / maintenance
     if (request.type === 'Sửa chữa' || request.type === 'Bảo trì') return 'maintenance';
-    
-    // Check if it's a moving room request
+    // Legacy moving
     if (request.roomId || request.desiredRoomId) return 'moving';
-    
     return 'unknown';
   };
 
@@ -129,7 +160,13 @@ export default function RequestListScreen({ navigation }) {
         title = `${item.type || 'Yêu cầu'} - ${deviceName}`;
         typeLabel = 'Sửa chữa/Bảo trì';
       } else if (requestType === 'moving') {
-        title = `Chuyển phòng - ${item.reason || 'Yêu cầu chuyển phòng'}`;
+        const targetName =
+          item.targetRoomId?.name ||
+          item.targetRoomId?.roomCode ||
+          item.desiredRoomId?.name ||
+          'Phòng đích';
+        const reasonShort = (item.reason || '').substring(0, 40);
+        title = `Chuyển sang ${targetName}${reasonShort ? ` - ${reasonShort}` : ''}`;
         typeLabel = 'Chuyển phòng';
       } else {
         title = item.content || item.description || item.reason || 'Yêu cầu';
@@ -154,14 +191,63 @@ export default function RequestListScreen({ navigation }) {
     }
   };
 
-  // Load requests from API
+  // ─── Detail modal helpers ──────────────────────────────────────────────────
+  const getDetailStatusInfo = (status) => {
+    switch (status) {
+      case 'Pending':        return { label: 'Chờ xử lý',      color: '#F59E0B', bg: '#FEF3C7', icon: 'clock-outline' };
+      case 'Processing':     return { label: 'Đang xử lý',    color: '#3B82F6', bg: '#DBEAFE', icon: 'cog' };
+      case 'Done':           return { label: 'Đã xử lý',      color: '#10B981', bg: '#D1FAE5', icon: 'check-circle-outline' };
+      case 'Unpaid':         return { label: 'Chờ thanh toán', color: '#CA8A04', bg: '#FEF9C3', icon: 'cash-clock' };
+      case 'Paid':           return { label: 'Đã thanh toán',  color: '#10B981', bg: '#D1FAE5', icon: 'cash-check' };
+      default:               return { label: status || 'Không xác định', color: '#6B7280', bg: '#F3F4F6', icon: 'help-circle' };
+    }
+  };
+
+  const openDetail = async (item) => {
+    setDetailItem(item);
+    setDetailData(null);
+    setShowDetailModal(true);
+    setLoadingDetail(true);
+    try {
+      if (item.type === 'complaint') {
+        const res = await getComplaintRequestDetailAPI(item.id);
+        if (res?.success && res?.data) setDetailData(res.data);
+        else setDetailData(item.fullData);
+      } else {
+        // maintenance & transfer — dùng fullData từ list (endpoint detail yêu cầu quyền admin)
+        setDetailData(item.fullData);
+      }
+    } catch (e) {
+      // fallback to list data
+      setDetailData(item.fullData);
+    } finally {
+      setLoadingDetail(false);
+    }
+  };
+
+  const closeDetail = () => {
+    setShowDetailModal(false);
+    setDetailItem(null);
+    setDetailData(null);
+  };
+
+  // Render detail row helper
+  const DetailRow = ({ icon, label, value, valueColor }) => (
+    <View style={styles.detailRow}>
+      <MaterialCommunityIcons name={icon} size={18} color="#3B82F6" style={{ marginTop: 1 }} />
+      <View style={styles.detailRowContent}>
+        <Text style={styles.detailRowLabel}>{label}</Text>
+        <Text style={[styles.detailRowValue, valueColor && { color: valueColor }]}>{value}</Text>
+      </View>
+    </View>
+  );
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  // Load requests from API (initial or refresh)
   const loadRequests = async (filter = selectedFilter) => {
     try {
       setLoading(true);
-      console.log('=== Loading Requests ===');
-      console.log('Filter:', filter);
       
-      // Check authentication first
       const isAuthenticated = await checkAuth();
       if (!isAuthenticated) {
         setLoading(false);
@@ -169,106 +255,70 @@ export default function RequestListScreen({ navigation }) {
         return;
       }
       
-      let response;
-      
-      if (filter === 'all') {
-        // Get all requests
-        console.log('Calling getAllRequestsAPI...');
-        response = await getAllRequestsAPI({ page: 1, limit: 50 });
+      // Helper to extract array from various API response shapes
+      const extractArray = (res) => {
+        if (!res || !res.success) return [];
+        const d = res.data;
+        if (Array.isArray(d)) return d;
+        if (d?.data && Array.isArray(d.data)) return d.data;
+        if (d?.requests && Array.isArray(d.requests)) return d.requests;
+        if (d?.list && Array.isArray(d.list)) return d.list;
+        return [];
+      };
+
+      let rawData = [];
+
+      if (filter === 'moving') {
+        // Only fetch transfer room requests
+        const transferRes = await getMyTransferRequestsAPI();
+        rawData = extractArray(transferRes);
       } else if (filter === 'complaint') {
-        // Get complaint requests only
-        console.log('Calling getComplaintRequestsAPI...');
-        response = await getComplaintRequestsAPI({ page: 1, limit: 50 });
+        const res = await getComplaintRequestsAPI({ page: 1, limit: 200 });
+        rawData = extractArray(res);
       } else if (filter === 'maintenance') {
-        // Get repair/maintenance requests only
-        console.log('Calling getRepairRequestsAPI...');
-        response = await getRepairRequestsAPI({ page: 1, limit: 50 });
-      } else if (filter === 'moving') {
-        // For now, get all and filter moving requests
-        console.log('Calling getAllRequestsAPI for moving...');
-        response = await getAllRequestsAPI({ page: 1, limit: 50 });
-      }
-      
-      console.log('=== API Response Structure ===');
-      console.log('Response:', JSON.stringify(response, null, 2));
-      console.log('Response.success:', response?.success);
-      console.log('Response.data type:', typeof response?.data);
-      console.log('Response.data:', response?.data);
-      
-      if (response && response.success) {
-        // Try multiple possible data structures
-        let rawData = [];
-        
-        if (Array.isArray(response.data)) {
-          // Case 1: response.data is directly an array
-          rawData = response.data;
-          console.log('Data structure: response.data is array');
-        } else if (response.data?.data && Array.isArray(response.data.data)) {
-          // Case 2: response.data.data is an array
-          rawData = response.data.data;
-          console.log('Data structure: response.data.data is array');
-        } else if (response.data?.requests && Array.isArray(response.data.requests)) {
-          // Case 3: response.data.requests is an array
-          rawData = response.data.requests;
-          console.log('Data structure: response.data.requests is array');
-        } else if (response.data?.list && Array.isArray(response.data.list)) {
-          // Case 4: response.data.list is an array
-          rawData = response.data.list;
-          console.log('Data structure: response.data.list is array');
-        } else {
-          console.error('Unknown data structure:', response.data);
-          rawData = [];
-        }
-        
-        console.log('Total requests found:', rawData.length);
-        
-        if (rawData.length > 0) {
-          console.log('First request sample:', JSON.stringify(rawData[0], null, 2));
-        }
-        
-        // Map API data to UI format
-        let mappedRequests = rawData
-          .map(formatRequest)
-          .filter(req => req !== null); // Filter out any failed formats
-        
-        // Apply additional filter if needed
-        if (filter === 'moving') {
-          mappedRequests = mappedRequests.filter(req => req.type === 'moving');
-          console.log('Filtered moving requests:', mappedRequests.length);
-        }
-        
-        console.log('Final mapped requests:', mappedRequests.length);
-        console.log('=== Load Requests Complete ===');
-        setRequests(mappedRequests);
+        const res = await getRepairRequestsAPI({ page: 1, limit: 200 });
+        rawData = extractArray(res);
       } else {
-        console.error('API response not successful or no response');
-        console.error('Response success:', response?.success);
-        setRequests([]);
+        // 'all': merge general requests + transfer requests
+        const [generalRes, transferRes] = await Promise.all([
+          getAllRequestsAPI({ page: 1, limit: 200 }),
+          getMyTransferRequestsAPI(),
+        ]);
+        const generalData = extractArray(generalRes);
+        const transferData = extractArray(transferRes);
+        // Deduplicate by _id
+        const seen = new Set(generalData.map((r) => r._id));
+        const merged = [...generalData];
+        transferData.forEach((r) => { if (!seen.has(r._id)) merged.push(r); });
+        rawData = merged;
       }
-    } catch (error) {
-      console.log('Error loading requests:', error);
-      console.error('Error details:', {
-        message: error.message,
-        status: error.status,
-        data: error.data,
-        isNetworkError: error.isNetworkError,
+
+      let mappedRequests = rawData
+        .map(formatRequest)
+        .filter((req) => req !== null);
+
+      // Sort by date descending
+      mappedRequests.sort((a, b) => {
+        const dateA = new Date(a.fullData?.createdDate || a.fullData?.createdAt || 0);
+        const dateB = new Date(b.fullData?.createdDate || b.fullData?.createdAt || 0);
+        return dateB - dateA;
       });
+
+      setRequests(mappedRequests);
+    } catch (error) {
+      console.error('Error loading requests:', error);
       
       let errorMessage = 'Không thể tải danh sách yêu cầu. Vui lòng thử lại.';
       
-      // Handle specific error cases
       if (error.status === 403) {
         errorMessage = 'Bạn không có quyền xem danh sách yêu cầu';
       } else if (error.status === 401) {
         errorMessage = 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại';
       } else if (error.isNetworkError || error.message?.includes('Network')) {
-        errorMessage = 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra:\n- Backend đã chạy chưa?\n- Kết nối internet';
+        errorMessage = 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối internet.';
       } else if (error.message) {
         errorMessage = error.message;
       }
-      
-      console.error('=== Error Summary ===');
-      console.error('Message to show user:', errorMessage);
       
       Alert.alert('Lỗi', errorMessage);
       setRequests([]);
@@ -354,8 +404,8 @@ export default function RequestListScreen({ navigation }) {
 
         {/* Filter Tabs */}
         <View style={styles.filterContainer}>
-          <ScrollView 
-            horizontal 
+          <ScrollView
+            horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.filterScrollContent}
           >
@@ -395,7 +445,6 @@ export default function RequestListScreen({ navigation }) {
                 key={type.id}
                 style={styles.requestCard}
                 onPress={() => {
-                  // Navigation to create request screen
                   if (type.screen) {
                     navigation.navigate(type.screen);
                   }
@@ -410,7 +459,7 @@ export default function RequestListScreen({ navigation }) {
                 >
                   <MaterialCommunityIcons
                     name={type.icon}
-                    size={36}
+                    size={28}
                     color={type.color}
                   />
                 </View>
@@ -424,14 +473,7 @@ export default function RequestListScreen({ navigation }) {
         {/* Recent Requests Section */}
         <View style={styles.sectionContainer}>
           <View style={styles.sectionHeaderWithAction}>
-            <Text style={styles.sectionTitle}>Yêu cầu gần đây</Text>
-            <TouchableOpacity
-              onPress={() => {
-                // TODO: Navigate to full request history
-              }}
-            >
-              <Text style={styles.viewAllLink}>Xem tất cả</Text>
-            </TouchableOpacity>
+            <Text style={styles.sectionTitle}>Tất cả yêu cầu</Text>
           </View>
 
           {loading ? (
@@ -450,7 +492,7 @@ export default function RequestListScreen({ navigation }) {
                 Bạn chưa có yêu cầu nào
               </Text>
               <Text style={styles.emptyStateSubtext}>
-                {selectedFilter === 'all' 
+                {selectedFilter === 'all'
                   ? 'Tạo yêu cầu mới từ các tùy chọn phía trên'
                   : `Bạn chưa có yêu cầu ${filterOptions.find(f => f.id === selectedFilter)?.label.toLowerCase()} nào`}
               </Text>
@@ -468,22 +510,17 @@ export default function RequestListScreen({ navigation }) {
               renderItem={({ item }) => (
                 <TouchableOpacity
                   style={styles.requestItem}
-                  onPress={() => {
-                    navigation.navigate('RequestDetail', { 
-                      requestId: item.id,
-                      requestType: item.type 
-                    });
-                  }}
+                  onPress={() => openDetail(item)}
                 >
                   <View style={styles.requestItemHeader}>
                     <View style={[
                       styles.requestTypeBadge,
                       {
-                        backgroundColor: 
+                        backgroundColor:
                           item.type === 'complaint' ? '#FEE2E2' :
                           item.type === 'maintenance' ? '#DBEAFE' :
-                          item.type === 'moving' ? '#FEF3C7' : '#F3F4F6'
-                      }
+                          item.type === 'moving' ? '#FEF3C7' : '#F3F4F6',
+                      },
                     ]}>
                       <MaterialCommunityIcons
                         name={
@@ -501,52 +538,30 @@ export default function RequestListScreen({ navigation }) {
                       <Text style={[
                         styles.requestTypeBadgeText,
                         {
-                          color: 
+                          color:
                             item.type === 'complaint' ? '#EF4444' :
                             item.type === 'maintenance' ? '#3B82F6' :
-                            item.type === 'moving' ? '#F59E0B' : '#6B7280'
-                        }
+                            item.type === 'moving' ? '#F59E0B' : '#6B7280',
+                        },
                       ]}>
                         {item.typeLabel}
                       </Text>
                     </View>
                   </View>
                   <View style={styles.requestItemContent}>
-                    <Text style={styles.requestItemTitle}>
-                      {item.title}
-                    </Text>
-                    <Text style={styles.requestItemDate}>
-                      {item.createdDate}
-                    </Text>
+                    <Text style={styles.requestItemTitle}>{item.title}</Text>
+                    <Text style={styles.requestItemDate}>{item.createdDate}</Text>
                   </View>
                   <View
                     style={[
                       styles.requestStatus,
-                      {
-                        backgroundColor:
-                          item.status === 'Hoàn thành'
-                            ? '#D1FAE5'
-                            : item.status === 'Chờ xử lý'
-                            ? '#FEF3C7'
-                            : item.status === 'Đang xử lý'
-                            ? '#DBEAFE'
-                            : '#FEE2E2',
-                      },
+                      { backgroundColor: getStatusColor(item.status).bg },
                     ]}
                   >
                     <Text
                       style={[
                         styles.requestStatusText,
-                        {
-                          color:
-                            item.status === 'Hoàn thành'
-                              ? '#10B981'
-                              : item.status === 'Chờ xử lý'
-                              ? '#F59E0B'
-                              : item.status === 'Đang xử lý'
-                              ? '#3B82F6'
-                              : '#EF4444',
-                        },
+                        { color: getStatusColor(item.status).text },
                       ]}
                     >
                       {item.status}
@@ -558,6 +573,202 @@ export default function RequestListScreen({ navigation }) {
           )}
         </View>
       </ScrollView>
+
+      {/* ───── Detail Modal ─────────────────────────────────────────────────── */}
+      <Modal
+        visible={showDetailModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={closeDetail}
+      >
+        <SafeAreaView style={styles.detailModalSafe}>
+          {/* Modal header */}
+          <View style={styles.detailModalHeader}>
+            <Text style={styles.detailModalTitle}>Chi tiết yêu cầu</Text>
+            <TouchableOpacity onPress={closeDetail} style={styles.detailModalClose}>
+              <MaterialCommunityIcons name="close" size={24} color="#1F2937" />
+            </TouchableOpacity>
+          </View>
+
+          {loadingDetail ? (
+            <View style={styles.detailCenter}>
+              <ActivityIndicator size="large" color="#3B82F6" />
+              <Text style={styles.detailLoadingText}>Đang tải chi tiết...</Text>
+            </View>
+          ) : !detailData && !detailItem ? (
+            <View style={styles.detailCenter}>
+              <MaterialCommunityIcons name="alert-circle-outline" size={48} color="#EF4444" />
+              <Text style={styles.detailErrorText}>Không thể tải dữ liệu</Text>
+            </View>
+          ) : (() => {
+            const data = detailData || detailItem?.fullData || {};
+            const rawStatus = data.status || detailItem?.rawStatus || 'Pending';
+            const si = getDetailStatusInfo(rawStatus);
+            const type = detailItem?.type;
+
+            return (
+              <ScrollView
+                contentContainerStyle={styles.detailScroll}
+                showsVerticalScrollIndicator={false}
+              >
+                {/* Status banner */}
+                <View style={[styles.detailStatusBanner, { backgroundColor: si.bg }]}>
+                  <MaterialCommunityIcons name={si.icon} size={22} color={si.color} />
+                  <Text style={[styles.detailStatusText, { color: si.color }]}>{si.label}</Text>
+                </View>
+
+                {/* Type badge */}
+                <View style={styles.detailSection}>
+                  <Text style={styles.detailSectionTitle}>Thông tin yêu cầu</Text>
+
+                  {/* Common: type */}
+                  <DetailRow
+                    icon={type === 'complaint' ? 'alert-circle' : type === 'maintenance' ? 'tools' : 'home-move-outline'}
+                    label="Loại yêu cầu"
+                    value={detailItem?.typeLabel || 'Yêu cầu'}
+                  />
+
+                  {/* Complaint fields */}
+                  {type === 'complaint' && (
+                    <>
+                      {data.category && <DetailRow icon="tag" label="Loại khiếu nại" value={data.category} />}
+                    </>
+                  )}
+
+                  {/* Maintenance/Repair fields */}
+                  {type === 'maintenance' && (
+                    <>
+                      {(data.type) && <DetailRow icon="cog" label="Loại" value={data.type} />}
+                      {(data.devicesId?.name || data.deviceName) && (
+                        <DetailRow icon="devices" label="Thiết bị" value={data.devicesId?.name || data.deviceName} />
+                      )}
+                      {(data.devicesId?.category || data.deviceCategory) && (
+                        <DetailRow icon="shape" label="Phân loại" value={data.devicesId?.category || data.deviceCategory} />
+                      )}
+                    </>
+                  )}
+
+                  {/* Transfer fields */}
+                  {type === 'moving' && (
+                    <>
+                      {(data.targetRoomId?.name || data.targetRoomId?.roomCode) && (
+                        <DetailRow icon="door-open" label="Phòng muốn chuyển đến" value={data.targetRoomId?.name || data.targetRoomId?.roomCode} />
+                      )}
+                      {data.targetRoomId?.floorId?.name && (
+                        <DetailRow icon="layers" label="Tầng" value={data.targetRoomId.floorId.name} />
+                      )}
+                      {data.targetRoomId?.roomTypeId?.typeName && (
+                        <DetailRow icon="home-city" label="Loại phòng" value={data.targetRoomId.roomTypeId.typeName} />
+                      )}
+                      {data.transferDate && (
+                        <DetailRow icon="calendar" label="Ngày chuyển" value={formatDate(data.transferDate)} />
+                      )}
+                    </>
+                  )}
+
+                  {/* Created date */}
+                  <DetailRow
+                    icon="clock-outline"
+                    label="Ngày tạo"
+                    value={formatDate(data.createdDate || data.createdAt)}
+                  />
+                </View>
+
+                {/* Description */}
+                {(data.content || data.description || data.reason) && (
+                  <View style={styles.detailSection}>
+                    <Text style={styles.detailSectionTitle}>
+                      {type === 'moving' ? 'Lý do chuyển phòng' : 'Mô tả'}
+                    </Text>
+                    <View style={styles.detailDescBox}>
+                      <Text style={styles.detailDescText}>
+                        {data.content || data.description || data.reason}
+                      </Text>
+                    </View>
+                  </View>
+                )}
+
+                {/* Images (repair/maintenance) */}
+                {type === 'maintenance' && data.images && data.images.length > 0 && (
+                  <View style={styles.detailSection}>
+                    <Text style={styles.detailSectionTitle}>Hình ảnh đính kèm ({data.images.length})</Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.imagesScrollContent}>
+                      {data.images.map((url, idx) => (
+                        <TouchableOpacity
+                          key={idx}
+                          activeOpacity={0.8}
+                          onPress={() => setSelectedImage(url)}
+                        >
+                          <Image
+                            source={{ uri: url }}
+                            style={styles.detailThumb}
+                            resizeMode="cover"
+                          />
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  </View>
+                )}
+
+                {/* Manager response (complaint) */}
+                {data.response && (
+                  <View style={styles.detailSection}>
+                    <Text style={styles.detailSectionTitle}>Phản hồi từ quản lý</Text>
+                    <View style={styles.detailResponseBox}>
+                      <View style={styles.detailResponseMeta}>
+                        <MaterialCommunityIcons name="account-tie" size={16} color="#3B82F6" />
+                        <Text style={styles.detailResponseAuthor}>
+                          {data.responseBy?.fullname || data.responseBy?.username || data.responseBy?.email || 'Quản lý'}
+                        </Text>
+                        {data.responseDate && (
+                          <Text style={styles.detailResponseDate}>{formatDate(data.responseDate)}</Text>
+                        )}
+                      </View>
+                      <Text style={styles.detailResponseContent}>{data.response}</Text>
+                    </View>
+                  </View>
+                )}
+
+                {/* Rejection note (transfer) */}
+                {(rawStatus === 'Rejected' || rawStatus === 'Cancelled') && data.note && (
+                  <View style={styles.detailSection}>
+                    <Text style={styles.detailSectionTitle}>Ghi chú</Text>
+                    <View style={styles.detailNoteBox}>
+                      <Text style={styles.detailNoteText}>{data.note}</Text>
+                    </View>
+                  </View>
+                )}
+              </ScrollView>
+            );
+          })()}
+        </SafeAreaView>
+      </Modal>
+
+      {/* Full-screen image preview modal */}
+      <Modal
+        visible={!!selectedImage}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setSelectedImage(null)}
+        statusBarTranslucent
+      >
+        <View style={styles.imageFullscreenOverlay}>
+          <TouchableOpacity
+            style={styles.imageFullscreenClose}
+            onPress={() => setSelectedImage(null)}
+          >
+            <MaterialCommunityIcons name="close" size={28} color="#FFFFFF" />
+          </TouchableOpacity>
+          {selectedImage && (
+            <Image
+              source={{ uri: selectedImage }}
+              style={styles.imageFullscreen}
+              resizeMode="contain"
+            />
+          )}
+        </View>
+      </Modal>
+      {/* ─────────────────────────────────────────────────────────────────────── */}
     </SafeAreaView>
   );
 }
@@ -626,40 +837,39 @@ const styles = StyleSheet.create({
   // Request Grid
   requestGrid: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
     justifyContent: 'space-between',
   },
   requestCard: {
-    width: '48%',
+    flex: 1,
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
+    paddingVertical: 16,
+    paddingHorizontal: 8,
+    marginHorizontal: 4,
     alignItems: 'center',
     elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
     shadowRadius: 4,
-    minHeight: 140,
   },
   cardIconContainer: {
-    width: 60,
-    height: 60,
-    borderRadius: 14,
+    width: 48,
+    height: 48,
+    borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 10,
   },
   cardTitle: {
-    fontSize: 14,
+    fontSize: 11,
     fontWeight: '600',
     color: '#1F2937',
     textAlign: 'center',
-    marginBottom: 4,
+    marginBottom: 2,
   },
   cardSubtitle: {
-    fontSize: 12,
+    fontSize: 10,
     color: '#6B7280',
     textAlign: 'center',
   },
@@ -786,4 +996,186 @@ const styles = StyleSheet.create({
     color: '#EF4444',
     fontWeight: '600',
   },
+
+  // ─── Detail Modal ────────────────────────────────────────────────────────────
+  detailModalSafe: {
+    flex: 1,
+    backgroundColor: '#F9FAFB',
+  },
+  detailModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  detailModalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1F2937',
+  },
+  detailModalClose: {
+    padding: 4,
+  },
+  detailCenter: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 12,
+  },
+  detailLoadingText: {
+    fontSize: 14,
+    color: '#6B7280',
+  },
+  detailErrorText: {
+    fontSize: 15,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
+  detailScroll: {
+    paddingBottom: Platform.OS === 'ios' ? 40 : 24,
+  },
+  detailStatusBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 16,
+    marginHorizontal: 16,
+    marginTop: 16,
+    marginBottom: 4,
+    borderRadius: 12,
+  },
+  detailStatusText: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  detailSection: {
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 16,
+    marginTop: 12,
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    elevation: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+  },
+  detailSectionTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1F2937',
+    marginBottom: 12,
+  },
+  detailRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingVertical: 9,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+    gap: 10,
+  },
+  detailRowContent: {
+    flex: 1,
+  },
+  detailRowLabel: {
+    fontSize: 11,
+    color: '#9CA3AF',
+    marginBottom: 2,
+  },
+  detailRowValue: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#1F2937',
+  },
+  detailDescBox: {
+    backgroundColor: '#F9FAFB',
+    borderLeftWidth: 3,
+    borderLeftColor: '#3B82F6',
+    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+  },
+  detailDescText: {
+    fontSize: 14,
+    color: '#374151',
+    lineHeight: 21,
+  },
+  detailResponseBox: {
+    backgroundColor: '#EFF6FF',
+    borderLeftWidth: 3,
+    borderLeftColor: '#3B82F6',
+    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+  },
+  detailResponseMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 6,
+  },
+  detailResponseAuthor: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#1F2937',
+    flex: 1,
+  },
+  detailResponseDate: {
+    fontSize: 11,
+    color: '#9CA3AF',
+  },
+  detailResponseContent: {
+    fontSize: 14,
+    color: '#374151',
+    lineHeight: 20,
+  },
+  detailNoteBox: {
+    backgroundColor: '#FEF3C7',
+    borderLeftWidth: 3,
+    borderLeftColor: '#F59E0B',
+    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+  },
+  detailNoteText: {
+    fontSize: 14,
+    color: '#92400E',
+    lineHeight: 20,
+  },
+  imagesScrollContent: {
+    paddingVertical: 4,
+    gap: 10,
+  },
+  detailThumb: {
+    width: 110,
+    height: 110,
+    borderRadius: 10,
+    backgroundColor: '#E5E7EB',
+    marginRight: 10,
+  },
+  imageFullscreenOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.92)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  imageFullscreenClose: {
+    position: 'absolute',
+    top: 48,
+    right: 20,
+    zIndex: 10,
+    padding: 6,
+  },
+  imageFullscreen: {
+    width: Dimensions.get('window').width,
+    height: Dimensions.get('window').height * 0.8,
+  },
+  // ────────────────────────────────────────────────────────────────────────────
+
 });

@@ -321,6 +321,9 @@ export const getComplaintRequestDetailAPI = async (id) => {
         headers: {
           Authorization: `Bearer ${token}`,
         },
+        params: {
+          populate: 'responseBy',
+        },
       }
     );
     
@@ -514,6 +517,94 @@ export const deleteRepairRequestAPI = async (id) => {
       throw new Error(error.response?.data?.message || 'Không thể xóa yêu cầu này');
     }
     
+    throw error;
+  }
+};
+
+/**
+ * Get available rooms for transfer
+ * GET /api/requests/transfer/available-rooms
+ */
+export const getAvailableRoomsForTransferAPI = async () => {
+  try {
+    const token = await AsyncStorage.getItem('authToken');
+    if (!token) throw new Error('Vui lòng đăng nhập để tiếp tục');
+
+    const response = await apiClient.get(
+      API_CONFIG.ENDPOINTS.REQUEST.TRANSFER_AVAILABLE_ROOMS,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    return response.data;
+  } catch (error) {
+    console.error('API Error in getAvailableRoomsForTransferAPI:', error.message);
+    throw error;
+  }
+};
+
+/**
+ * Create a transfer room request
+ * POST /api/requests/transfer
+ * Body: { targetRoomId, transferDate, reason }
+ */
+export const createTransferRequestAPI = async (transferData) => {
+  try {
+    const token = await AsyncStorage.getItem('authToken');
+    if (!token) throw new Error('Vui lòng đăng nhập để tiếp tục');
+
+    const response = await apiClient.post(
+      API_CONFIG.ENDPOINTS.REQUEST.TRANSFER_CREATE,
+      transferData,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+
+    if (!response.data.success) {
+      throw new Error(response.data.message || 'Không thể tạo yêu cầu chuyển phòng');
+    }
+    return response.data;
+  } catch (error) {
+    console.error('API Error in createTransferRequestAPI:', error.message);
+    throw error;
+  }
+};
+
+/**
+ * Get my transfer requests
+ * GET /api/requests/transfer/my-requests
+ */
+export const getMyTransferRequestsAPI = async () => {
+  try {
+    const token = await AsyncStorage.getItem('authToken');
+    if (!token) throw new Error('Vui lòng đăng nhập để tiếp tục');
+
+    const response = await apiClient.get(
+      API_CONFIG.ENDPOINTS.REQUEST.TRANSFER_MY_REQUESTS,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    return response.data;
+  } catch (error) {
+    console.error('API Error in getMyTransferRequestsAPI:', error.message);
+    throw error;
+  }
+};
+
+/**
+ * Cancel a transfer request (only when Pending)
+ * PATCH /api/requests/transfer/:id/cancel
+ */
+export const cancelTransferRequestAPI = async (requestId) => {
+  try {
+    const token = await AsyncStorage.getItem('authToken');
+    if (!token) throw new Error('Vui lòng đăng nhập để tiếp tục');
+
+    const endpoint = API_CONFIG.ENDPOINTS.REQUEST.TRANSFER_CANCEL.replace(':id', requestId);
+    const response = await apiClient.patch(
+      endpoint,
+      {},
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    return response.data;
+  } catch (error) {
+    console.error('API Error in cancelTransferRequestAPI:', error.message);
     throw error;
   }
 };

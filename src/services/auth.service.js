@@ -12,26 +12,31 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 export const loginAPI = async (username, password) => {
   try {
     const requestData = {
-      username: username.toLowerCase().trim(), // Chuyển về lowercase và trim
+      username: username.trim(), // Chỉ trim, không chuyển lowercase (giữ nguyên chữ hoa/thường)
       password: password,
     };
     
     const response = await apiClient.post(API_CONFIG.ENDPOINTS.AUTH.LOGIN, requestData);
 
-    // Kiểm tra response success
-    if (!response.data.success) {
-      throw new Error(response.data.message || 'Đăng nhập thất bại');
+    const data = response.data;
+
+    // Kiểm tra response - hỗ trợ cả trường hợp có và không có field 'success'
+    if (data.success === false) {
+      throw new Error(data.message || 'Đăng nhập thất bại');
     }
 
     // Save token to AsyncStorage
-    if (response.data.token) {
-      await AsyncStorage.setItem('authToken', response.data.token);
+    const token = data.token || data.data?.token;
+    const user = data.user || data.data?.user;
+    
+    if (token) {
+      await AsyncStorage.setItem('authToken', token);
     }
-    if (response.data.user) {
-      await AsyncStorage.setItem('user', JSON.stringify(response.data.user));
+    if (user) {
+      await AsyncStorage.setItem('user', JSON.stringify(user));
     }
 
-    return response.data;
+    return data;
   } catch (error) {
     throw error;
   }

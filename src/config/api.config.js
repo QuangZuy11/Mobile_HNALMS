@@ -61,6 +61,10 @@ export const API_CONFIG = {
             CREATE_MAINTENANCE: '/requests/maintenance',
             UPDATE: '/requests/:id/update',
             DELETE: '/requests/:id/delete',
+            TRANSFER_AVAILABLE_ROOMS: '/requests/transfer/available-rooms',
+            TRANSFER_CREATE: '/requests/transfer',
+            TRANSFER_MY_REQUESTS: '/requests/transfer/my-requests',
+            TRANSFER_CANCEL: '/requests/transfer/:id/cancel',
         },
 
         // Device

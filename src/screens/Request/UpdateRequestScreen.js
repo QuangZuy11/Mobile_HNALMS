@@ -17,7 +17,6 @@ export default function UpdateRequestScreen({ navigation, route }) {
   const { requestId } = route.params || {};
   const [category, setCategory] = useState('');
   const [content, setContent] = useState('');
-  const [priority, setPriority] = useState('Low');
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
   const [requestStatus, setRequestStatus] = useState('');
@@ -50,10 +49,9 @@ export default function UpdateRequestScreen({ navigation, route }) {
         
         setCategory(data.category);
         setContent(data.content);
-        setPriority(data.priority);
         setRequestStatus(data.status);
         
-        console.log('Loaded complaint data:', { category: data.category, priority: data.priority });
+        console.log('Loaded complaint data:', { category: data.category });
       }
     } catch (error) {
       console.error('Error loading request details:', error);
@@ -103,12 +101,6 @@ export default function UpdateRequestScreen({ navigation, route }) {
     { id: 'Khác', label: 'Khác' },
   ];
 
-  const priorities = [
-    { id: 'Low', label: 'Thấp', color: '#3B82F6' },
-    { id: 'Medium', label: 'Trung bình', color: '#F59E0B' },
-    { id: 'High', label: 'Cao', color: '#EF4444' },
-  ];
-
   const handleSubmit = async () => {
     // Validation
     if (!category.trim()) {
@@ -134,7 +126,6 @@ export default function UpdateRequestScreen({ navigation, route }) {
       const response = await updateComplaintRequestAPI(requestId, {
         content: content.trim(),
         category: category,
-        priority: priority,
       });
 
       Alert.alert(
@@ -246,42 +237,6 @@ export default function UpdateRequestScreen({ navigation, route }) {
               textAlignVertical="top"
             />
             <Text style={styles.charCount}>{content.length}/2000</Text>
-          </View>
-
-          {/* Priority Selection */}
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>Mức độ ưu tiên</Text>
-            <View style={styles.priorityGrid}>
-              {priorities.map((p) => (
-                <TouchableOpacity
-                  key={p.id}
-                  style={[
-                    styles.priorityButton,
-                    priority === p.id && {
-                      borderWidth: 2,
-                      borderColor: p.color,
-                      backgroundColor: '#F3F4F6',
-                    },
-                  ]}
-                  onPress={() => setPriority(p.id)}
-                >
-                  <View
-                    style={[
-                      styles.priorityBadge,
-                      { backgroundColor: p.color },
-                    ]}
-                  />
-                  <Text
-                    style={[
-                      styles.priorityLabel,
-                      priority === p.id && { fontWeight: '600' },
-                    ]}
-                  >
-                    {p.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
           </View>
 
           {/* Warning Box */}
