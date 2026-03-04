@@ -45,8 +45,11 @@ export const API_CONFIG = {
         // Service
         SERVICE: {
             LIST: '/services',
+            LIST_FOR_TENANT: '/services/list',
             BOOK: '/services/book',
+            CANCEL_BOOK: '/services/book',   // DELETE /services/book/:serviceId
             CANCEL: '/services/cancel',
+            MY_SERVICES: '/services/my-services',
         },
 
         // Request
