@@ -56,6 +56,8 @@ export const API_CONFIG = {
             CREATE_MOVING_ROOM: '/requests/moving-room',
             CREATE_COMPLAINT: '/requests/complaints',
             MY_COMPLAINTS: '/requests/complaints',
+            UPDATE_COMPLAINT: '/requests/complaints',
+            DELETE_COMPLAINT: '/requests/complaints',
             CREATE_REPAIR: '/requests/repair',
             UPDATE_REPAIR: '/requests/repair',
             MY_REPAIRS: '/requests/repair/my-requests',
@@ -66,6 +68,8 @@ export const API_CONFIG = {
             TRANSFER_CREATE: '/requests/transfer',
             TRANSFER_MY_REQUESTS: '/requests/transfer/my-requests',
             TRANSFER_CANCEL: '/requests/transfer/:id/cancel',
+            TRANSFER_UPDATE: '/requests/transfer',
+            TRANSFER_DELETE: '/requests/transfer',
         },
 
         // Device
