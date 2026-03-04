@@ -25,6 +25,9 @@ import {
   getMyTransferRequestsAPI,
   getComplaintRequestDetailAPI,
   getRepairRequestDetailAPI,
+  deleteRepairRequestAPI,
+  deleteTransferRequestAPI,
+  deleteComplaintRequestAPI,
 } from '../../services/request.service';
 
 export default function RequestListScreen({ navigation }) {
@@ -33,6 +36,7 @@ export default function RequestListScreen({ navigation }) {
   const [refreshing, setRefreshing] = useState(false);
   const [selectedFilter, setSelectedFilter] = useState('all');
   const [userInfo, setUserInfo] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
 
   // Detail modal state
   const [showDetailModal, setShowDetailModal] = useState(false);
@@ -738,6 +742,180 @@ export default function RequestListScreen({ navigation }) {
                     </View>
                   </View>
                 )}
+
+                {/* Edit action for Pending maintenance */}
+                {type === 'maintenance' && rawStatus === 'Pending' && (
+                  <View style={{ marginHorizontal: 16, marginTop: 16, marginBottom: 8 }}>
+                    <TouchableOpacity
+                      style={styles.editActionButton}
+                      onPress={() => {
+                        closeDetail();
+                        navigation.navigate('UpdateRepairRequest', {
+                          requestId: detailItem?.id,
+                          initialData: data,
+                        });
+                      }}
+                    >
+                      <MaterialCommunityIcons name="pencil" size={18} color="#FFFFFF" />
+                      <Text style={styles.editActionButtonText}>Chỉnh sửa yêu cầu</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.deleteActionButton, deletingId === detailItem?.id && { opacity: 0.6 }]}
+                      disabled={deletingId === detailItem?.id}
+                      onPress={() => {
+                        Alert.alert(
+                          'Xác nhận xóa',
+                          'Bạn có chắc muốn xóa yêu cầu này không? Hành động này không thể hoàn tác.',
+                          [
+                            { text: 'Hủy', style: 'cancel' },
+                            {
+                              text: 'Xóa',
+                              style: 'destructive',
+                              onPress: async () => {
+                                try {
+                                  setDeletingId(detailItem?.id);
+                                  await deleteRepairRequestAPI(detailItem?.id);
+                                  closeDetail();
+                                  Alert.alert('Thành công', 'Đã xóa yêu cầu thành công');
+                                  loadRequests();
+                                } catch (err) {
+                                  Alert.alert('Lỗi', err.message || 'Không thể xóa yêu cầu');
+                                } finally {
+                                  setDeletingId(null);
+                                }
+                              },
+                            },
+                          ]
+                        );
+                      }}
+                    >
+                      {deletingId === detailItem?.id ? (
+                        <ActivityIndicator size="small" color="#FFFFFF" />
+                      ) : (
+                        <MaterialCommunityIcons name="trash-can-outline" size={18} color="#FFFFFF" />
+                      )}
+                      <Text style={styles.deleteActionButtonText}>
+                        {deletingId === detailItem?.id ? 'Đang xóa...' : 'Xóa yêu cầu'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+
+                {/* Edit + Delete actions for Pending transfer */}
+                {type === 'moving' && rawStatus === 'Pending' && (
+                  <View style={{ marginHorizontal: 16, marginTop: 16, marginBottom: 8 }}>
+                    <TouchableOpacity
+                      style={styles.editActionButton}
+                      onPress={() => {
+                        closeDetail();
+                        navigation.navigate('UpdateTransferRequest', {
+                          requestId: detailItem?.id,
+                          initialData: data,
+                        });
+                      }}
+                    >
+                      <MaterialCommunityIcons name="pencil" size={18} color="#FFFFFF" />
+                      <Text style={styles.editActionButtonText}>Chỉnh sửa yêu cầu</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.deleteActionButton, deletingId === detailItem?.id && { opacity: 0.6 }]}
+                      disabled={deletingId === detailItem?.id}
+                      onPress={() => {
+                        Alert.alert(
+                          'Xác nhận xóa',
+                          'Bạn có chắc muốn xóa yêu cầu chuyển phòng này không?',
+                          [
+                            { text: 'Hủy', style: 'cancel' },
+                            {
+                              text: 'Xóa',
+                              style: 'destructive',
+                              onPress: async () => {
+                                try {
+                                  setDeletingId(detailItem?.id);
+                                  await deleteTransferRequestAPI(detailItem?.id);
+                                  closeDetail();
+                                  Alert.alert('Thành công', 'Đã xóa yêu cầu thành công');
+                                  loadRequests();
+                                } catch (err) {
+                                  Alert.alert('Lỗi', err.message || 'Không thể xóa yêu cầu');
+                                } finally {
+                                  setDeletingId(null);
+                                }
+                              },
+                            },
+                          ]
+                        );
+                      }}
+                    >
+                      {deletingId === detailItem?.id ? (
+                        <ActivityIndicator size="small" color="#FFFFFF" />
+                      ) : (
+                        <MaterialCommunityIcons name="trash-can-outline" size={18} color="#FFFFFF" />
+                      )}
+                      <Text style={styles.deleteActionButtonText}>
+                        {deletingId === detailItem?.id ? 'Đang xóa...' : 'Xóa yêu cầu'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+
+                {/* Edit + Delete actions for Pending complaint */}
+                {type === 'complaint' && rawStatus === 'Pending' && (
+                  <View style={{ marginHorizontal: 16, marginTop: 16, marginBottom: 8 }}>
+                    <TouchableOpacity
+                      style={styles.editActionButton}
+                      onPress={() => {
+                        closeDetail();
+                        navigation.navigate('UpdateRequest', {
+                          requestId: data?._id || detailItem?.id,
+                          initialData: data,
+                        });
+                      }}
+                    >
+                      <MaterialCommunityIcons name="pencil" size={18} color="#FFFFFF" />
+                      <Text style={styles.editActionButtonText}>Chỉnh sửa yêu cầu</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.deleteActionButton, deletingId === detailItem?.id && { opacity: 0.6 }]}
+                      disabled={deletingId === detailItem?.id}
+                      onPress={() => {
+                        Alert.alert(
+                          'Xác nhận xóa',
+                          'Bạn có chắc muốn xóa khiếu nại này không? Hành động này không thể hoàn tác.',
+                          [
+                            { text: 'Hủy', style: 'cancel' },
+                            {
+                              text: 'Xóa',
+                              style: 'destructive',
+                              onPress: async () => {
+                                try {
+                                  setDeletingId(detailItem?.id);
+                                  await deleteComplaintRequestAPI(data?._id || detailItem?.id);
+                                  closeDetail();
+                                  Alert.alert('Thành công', 'Đã xóa khiếu nại thành công');
+                                  loadRequests();
+                                } catch (err) {
+                                  Alert.alert('Lỗi', err.message || 'Không thể xóa khiếu nại');
+                                } finally {
+                                  setDeletingId(null);
+                                }
+                              },
+                            },
+                          ]
+                        );
+                      }}
+                    >
+                      {deletingId === detailItem?.id ? (
+                        <ActivityIndicator size="small" color="#FFFFFF" />
+                      ) : (
+                        <MaterialCommunityIcons name="trash-can-outline" size={18} color="#FFFFFF" />
+                      )}
+                      <Text style={styles.deleteActionButtonText}>
+                        {deletingId === detailItem?.id ? 'Đang xóa...' : 'Xóa khiếu nại'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
               </ScrollView>
             );
           })()}
@@ -1175,6 +1353,35 @@ const styles = StyleSheet.create({
   imageFullscreen: {
     width: Dimensions.get('window').width,
     height: Dimensions.get('window').height * 0.8,
+  },
+  editActionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#3B82F6',
+    borderRadius: 10,
+    paddingVertical: 14,
+    marginBottom: 10,
+  },
+  editActionButtonText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  deleteActionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#EF4444',
+    borderRadius: 10,
+    paddingVertical: 14,
+  },
+  deleteActionButtonText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '600',
   },
   // ────────────────────────────────────────────────────────────────────────────
 
