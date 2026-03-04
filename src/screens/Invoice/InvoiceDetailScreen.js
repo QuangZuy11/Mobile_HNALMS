@@ -1,11 +1,73 @@
 // View Invoice Detail Screen
-import React from 'react';
-import { View, Text, SafeAreaView, StyleSheet, TouchableOpacity } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import {
+    View, Text, SafeAreaView, StyleSheet, TouchableOpacity,
+    ScrollView, ActivityIndicator,
+} from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { getInvoiceDetailAPI } from '../../services/invoice.service';
 
-export default function InvoiceDetailScreen({ navigation }) {
+const STATUS_CONFIG = {
+    Unpaid: { label: 'Chưa thanh toán', color: '#DC2626', bg: '#FEE2E2', icon: 'clock-alert-outline' },
+    Paid: { label: 'Đã thanh toán', color: '#10B981', bg: '#D1FAE5', icon: 'check-circle-outline' },
+    Overdue: { label: 'Quá hạn', color: '#F59E0B', bg: '#FEF3C7', icon: 'alert-circle-outline' },
+    Cancelled: { label: 'Đã huỷ', color: '#6B7280', bg: '#F3F4F6', icon: 'cancel' },
+};
+
+const TYPE_LABEL = { Periodic: 'Định kỳ', Incurred: 'Phát sinh', Other: 'Khác' };
+
+const formatCurrency = (v) =>
+    new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(v ?? 0);
+
+const formatDate = (d) => d ? new Date(d).toLocaleDateString('vi-VN') : '—';
+
+/* ─── small reusable row ─── */
+function InfoRow({ icon, label, value, valueStyle }) {
     return (
-        <SafeAreaView style={styles.container}>
+        <View style={styles.infoRow}>
+            <MaterialCommunityIcons name={icon} size={16} color="#6B7280" style={styles.infoIcon} />
+            <Text style={styles.infoLabel}>{label}</Text>
+            <Text style={[styles.infoValue, valueStyle]} numberOfLines={2}>{value || '—'}</Text>
+        </View>
+    );
+}
+
+/* ─── section card ─── */
+function Section({ icon, title, color, children }) {
+    return (
+        <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+                <View style={[styles.sectionIconWrap, { backgroundColor: color + '1A' }]}>
+                    <MaterialCommunityIcons name={icon} size={18} color={color} />
+                </View>
+                <Text style={styles.sectionTitle}>{title}</Text>
+            </View>
+            {children}
+        </View>
+    );
+}
+
+export default function InvoiceDetailScreen({ navigation, route }) {
+    const { invoiceId } = route.params ?? {};
+    const [invoice, setInvoice] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+
+    useEffect(() => {
+        if (!invoiceId) { setError('Không tìm thấy mã hóa đơn'); setLoading(false); return; }
+        getInvoiceDetailAPI(invoiceId)
+            .then((res) => setInvoice(res?.data))
+            .catch((err) => setError(err?.response?.data?.message || err.message || 'Đã xảy ra lỗi'))
+            .finally(() => setLoading(false));
+    }, [invoiceId]);
+
+    const cfg = STATUS_CONFIG[invoice?.status] ?? STATUS_CONFIG.Unpaid;
+    const room = invoice?.roomId;
+    const isUnpaid = invoice?.status === 'Unpaid' || invoice?.status === 'Overdue';
+
+    return (
+        <SafeAreaView style={styles.safeContainer}>
+            {/* ── Header ── */}
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
                     <MaterialCommunityIcons name="arrow-left" size={24} color="#1F2937" />
@@ -13,16 +75,120 @@ export default function InvoiceDetailScreen({ navigation }) {
                 <Text style={styles.headerTitle}>Chi tiết hóa đơn</Text>
                 <View style={{ width: 40 }} />
             </View>
-            <View style={styles.center}>
-                <MaterialCommunityIcons name="receipt-outline" size={64} color="#D1D5DB" />
-                <Text style={styles.placeholder}>Đang phát triển...</Text>
-            </View>
+
+            {/* ── States ── */}
+            {loading && (
+                <View style={styles.center}>
+                    <ActivityIndicator size="large" color="#3B82F6" />
+                    <Text style={styles.stateText}>Đang tải...</Text>
+                </View>
+            )}
+
+            {!loading && error && (
+                <View style={styles.center}>
+                    <MaterialCommunityIcons name="alert-circle-outline" size={64} color="#DC2626" />
+                    <Text style={[styles.stateText, { color: '#DC2626', marginTop: 12 }]}>{error}</Text>
+                    <TouchableOpacity style={styles.retryBtn} onPress={() => navigation.goBack()}>
+                        <Text style={styles.retryBtnText}>Quay lại</Text>
+                    </TouchableOpacity>
+                </View>
+            )}
+
+            {!loading && !error && invoice && (
+                <>
+                    <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+
+                        {/* ── Hero card ── */}
+                        <View style={styles.heroCard}>
+                            <View style={[styles.heroIconWrap, { backgroundColor: cfg.bg }]}>
+                                <MaterialCommunityIcons name="receipt-text" size={32} color={cfg.color} />
+                            </View>
+                            <Text style={styles.heroTitle}>{invoice.title}</Text>
+                            <Text style={styles.heroCode}>{invoice.invoiceCode}</Text>
+                            <View style={[styles.heroBadge, { backgroundColor: cfg.bg }]}>
+                                <MaterialCommunityIcons name={cfg.icon} size={13} color={cfg.color} />
+                                <Text style={[styles.heroBadgeText, { color: cfg.color }]}>{cfg.label}</Text>
+                            </View>
+                        </View>
+
+                        {/* ── Summary amount ── */}
+                        <View style={[styles.amountBanner, { backgroundColor: cfg.color }]}>
+                            <View>
+                                <Text style={styles.amountBannerLabel}>Tổng tiền phải trả</Text>
+                                <Text style={styles.amountBannerValue}>{formatCurrency(invoice.totalAmount)}</Text>
+                            </View>
+                            <View style={styles.amountBannerMeta}>
+                                <Text style={styles.amountBannerMetaLabel}>Đến hạn</Text>
+                                <Text style={styles.amountBannerMetaValue}>{formatDate(invoice.dueDate)}</Text>
+                            </View>
+                        </View>
+
+                        {/* ── Basic info ── */}
+                        <Section icon="information-outline" title="Thông tin hóa đơn" color="#3B82F6">
+                            <InfoRow icon="barcode" label="Mã hóa đơn" value={invoice.invoiceCode} />
+                            <InfoRow icon="tag-outline" label="Loại Hóa Đơn" value={TYPE_LABEL[invoice.type] ?? invoice.type} />
+                            {room && <InfoRow icon="home-outline" label="Phòng" value={`${room.name} `} />}
+                            {room?.roomTypeId?.currentPrice != null && (
+                                <InfoRow icon="currency-usd" label="Giá phòng" value={formatCurrency(room.roomTypeId.currentPrice)} />
+                            )}
+
+                            <InfoRow icon="calendar-plus" label="Ngày tạo" value={formatDate(invoice.createdAt)} />
+                            <InfoRow icon="calendar-clock" label="Đến hạn" value={formatDate(invoice.dueDate)}
+                                valueStyle={invoice.status === 'Overdue' ? { color: '#F59E0B', fontWeight: '700' } : {}} />
+                        </Section>
+
+                        {/* ── Invoice items ── */}
+                        {invoice.items?.length > 0 && (
+                            <Section icon="format-list-bulleted" title="Chi tiết khoản thu" color="#F59E0B">
+                                {invoice.items.map((item, idx) => (
+                                    <View key={item._id ?? idx} style={[styles.itemRow, idx < invoice.items.length - 1 && styles.itemRowBorder]}>
+                                        <View style={styles.itemLeft}>
+                                            <MaterialCommunityIcons name="circle-small" size={18} color="#F59E0B" />
+                                            <View style={{ flex: 1 }}>
+                                                <Text style={styles.itemName}>{item.itemName || `Khoản ${idx + 1}`}</Text>
+                                                {item.usage != null && item.unitPrice != null && (
+                                                    <Text style={styles.itemMeta}>
+                                                        {item.usage} × {formatCurrency(item.unitPrice)}
+                                                    </Text>
+                                                )}
+                                            </View>
+                                        </View>
+                                        <Text style={styles.itemAmount}>{formatCurrency(item.amount ?? 0)}</Text>
+                                    </View>
+                                ))}
+                                <View style={styles.itemTotalRow}>
+                                    <Text style={styles.itemTotalLabel}>Tổng cộng</Text>
+                                    <Text style={styles.itemTotalValue}>{formatCurrency(invoice.totalAmount)}</Text>
+                                </View>
+                            </Section>
+                        )}
+
+                        <View style={{ height: isUnpaid ? 90 : 24 }} />
+                    </ScrollView>
+
+                    {/* ── Floating pay button ── */}
+                    {isUnpaid && (
+                        <View style={styles.payBar}>
+                            <TouchableOpacity
+                                style={styles.payBtn}
+                                activeOpacity={0.85}
+                                onPress={() => navigation.navigate('PayInvoice', { invoiceId: invoice._id })}
+                            >
+                                <MaterialCommunityIcons name="credit-card-outline" size={20} color="#FFF" />
+                                <Text style={styles.payBtnText}>Thanh toán ngay</Text>
+                            </TouchableOpacity>
+                        </View>
+                    )}
+                </>
+            )}
         </SafeAreaView>
     );
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#F3F4F6' },
+    safeContainer: { flex: 1, backgroundColor: '#F3F4F6' },
+
+    /* header */
     header: {
         flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
         backgroundColor: '#FFFFFF', paddingVertical: 14, paddingHorizontal: 16,
@@ -30,6 +196,91 @@ const styles = StyleSheet.create({
     },
     backBtn: { width: 40, height: 40, justifyContent: 'center' },
     headerTitle: { fontSize: 18, fontWeight: '700', color: '#1F2937' },
-    center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-    placeholder: { marginTop: 12, fontSize: 15, color: '#9CA3AF' },
+
+    /* loading / error */
+    center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 },
+    stateText: { marginTop: 8, fontSize: 15, color: '#6B7280', textAlign: 'center' },
+    retryBtn: { marginTop: 20, backgroundColor: '#3B82F6', paddingHorizontal: 28, paddingVertical: 12, borderRadius: 10 },
+    retryBtnText: { color: '#FFF', fontSize: 15, fontWeight: '600' },
+
+    scrollContent: { paddingBottom: 12 },
+
+    /* hero */
+    heroCard: {
+        backgroundColor: '#FFFFFF', marginHorizontal: 12, marginTop: 14, marginBottom: 0,
+        borderRadius: 16, padding: 20, alignItems: 'center', gap: 6,
+        elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.07, shadowRadius: 4,
+    },
+    heroIconWrap: { width: 60, height: 60, borderRadius: 18, justifyContent: 'center', alignItems: 'center', marginBottom: 4 },
+    heroTitle: { fontSize: 16, fontWeight: '700', color: '#1F2937', textAlign: 'center' },
+    heroCode: { fontSize: 13, color: '#9CA3AF' },
+    heroBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20, marginTop: 2 },
+    heroBadgeText: { fontSize: 13, fontWeight: '700' },
+
+    /* amount banner */
+    amountBanner: {
+        marginHorizontal: 12, marginTop: 10, borderRadius: 14,
+        flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+        paddingHorizontal: 20, paddingVertical: 16,
+    },
+    amountBannerLabel: { fontSize: 12, color: 'rgba(255,255,255,0.8)', marginBottom: 4 },
+    amountBannerValue: { fontSize: 22, fontWeight: '800', color: '#FFFFFF' },
+    amountBannerMeta: { alignItems: 'flex-end' },
+    amountBannerMetaLabel: { fontSize: 12, color: 'rgba(255,255,255,0.8)', marginBottom: 4 },
+    amountBannerMetaValue: { fontSize: 15, fontWeight: '700', color: '#FFFFFF' },
+
+    /* section */
+    section: {
+        backgroundColor: '#FFFFFF', marginHorizontal: 12, marginTop: 10, borderRadius: 14,
+        overflow: 'hidden',
+        elevation: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 3,
+    },
+    sectionHeader: {
+        flexDirection: 'row', alignItems: 'center', gap: 10,
+        paddingHorizontal: 16, paddingVertical: 12,
+        borderBottomWidth: 1, borderBottomColor: '#F3F4F6',
+    },
+    sectionIconWrap: { width: 32, height: 32, borderRadius: 9, justifyContent: 'center', alignItems: 'center' },
+    sectionTitle: { fontSize: 14, fontWeight: '700', color: '#1F2937' },
+
+    /* info row */
+    infoRow: {
+        flexDirection: 'row', alignItems: 'center',
+        paddingHorizontal: 16, paddingVertical: 11,
+        borderBottomWidth: 1, borderBottomColor: '#F9FAFB',
+    },
+    infoIcon: { marginRight: 10 },
+    infoLabel: { fontSize: 13, color: '#6B7280', width: 110 },
+    infoValue: { flex: 1, fontSize: 13, fontWeight: '600', color: '#1F2937', textAlign: 'right' },
+
+    /* items */
+    itemRow: { flexDirection: 'row', alignItems: 'flex-start', paddingHorizontal: 12, paddingVertical: 11 },
+    itemRowBorder: { borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
+    itemLeft: { flex: 1, flexDirection: 'row', alignItems: 'flex-start', gap: 4 },
+    itemName: { fontSize: 13, fontWeight: '600', color: '#1F2937' },
+    itemMeta: { fontSize: 12, color: '#9CA3AF', marginTop: 2 },
+    itemAmount: { fontSize: 14, fontWeight: '700', color: '#F59E0B', paddingLeft: 8 },
+    itemTotalRow: {
+        flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+        borderTopWidth: 1.5, borderTopColor: '#E5E7EB',
+        paddingHorizontal: 16, paddingVertical: 12, backgroundColor: '#FAFAFA',
+    },
+    itemTotalLabel: { fontSize: 14, fontWeight: '700', color: '#1F2937' },
+    itemTotalValue: { fontSize: 16, fontWeight: '800', color: '#1F2937' },
+
+    /* pay bar */
+    payBar: {
+        position: 'absolute', bottom: 0, left: 0, right: 0,
+        backgroundColor: '#FFFFFF', paddingHorizontal: 16, paddingVertical: 12,
+        borderTopWidth: 1, borderTopColor: '#E5E7EB',
+        elevation: 8, shadowColor: '#000', shadowOffset: { width: 0, height: -2 },
+        shadowOpacity: 0.08, shadowRadius: 6,
+    },
+    payBtn: {
+        backgroundColor: '#3B82F6', borderRadius: 12,
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+        paddingVertical: 14,
+    },
+    payBtnText: { fontSize: 16, fontWeight: '700', color: '#FFFFFF' },
 });
+
