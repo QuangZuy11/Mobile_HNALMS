@@ -270,8 +270,7 @@ export default function MyContractScreen({ navigation }) {
               <InfoRow icon="barcode" color="#8B5CF6" label="Mã hợp đồng" value={contract.contractCode} />
               <InfoRow icon="calendar-start" color="#8B5CF6" label="Ngày bắt đầu" value={formatDate(contract.startDate)} />
               <InfoRow icon="calendar-end" color="#8B5CF6" label="Ngày kết thúc" value={formatDate(contract.endDate)} />
-              <InfoRow icon="timer-sand" color="#8B5CF6" label="Thời hạn" value={`${contract.duration || '–'} tháng`} />
-              <InfoRow icon="account-group" color="#8B5CF6" label="Số người ở" value={`${contract.personInRoom || 0} người`} isLast />
+              <InfoRow icon="timer-sand" color="#8B5CF6" label="Thời hạn" value={`${contract.duration || '–'} tháng`} isLast />
             </View>
 
             {/* Room Info */}
@@ -289,26 +288,6 @@ export default function MyContractScreen({ navigation }) {
                       <InfoRow icon="account-multiple" color="#3B82F6" label="Số người tối đa" value={`${roomType.personMax || '–'} người`} isLast />
                     </>
                   )}
-                </View>
-              </>
-            )}
-
-            {/* Services */}
-            {contract.services && contract.services.length > 0 && (
-              <>
-                <Text style={styles.sectionTitle}>Dịch vụ đi kèm</Text>
-                <View style={styles.infoCard}>
-                  {contract.services.map((svc, idx) => (
-                    <InfoRow
-                      key={svc._id || idx}
-                      icon="room-service-outline"
-                      color="#F59E0B"
-                      label={svc.name || 'Dịch vụ'}
-                      value={formatCurrency(svc.currentPrice)}
-                      subtitle={svc.type}
-                      isLast={idx === contract.services.length - 1}
-                    />
-                  ))}
                 </View>
               </>
             )}
