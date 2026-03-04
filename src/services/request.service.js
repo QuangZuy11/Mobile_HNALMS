@@ -346,41 +346,59 @@ export const getComplaintRequestDetailAPI = async (id) => {
 };
 
 /**
+ * Delete a complaint request (only when Pending)
+ * DELETE /api/requests/complaints/:id
+ */
+export const deleteComplaintRequestAPI = async (id) => {
+  try {
+    const token = await AsyncStorage.getItem('authToken');
+    if (!token) throw new Error('Vui l\u00f2ng \u0111\u0103ng nh\u1eadp \u0111\u1ec3 ti\u1ebfp t\u1ee5c');
+    const response = await apiClient.delete(
+      `${API_CONFIG.ENDPOINTS.REQUEST.DELETE_COMPLAINT}/${id}`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    if (!response.data.success) throw new Error(response.data.message || 'Kh\u00f4ng th\u1ec3 x\u00f3a khi\u1ebfu n\u1ea1i');
+    return response.data;
+  } catch (error) {
+    console.error('API Error in deleteComplaintRequestAPI:', error.message);
+    if (error.response?.status === 403 || error.status === 403)
+      throw new Error('B\u1ea1n kh\u00f4ng c\u00f3 quy\u1ec1n x\u00f3a khi\u1ebfu n\u1ea1i n\u00e0y');
+    if (error.response?.status === 400 || error.status === 400)
+      throw new Error(error.response?.data?.message || 'Ch\u1ec9 c\u00f3 th\u1ec3 x\u00f3a khi\u1ebfu n\u1ea1i \u1edf tr\u1ea1ng th\u00e1i Pending');
+    if (error.response?.status === 404 || error.status === 404)
+      throw new Error('Kh\u00f4ng t\u00ecm th\u1ea5y khi\u1ebfu n\u1ea1i');
+    throw error;
+  }
+};
+
+/**
  * Update complaint request
  * PUT /api/requests/complaints/:id
  * @param {string} id - Complaint ID
  * @param {Object} updateData - Update data
  * @param {string} updateData.content - Complaint description (min 10 chars, max 2000 chars)
  * @param {string} updateData.category - Complaint category
- * @param {string} updateData.priority - Priority level: "Low", "Medium", "High"
  * @returns {Promise} - Response with updated complaint data
  */
 export const updateComplaintRequestAPI = async (id, updateData) => {
   try {
     const token = await AsyncStorage.getItem('authToken');
     
-    console.log('Updating complaint ID:', id);
-    console.log('Update data:', updateData);
-    console.log('Token exists:', !!token);
-    
     if (!token) {
       throw new Error('Vui lòng đăng nhập để tiếp tục');
     }
     
-    const endpoint = `${API_CONFIG.ENDPOINTS.REQUEST.CREATE_COMPLAINT}/${id}`;
-    console.log('Request endpoint:', endpoint);
+    const endpoint = `${API_CONFIG.ENDPOINTS.REQUEST.UPDATE_COMPLAINT}/${id}`;
     
     const response = await apiClient.put(
       endpoint,
-      updateData,
+      { content: updateData.content, category: updateData.category },
       {
         headers: {
           Authorization: `Bearer ${token}`,
         },
       }
     );
-    
-    console.log('Response status:', response.status);
     
     if (!response.data.success) {
       throw new Error(response.data.message || 'Không thể cập nhật khiếu nại');
@@ -394,11 +412,12 @@ export const updateComplaintRequestAPI = async (id, updateData) => {
       response: error.response?.data,
     });
     
-    // Handle specific errors
-    if (error.status === 403 || error.response?.status === 403) {
+    if (error.response?.status === 403 || error.status === 403) {
       throw new Error('Bạn không có quyền cập nhật yêu cầu này');
-    } else if (error.status === 400 || error.response?.status === 400) {
+    } else if (error.response?.status === 400 || error.status === 400) {
       throw new Error(error.response?.data?.message || 'Dữ liệu không hợp lệ');
+    } else if (error.response?.status === 404 || error.status === 404) {
+      throw new Error('Không tìm thấy khiếu nại');
     }
     
     throw error;
@@ -460,6 +479,41 @@ export const createRepairRequestAPI = async (repairData) => {
       throw new Error(error.response?.data?.message || 'Dữ liệu không hợp lệ');
     }
     
+    throw new Error(error.response?.data?.message || error.message || 'Có lỗi xảy ra. Vui lòng thử lại');
+  }
+};
+
+/**
+ * Update a repair/maintenance request (tenant, only when Pending)
+ * PUT /api/requests/repair/:requestId
+ * @param {string} id - Repair request ID
+ * @param {Object} updateData - { type?, devicesId?, description?, images? }
+ * @returns {Promise} - Response with updated repair request
+ */
+export const updateRepairRequestAPI = async (id, updateData) => {
+  try {
+    const token = await AsyncStorage.getItem('authToken');
+    if (!token) throw new Error('Vui lòng đăng nhập để tiếp tục');
+
+    const response = await apiClient.put(
+      `${API_CONFIG.ENDPOINTS.REQUEST.UPDATE_REPAIR}/${id}`,
+      updateData,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+
+    if (!response.data.success) {
+      throw new Error(response.data.message || 'Không thể cập nhật yêu cầu sửa chữa');
+    }
+    return response.data;
+  } catch (error) {
+    console.error('API Error in updateRepairRequestAPI:', error);
+    if (error.status === 401 || error.response?.status === 401) {
+      throw new Error('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại');
+    } else if (error.status === 403 || error.response?.status === 403) {
+      throw new Error('Bạn không có quyền cập nhật yêu cầu này');
+    } else if (error.status === 400 || error.response?.status === 400) {
+      throw new Error(error.response?.data?.message || 'Dữ liệu không hợp lệ');
+    }
     throw new Error(error.response?.data?.message || error.message || 'Có lỗi xảy ra. Vui lòng thử lại');
   }
 };
@@ -583,6 +637,53 @@ export const getMyTransferRequestsAPI = async () => {
     return response.data;
   } catch (error) {
     console.error('API Error in getMyTransferRequestsAPI:', error.message);
+    throw error;
+  }
+};
+
+/**
+ * Update a transfer request (only when Pending)
+ * PUT /api/requests/transfer/:id
+ * Body: { targetRoomId?, transferDate?, reason? }
+ */
+export const updateTransferRequestAPI = async (id, updateData) => {
+  try {
+    const token = await AsyncStorage.getItem('authToken');
+    if (!token) throw new Error('Vui l\u00f2ng \u0111\u0103ng nh\u1eadp \u0111\u1ec3 ti\u1ebfp t\u1ee5c');
+    const response = await apiClient.put(
+      `${API_CONFIG.ENDPOINTS.REQUEST.TRANSFER_UPDATE}/${id}`,
+      updateData,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    if (!response.data.success) throw new Error(response.data.message || 'Kh\u00f4ng th\u1ec3 c\u1eadp nh\u1eadt y\u00eau c\u1ea7u');
+    return response.data;
+  } catch (error) {
+    console.error('API Error in updateTransferRequestAPI:', error.message);
+    if (error.response?.status === 403) throw new Error('B\u1ea1n kh\u00f4ng c\u00f3 quy\u1ec1n c\u1eadp nh\u1eadt y\u00eau c\u1ea7u n\u00e0y');
+    if (error.response?.status === 400) throw new Error(error.response?.data?.message || 'Y\u00eau c\u1ea7u kh\u00f4ng h\u1ee3p l\u1ec7');
+    throw error;
+  }
+};
+
+/**
+ * Delete a transfer request (only when Pending)
+ * DELETE /api/requests/transfer/:id
+ */
+export const deleteTransferRequestAPI = async (id) => {
+  try {
+    const token = await AsyncStorage.getItem('authToken');
+    if (!token) throw new Error('Vui l\u00f2ng \u0111\u0103ng nh\u1eadp \u0111\u1ec3 ti\u1ebfp t\u1ee5c');
+    const response = await apiClient.delete(
+      `${API_CONFIG.ENDPOINTS.REQUEST.TRANSFER_DELETE}/${id}`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    if (!response.data.success) throw new Error(response.data.message || 'Kh\u00f4ng th\u1ec3 x\u00f3a y\u00eau c\u1ea7u');
+    return response.data;
+  } catch (error) {
+    console.error('API Error in deleteTransferRequestAPI:', error.message);
+    if (error.response?.status === 403) throw new Error('B\u1ea1n kh\u00f4ng c\u00f3 quy\u1ec1n x\u00f3a y\u00eau c\u1ea7u n\u00e0y');
+    if (error.response?.status === 400) throw new Error(error.response?.data?.message || 'Ch\u1ec9 c\u00f3 th\u1ec3 x\u00f3a y\u00eau c\u1ea7u \u1edf tr\u1ea1ng th\u00e1i Pending');
+    if (error.response?.status === 404) throw new Error('Kh\u00f4ng t\u00ecm th\u1ea5y y\u00eau c\u1ea7u');
     throw error;
   }
 };
