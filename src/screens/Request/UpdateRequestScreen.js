@@ -14,14 +14,14 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { getComplaintRequestDetailAPI, updateComplaintRequestAPI } from '../../services/request.service';
 
 export default function UpdateRequestScreen({ navigation, route }) {
-  const { requestId } = route.params || {};
-  const [category, setCategory] = useState('');
-  const [content, setContent] = useState('');
+  const { requestId, initialData } = route.params || {};
+  const [category, setCategory] = useState(initialData?.category || '');
+  const [content, setContent] = useState(initialData?.content || '');
   const [loading, setLoading] = useState(false);
-  const [initialLoading, setInitialLoading] = useState(true);
-  const [requestStatus, setRequestStatus] = useState('');
+  const [initialLoading, setInitialLoading] = useState(!initialData);
+  const [requestStatus, setRequestStatus] = useState(initialData?.status || '');
 
-  // Load request details from API
+  // Load request details from API (only when initialData is not provided)
   const loadRequestDetails = async () => {
     try {
       setInitialLoading(true);
@@ -37,12 +37,7 @@ export default function UpdateRequestScreen({ navigation, route }) {
           Alert.alert(
             'Không thể chỉnh sửa',
             'Chỉ có thể chỉnh sửa yêu cầu đang ở trạng thái "Chờ xử lý"',
-            [
-              {
-                text: 'Quay lại',
-                onPress: () => navigation.goBack(),
-              },
-            ]
+            [{ text: 'Quay lại', onPress: () => navigation.goBack() }]
           );
           return;
         }
@@ -50,38 +45,34 @@ export default function UpdateRequestScreen({ navigation, route }) {
         setCategory(data.category);
         setContent(data.content);
         setRequestStatus(data.status);
-        
-        console.log('Loaded complaint data:', { category: data.category });
       }
     } catch (error) {
       console.error('Error loading request details:', error);
       
       let errorMessage = 'Không thể tải thông tin yêu cầu. Vui lòng thử lại.';
+      if (error.status === 403) errorMessage = 'Bạn không có quyền chỉnh sửa yêu cầu này';
+      else if (error.status === 404) errorMessage = 'Không tìm thấy yêu cầu này';
+      else if (error.message) errorMessage = error.message;
       
-      if (error.status === 403) {
-        errorMessage = 'Bạn không có quyền chỉnh sửa yêu cầu này';
-      } else if (error.status === 404) {
-        errorMessage = 'Không tìm thấy yêu cầu này';
-      } else if (error.message) {
-        errorMessage = error.message;
-      }
-      
-      Alert.alert(
-        'Lỗi',
-        errorMessage,
-        [
-          {
-            text: 'Quay lại',
-            onPress: () => navigation.goBack(),
-          },
-        ]
-      );
+      Alert.alert('Lỗi', errorMessage, [{ text: 'Quay lại', onPress: () => navigation.goBack() }]);
     } finally {
       setInitialLoading(false);
     }
   };
 
   useEffect(() => {
+    // If initialData is provided, validate status and pre-fill — no API call needed
+    if (initialData) {
+      if (initialData.status && initialData.status !== 'Pending') {
+        Alert.alert(
+          'Không thể chỉnh sửa',
+          'Chỉ có thể chỉnh sửa yêu cầu đang ở trạng thái "Chờ xử lý"',
+          [{ text: 'Quay lại', onPress: () => navigation.goBack() }]
+        );
+      }
+      return;
+    }
+    // No initialData — fetch from API
     if (requestId) {
       loadRequestDetails();
     } else {
@@ -95,7 +86,7 @@ export default function UpdateRequestScreen({ navigation, route }) {
   const categories = [
     { id: 'Tiếng ồn', label: 'Tiếng ồn' },
     { id: 'Vệ sinh', label: 'Vệ sinh' },
-    { id: 'An niên', label: 'An ninh' },
+    { id: 'An ninh', label: 'An ninh' },
     { id: 'Cơ sở vật chất', label: 'Cơ sở vật chất' },
     { id: 'Thái độ phục vụ', label: 'Thái độ phục vụ' },
     { id: 'Khác', label: 'Khác' },
