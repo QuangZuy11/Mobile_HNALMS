@@ -17,6 +17,7 @@ import CreateComplaintRequestScreen from '../screens/Request/CreateComplaintRequ
 import CreateMovingRoomRequestScreen from '../screens/Request/CreateMovingRoomRequestScreen';
 import RequestDetailScreen from '../screens/Request/RequestDetailScreen';
 import UpdateRequestScreen from '../screens/Request/UpdateRequestScreen';
+import UpdateRepairRequestScreen from '../screens/Request/UpdateRepairRequestScreen';
 
 // Additional Screens
 import NotificationListScreen from '../screens/Notification/NotificationListScreen';
@@ -115,6 +116,13 @@ function HomeStack() {
         component={UpdateRequestScreen}
         options={{
           title: 'Cập nhật yêu cầu',
+        }}
+      />
+      <Stack.Screen
+        name="UpdateRepairRequest"
+        component={UpdateRepairRequestScreen}
+        options={{
+          title: 'Cập nhật yêu cầu sửa chữa',
         }}
       />
       <Stack.Screen
