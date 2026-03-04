@@ -1,5 +1,5 @@
 // View Invoice Detail Screen
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
     View, Text, SafeAreaView, StyleSheet, TouchableOpacity,
     ScrollView, ActivityIndicator,
@@ -15,6 +15,47 @@ const STATUS_CONFIG = {
 };
 
 const TYPE_LABEL = { Periodic: 'Định kỳ', Incurred: 'Phát sinh', Other: 'Khác' };
+
+const FIXED_SERVICES = [
+    { key: 'internet', label: 'Internet', icon: 'wifi', color: '#6366F1' },
+    { key: 'vesinh', label: 'Vệ sinh', icon: 'broom', color: '#14B8A6' },
+    { key: 'xemay', label: 'Gửi Xe Máy', icon: 'motorbike', color: '#F97316' },
+    { key: 'xedap', label: 'Gửi Xe Đạp', icon: 'bicycle', color: '#3B82F6' },
+    { key: 'xedapdien', label: 'Gửi Xe Đạp Điện', icon: 'bicycle-electric', color: '#10B981' },
+    { key: 'thangmay', label: 'Thang Máy', icon: 'elevator-passenger', color: '#8B5CF6' },
+    { key: 'phatsinh', label: 'Phát sinh', icon: 'plus-circle-outline', color: '#EF4444' },
+];
+
+const matchService = (itemName, key) => {
+    const n = (itemName || '').toLowerCase();
+    switch (key) {
+        case 'internet': return n.includes('internet');
+        case 'vesinh': return n.includes('vệ sinh');
+        case 'xemay': return n.includes('xe máy');
+        case 'xedapdien': return n.includes('xe đạp điện');
+        case 'xedap': return n.includes('xe đạp') && !n.includes('xe đạp điện');
+        case 'thangmay': return n.includes('thang máy');
+        case 'phatsinh': return n.includes('phát sinh');
+        default: return false;
+    }
+};
+
+const getItemIcon = (itemName) => {
+    const n = (itemName || '').toLowerCase();
+    if (n.includes('thuê phòng') || n.includes('tiền phòng')) return { icon: 'home-city-outline', color: '#3B82F6' };
+    if (n.includes('điện')) return { icon: 'flash', color: '#F59E0B' };
+    if (n.includes('nước')) return { icon: 'water-outline', color: '#06B6D4' };
+    if (n.includes('internet')) return { icon: 'wifi', color: '#6366F1' };
+    if (n.includes('vệ sinh')) return { icon: 'broom', color: '#14B8A6' };
+    if (n.includes('xe đạp điện')) return { icon: 'bicycle-electric', color: '#10B981' };
+    if (n.includes('xe máy')) return { icon: 'motorbike', color: '#F97316' };
+    if (n.includes('xe đạp')) return { icon: 'bicycle', color: '#3B82F6' };
+    if (n.includes('thang máy')) return { icon: 'elevator-passenger', color: '#8B5CF6' };
+    if (n.includes('phát sinh')) return { icon: 'plus-circle-outline', color: '#EF4444' };
+    return { icon: 'receipt-text-outline', color: '#6B7280' };
+};
+
+const fmtNum = (v) => new Intl.NumberFormat('vi-VN').format(Math.round(v));
 
 const formatCurrency = (v) =>
     new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(v ?? 0);
@@ -64,6 +105,18 @@ export default function InvoiceDetailScreen({ navigation, route }) {
     const cfg = STATUS_CONFIG[invoice?.status] ?? STATUS_CONFIG.Unpaid;
     const room = invoice?.roomId;
     const isUnpaid = invoice?.status === 'Unpaid' || invoice?.status === 'Overdue';
+
+    const completeItems = useMemo(() => {
+        const apiItems = invoice?.items || [];
+        const result = [...apiItems];
+        FIXED_SERVICES.forEach(svc => {
+            const exists = apiItems.some(i => matchService(i.itemName, svc.key));
+            if (!exists) {
+                result.push({ itemName: svc.label, amount: null, _icon: svc.icon, _color: svc.color });
+            }
+        });
+        return result;
+    }, [invoice]);
 
     return (
         <SafeAreaView style={styles.safeContainer}>
@@ -137,48 +190,56 @@ export default function InvoiceDetailScreen({ navigation, route }) {
                                 valueStyle={invoice.status === 'Overdue' ? { color: '#F59E0B', fontWeight: '700' } : {}} />
                         </Section>
 
-                        {/* ── Invoice items ── */}
-                        {invoice.items?.length > 0 && (
-                            <Section icon="format-list-bulleted" title="Chi tiết khoản thu" color="#F59E0B">
-                                {invoice.items.map((item, idx) => (
-                                    <View key={item._id ?? idx} style={[styles.itemRow, idx < invoice.items.length - 1 && styles.itemRowBorder]}>
-                                        <View style={styles.itemLeft}>
-                                            <MaterialCommunityIcons name="circle-small" size={18} color="#F59E0B" />
-                                            <View style={{ flex: 1 }}>
-                                                <Text style={styles.itemName}>{item.itemName || `Khoản ${idx + 1}`}</Text>
-                                                {item.usage != null && item.unitPrice != null && (
-                                                    <Text style={styles.itemMeta}>
-                                                        {item.usage} × {formatCurrency(item.unitPrice)}
-                                                    </Text>
-                                                )}
+                        {/* ── Chi tiết khoản thu ── */}
+                        <Section icon="format-list-bulleted" title="Chi tiết khoản thu" color="#F59E0B">
+                            {completeItems.map((item, idx) => {
+                                const display = item._icon
+                                    ? { icon: item._icon, color: item._color }
+                                    : getItemIcon(item.itemName);
+                                const hasAmount = item.amount != null && item.amount > 0;
+                                const hasUsage = item.usage != null && item.usage > 0 && item.unitPrice != null;
+                                return (
+                                    <View key={item._id ?? `svc-${idx}`}
+                                        style={[styles.svcRow, idx < completeItems.length - 1 && styles.svcRowBorder]}>
+                                        <View style={styles.svcTop}>
+                                            <View style={[styles.svcIconWrap, { backgroundColor: display.color + '15' }]}>
+                                                <MaterialCommunityIcons name={display.icon} size={16} color={display.color} />
                                             </View>
+                                            <Text style={styles.svcName} numberOfLines={2}>{item.itemName}</Text>
+                                            <Text style={[styles.svcAmount, !hasAmount && styles.svcAmountEmpty]}>
+                                                {hasAmount ? fmtNum(item.amount) : '—'}
+                                            </Text>
                                         </View>
-                                        <Text style={styles.itemAmount}>{formatCurrency(item.amount ?? 0)}</Text>
+                                        {hasUsage && (
+                                            <View style={styles.svcMeta}>
+                                                <Text style={styles.svcMetaText}>
+                                                    SL: {item.usage} × {fmtNum(item.unitPrice)}
+                                                </Text>
+                                            </View>
+                                        )}
                                     </View>
-                                ))}
-                                <View style={styles.itemTotalRow}>
-                                    <Text style={styles.itemTotalLabel}>Tổng cộng</Text>
-                                    <Text style={styles.itemTotalValue}>{formatCurrency(invoice.totalAmount)}</Text>
-                                </View>
-                            </Section>
-                        )}
+                                );
+                            })}
+                            <View style={styles.svcTotalRow}>
+                                <Text style={styles.svcTotalLabel}>TỔNG CỘNG</Text>
+                                <Text style={styles.svcTotalValue}>{formatCurrency(invoice.totalAmount)}</Text>
+                            </View>
+                        </Section>
 
-                        <View style={{ height: isUnpaid ? 90 : 24 }} />
+                        <View style={{ height: 90 }} />
                     </ScrollView>
 
                     {/* ── Floating pay button ── */}
-                    {isUnpaid && (
-                        <View style={styles.payBar}>
-                            <TouchableOpacity
-                                style={styles.payBtn}
-                                activeOpacity={0.85}
-                                onPress={() => navigation.navigate('PayInvoice', { invoiceId: invoice._id })}
-                            >
-                                <MaterialCommunityIcons name="credit-card-outline" size={20} color="#FFF" />
-                                <Text style={styles.payBtnText}>Thanh toán ngay</Text>
-                            </TouchableOpacity>
-                        </View>
-                    )}
+                    <View style={styles.payBar}>
+                        <TouchableOpacity
+                            style={styles.payBtn}
+                            activeOpacity={0.85}
+                            onPress={() => { }}
+                        >
+                            <MaterialCommunityIcons name="credit-card-outline" size={20} color="#FFF" />
+                            <Text style={styles.payBtnText}>Thanh toán</Text>
+                        </TouchableOpacity>
+                    </View>
                 </>
             )}
         </SafeAreaView>
@@ -253,20 +314,26 @@ const styles = StyleSheet.create({
     infoLabel: { fontSize: 13, color: '#6B7280', width: 110 },
     infoValue: { flex: 1, fontSize: 13, fontWeight: '600', color: '#1F2937', textAlign: 'right' },
 
-    /* items */
-    itemRow: { flexDirection: 'row', alignItems: 'flex-start', paddingHorizontal: 12, paddingVertical: 11 },
-    itemRowBorder: { borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
-    itemLeft: { flex: 1, flexDirection: 'row', alignItems: 'flex-start', gap: 4 },
-    itemName: { fontSize: 13, fontWeight: '600', color: '#1F2937' },
-    itemMeta: { fontSize: 12, color: '#9CA3AF', marginTop: 2 },
-    itemAmount: { fontSize: 14, fontWeight: '700', color: '#F59E0B', paddingLeft: 8 },
-    itemTotalRow: {
-        flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-        borderTopWidth: 1.5, borderTopColor: '#E5E7EB',
-        paddingHorizontal: 16, paddingVertical: 12, backgroundColor: '#FAFAFA',
+    /* service items */
+    svcRow: { paddingHorizontal: 14, paddingVertical: 12 },
+    svcRowBorder: { borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
+    svcTop: { flexDirection: 'row', alignItems: 'center' },
+    svcIconWrap: {
+        width: 32, height: 32, borderRadius: 9,
+        justifyContent: 'center', alignItems: 'center', marginRight: 10,
     },
-    itemTotalLabel: { fontSize: 14, fontWeight: '700', color: '#1F2937' },
-    itemTotalValue: { fontSize: 16, fontWeight: '800', color: '#1F2937' },
+    svcName: { flex: 1, fontSize: 13, fontWeight: '600', color: '#1F2937' },
+    svcAmount: { fontSize: 14, fontWeight: '700', color: '#1F2937', marginLeft: 8 },
+    svcAmountEmpty: { color: '#D1D5DB' },
+    svcMeta: { marginLeft: 42, marginTop: 4 },
+    svcMetaText: { fontSize: 11, color: '#9CA3AF' },
+    svcTotalRow: {
+        flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+        paddingHorizontal: 14, paddingVertical: 12,
+        backgroundColor: '#FEF9C3', borderTopWidth: 1.5, borderTopColor: '#E5E7EB',
+    },
+    svcTotalLabel: { fontSize: 14, fontWeight: '800', color: '#1F2937' },
+    svcTotalValue: { fontSize: 16, fontWeight: '800', color: '#DC2626' },
 
     /* pay bar */
     payBar: {
