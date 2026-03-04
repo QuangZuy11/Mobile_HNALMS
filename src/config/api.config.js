@@ -57,6 +57,7 @@ export const API_CONFIG = {
             CREATE_COMPLAINT: '/requests/complaints',
             MY_COMPLAINTS: '/requests/complaints',
             CREATE_REPAIR: '/requests/repair',
+            UPDATE_REPAIR: '/requests/repair',
             MY_REPAIRS: '/requests/repair/my-requests',
             CREATE_MAINTENANCE: '/requests/maintenance',
             UPDATE: '/requests/:id/update',
