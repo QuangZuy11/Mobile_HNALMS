@@ -112,7 +112,7 @@ export default function CreateMovingRoomRequestScreen({ navigation }) {
     if (!day) return;
     const date = new Date(calYear, calMonth, day);
     date.setHours(0,0,0,0);
-    if (date < today) return; // disable past
+    if (date <= today) return; // disable today and past
     setSelectedDateObj(date);
     const dd = String(day).padStart(2,'0');
     const mm = String(calMonth + 1).padStart(2,'0');
@@ -327,7 +327,7 @@ export default function CreateMovingRoomRequestScreen({ navigation }) {
               <MaterialCommunityIcons name="check-circle" size={18} color="#F59E0B" />
             )}
           </TouchableOpacity>
-          <Text style={styles.helperText}>Ngày chuyển phải từ hôm nay trở đi</Text>
+          <Text style={styles.helperText}>Ngày chuyển phải từ ngày mai trở đi</Text>
 
           {/* Step 3: Reason */}
           <View style={[styles.stepHeader, { marginTop: 28 }]}>
@@ -469,7 +469,7 @@ export default function CreateMovingRoomRequestScreen({ navigation }) {
                 }
                 const cellDate = new Date(calYear, calMonth, day);
                 cellDate.setHours(0,0,0,0);
-                const isPast = cellDate < today;
+                const isPast = cellDate <= today;
                 const isToday = cellDate.getTime() === today.getTime();
                 const isSelected = selectedDateObj &&
                   cellDate.getTime() === new Date(selectedDateObj).setHours(0,0,0,0);
