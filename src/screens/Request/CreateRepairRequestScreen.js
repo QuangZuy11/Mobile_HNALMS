@@ -112,7 +112,7 @@ export default function CreateRepairRequestScreen({ navigation }) {
   const pickImage = async () => {
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ['images'],
         allowsMultipleSelection: true,
         quality: 0.7,
         base64: false,
@@ -131,7 +131,7 @@ export default function CreateRepairRequestScreen({ navigation }) {
   const takePhoto = async () => {
     try {
       const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ['images'],
         quality: 0.7,
         base64: false,
       });
