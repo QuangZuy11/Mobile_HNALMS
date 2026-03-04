@@ -38,6 +38,7 @@ export const API_CONFIG = {
         // Invoice
         INVOICE: {
             LIST: '/invoices',
+            TENANT_LIST: '/invoices/tenant',
             DETAIL: '/invoices/:id',
             PAY: '/invoices/pay',
         },

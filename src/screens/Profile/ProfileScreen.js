@@ -12,12 +12,23 @@ import {
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { getProfileAPI } from '../../services/profile.service';
 
+// Helper function to display role label
+const getRoleLabel = (role) => {
+  if (!role) return 'Cư Dân';
+  switch (String(role).toLowerCase().trim()) {
+    case 'tenant': return 'Cư Dân';
+    case 'admin': return 'Quản trị viên';
+    case 'staff': return 'Nhân viên';
+    default: return role;
+  }
+};
+
 // Helper function to display gender label
 const getGenderLabel = (gender) => {
   if (!gender) return 'Chưa cập nhật';
-  
+
   const lowerGender = String(gender).toLowerCase().trim();
-  
+
   switch (lowerGender) {
     case 'male':
     case 'nam':
@@ -46,7 +57,7 @@ export default function ProfileScreen({ navigation }) {
     try {
       setError(null);
       const response = await getProfileAPI();
-      
+
       // Backend returns { success: true, data: profile }
       if (response && response.data) {
         setProfile(response.data);
@@ -155,9 +166,9 @@ export default function ProfileScreen({ navigation }) {
           <View style={styles.avatarCircle}>
             <MaterialCommunityIcons name="account" size={64} color="#3B82F6" />
           </View>
-          <Text style={styles.username}>{profile?.username || 'N/A'}</Text>
+          <Text style={styles.username}>{profile?.fullname || 'N/A'}</Text>
           <View style={styles.roleBadge}>
-            <Text style={styles.roleText}>{profile?.role || 'Tenant'}</Text>
+            <Text style={styles.roleText}>{getRoleLabel(profile?.role)}</Text>
           </View>
         </View>
 
@@ -241,10 +252,10 @@ export default function ProfileScreen({ navigation }) {
           <Text style={styles.sectionTitle}>Trạng thái tài khoản</Text>
           <View style={styles.infoCard}>
             <View style={styles.infoRow}>
-              <MaterialCommunityIcons 
-                name={profile?.status === 'active' ? 'check-circle' : 'alert-circle'} 
-                size={20} 
-                color={profile?.status === 'active' ? '#10B981' : '#F59E0B'} 
+              <MaterialCommunityIcons
+                name={profile?.status === 'active' ? 'check-circle' : 'alert-circle'}
+                size={20}
+                color={profile?.status === 'active' ? '#10B981' : '#F59E0B'}
               />
               <View style={styles.infoContent}>
                 <Text style={styles.infoLabel}>Trạng thái</Text>
@@ -260,7 +271,7 @@ export default function ProfileScreen({ navigation }) {
 
           {/* Action Buttons */}
           <Text style={styles.sectionTitle}>Hành động</Text>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.actionButton}
             onPress={() => navigation.navigate('ChangePassword')}
           >
