@@ -44,6 +44,8 @@ const TYPE_ICON = {
 const getTypeIcon = (type) => TYPE_ICON[type] || 'room-service-outline';
 
 const isFixedService = (s) => s.type === 'Fixed';
+const isWashingMachine = (item) =>
+  item?.type === 'Giặt ủi' || /máy\s*giặt/i.test(item?.name || '');
 
 const TABS = [
   { key: 'fixed',     label: 'Cố định',  icon: 'shield-check',      color: '#2563EB' },
@@ -103,7 +105,7 @@ export default function ServiceListScreen({ navigation }) {
     const item = bookModal.item;
     if (!item) return;
 
-    const qty = parseInt(quantity, 10);
+    const qty = isWashingMachine(item) ? 1 : parseInt(quantity, 10);
     if (isNaN(qty) || qty < 1) {
       Alert.alert('Lỗi', 'Số lượng người phải là số nguyên >= 1');
       return;
@@ -395,38 +397,40 @@ export default function ServiceListScreen({ navigation }) {
               </View>
             )}
 
-            {/* Quantity input */}
-            <View style={styles.modalInputGroup}>
-              <Text style={styles.modalLabel}>Số lượng người</Text>
-              <View style={styles.quantityRow}>
-                <TouchableOpacity
-                  style={styles.qtyBtn}
-                  onPress={() => {
-                    const val = Math.max(1, (parseInt(quantity, 10) || 1) - 1);
-                    setQuantity(String(val));
-                  }}
-                >
-                  <MaterialCommunityIcons name="minus" size={20} color="#6B7280" />
-                </TouchableOpacity>
-                <TextInput
-                  style={styles.qtyInput}
-                  value={quantity}
-                  onChangeText={(t) => setQuantity(t.replace(/[^0-9]/g, ''))}
-                  keyboardType="number-pad"
-                  maxLength={3}
-                  selectTextOnFocus
-                />
-                <TouchableOpacity
-                  style={styles.qtyBtn}
-                  onPress={() => {
-                    const val = (parseInt(quantity, 10) || 0) + 1;
-                    setQuantity(String(val));
-                  }}
-                >
-                  <MaterialCommunityIcons name="plus" size={20} color="#6B7280" />
-                </TouchableOpacity>
+            {/* Quantity input – ẩn với dịch vụ máy giặt */}
+            {!isWashingMachine(bookModal.item) && (
+              <View style={styles.modalInputGroup}>
+                <Text style={styles.modalLabel}>Số lượng người</Text>
+                <View style={styles.quantityRow}>
+                  <TouchableOpacity
+                    style={styles.qtyBtn}
+                    onPress={() => {
+                      const val = Math.max(1, (parseInt(quantity, 10) || 1) - 1);
+                      setQuantity(String(val));
+                    }}
+                  >
+                    <MaterialCommunityIcons name="minus" size={20} color="#6B7280" />
+                  </TouchableOpacity>
+                  <TextInput
+                    style={styles.qtyInput}
+                    value={quantity}
+                    onChangeText={(t) => setQuantity(t.replace(/[^0-9]/g, ''))}
+                    keyboardType="number-pad"
+                    maxLength={3}
+                    selectTextOnFocus
+                  />
+                  <TouchableOpacity
+                    style={styles.qtyBtn}
+                    onPress={() => {
+                      const val = (parseInt(quantity, 10) || 0) + 1;
+                      setQuantity(String(val));
+                    }}
+                  >
+                    <MaterialCommunityIcons name="plus" size={20} color="#6B7280" />
+                  </TouchableOpacity>
+                </View>
               </View>
-            </View>
+            )}
 
             {/* Buttons */}
             <View style={styles.modalActions}>
