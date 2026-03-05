@@ -42,6 +42,9 @@ export const API_CONFIG = {
             DETAIL: '/invoices/:id',
             INCURRED_DETAIL: '/invoices/:id/incurred',
             PAY: '/invoices/pay',
+            PAYMENT_INITIATE: '/invoices/:id/payment/initiate',
+            PAYMENT_STATUS: '/invoices/payment/status',
+            PAYMENT_CANCEL: '/invoices/payment/cancel',
         },
 
         // Service

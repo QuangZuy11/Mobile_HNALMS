@@ -271,7 +271,7 @@ export default function InvoiceDetailScreen({ navigation, route }) {
                         <TouchableOpacity
                             style={styles.payBtn}
                             activeOpacity={0.85}
-                            onPress={() => { }}
+                            onPress={() => navigation.navigate('PayInvoice', { invoiceId })}
                         >
                             <MaterialCommunityIcons name="credit-card-outline" size={20} color="#FFF" />
                             <Text style={styles.payBtnText}>Thanh toán</Text>

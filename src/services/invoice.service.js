@@ -61,3 +61,61 @@ export const getIncurredInvoiceDetailAPI = async (invoiceId) => {
         throw error;
     }
 };
+
+/**
+ * Initiate payment for an incurred invoice
+ * @param {string} invoiceId
+ * @returns {Promise} { transactionCode, qrUrl, bankInfo, expireAt, ... }
+ */
+export const initiatePaymentAPI = async (invoiceId) => {
+    try {
+        const token = await AsyncStorage.getItem('authToken');
+        const response = await apiClient.post(
+            API_CONFIG.ENDPOINTS.INVOICE.PAYMENT_INITIATE.replace(':id', invoiceId),
+            {},
+            { headers: { Authorization: `Bearer ${token}` } }
+        );
+        return response.data;
+    } catch (error) {
+        throw error;
+    }
+};
+
+/**
+ * Poll payment status
+ * @param {string} transactionCode
+ * @returns {Promise} { status, ... }
+ */
+export const getPaymentStatusAPI = async (transactionCode) => {
+    try {
+        const token = await AsyncStorage.getItem('authToken');
+        const encoded = encodeURIComponent(transactionCode);
+        const response = await apiClient.get(
+            `${API_CONFIG.ENDPOINTS.INVOICE.PAYMENT_STATUS}/${encoded}`,
+            { headers: { Authorization: `Bearer ${token}` } }
+        );
+        return response.data;
+    } catch (error) {
+        throw error;
+    }
+};
+
+/**
+ * Cancel a pending payment
+ * @param {string} transactionCode
+ * @returns {Promise}
+ */
+export const cancelPaymentAPI = async (transactionCode) => {
+    try {
+        const token = await AsyncStorage.getItem('authToken');
+        const encoded = encodeURIComponent(transactionCode);
+        const response = await apiClient.post(
+            `${API_CONFIG.ENDPOINTS.INVOICE.PAYMENT_CANCEL}/${encoded}`,
+            {},
+            { headers: { Authorization: `Bearer ${token}` } }
+        );
+        return response.data;
+    } catch (error) {
+        throw error;
+    }
+};

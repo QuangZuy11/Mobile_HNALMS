@@ -27,6 +27,7 @@ import UpdateTransferRequestScreen from '../screens/Request/UpdateTransferReques
 import NotificationListScreen from '../screens/Notification/NotificationListScreen';
 import InvoiceListScreen from '../screens/Invoice/InvoiceListScreen';
 import InvoiceDetailScreen from '../screens/Invoice/InvoiceDetailScreen';
+import PayInvoiceScreen from '../screens/Invoice/PayInvoiceScreen';
 import ServiceListScreen from '../screens/Service/ServiceListScreen';
 import BookServiceScreen from '../screens/Service/BookServiceScreen';
 
@@ -157,6 +158,14 @@ function HomeStack() {
         component={InvoiceDetailScreen}
         options={{
           title: 'Chi tiết hóa đơn',
+        }}
+      />
+      <Stack.Screen
+        name="PayInvoice"
+        component={PayInvoiceScreen}
+        options={{
+          title: 'Thanh toán',
+          headerShown: false,
         }}
       />
       <Stack.Screen
