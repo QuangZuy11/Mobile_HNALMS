@@ -193,6 +193,8 @@ export default function ServiceListScreen({ navigation }) {
   // ── render extension service card (with book/cancel) ──────────────
   const renderExtensionCard = ({ item }) => {
     const isBooked = item.isBooked === true;
+    const canBook = item.canBook === true;
+    const canCancel = item.canCancel === true;
     const isActioning = actioningId === item._id;
     const icon = getTypeIcon(item.type || item.serviceType);
     const price = item.currentPrice ?? item.price;
@@ -242,7 +244,7 @@ export default function ServiceListScreen({ navigation }) {
 
           {/* Action buttons */}
           <View style={styles.actionRow}>
-            {isBooked ? (
+            {canCancel ? (
               <TouchableOpacity
                 style={[styles.cancelBtn, isActioning && styles.btnDisabled]}
                 onPress={() => handleCancel(item)}
@@ -257,7 +259,7 @@ export default function ServiceListScreen({ navigation }) {
                   </>
                 )}
               </TouchableOpacity>
-            ) : (
+            ) : canBook ? (
               <TouchableOpacity
                 style={[styles.bookBtn, isActioning && styles.btnDisabled]}
                 onPress={() => openBookModal(item)}
@@ -272,7 +274,7 @@ export default function ServiceListScreen({ navigation }) {
                   </>
                 )}
               </TouchableOpacity>
-            )}
+            ) : null}
           </View>
         </View>
       </View>
