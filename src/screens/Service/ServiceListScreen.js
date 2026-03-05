@@ -1,4 +1,4 @@
-﻿import React, { useState, useCallback } from 'react';
+﻿import React, { useState, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,10 @@ import {
   ActivityIndicator,
   RefreshControl,
   Alert,
+  Modal,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
@@ -39,12 +43,22 @@ const TYPE_ICON = {
 };
 const getTypeIcon = (type) => TYPE_ICON[type] || 'room-service-outline';
 
+const isFixedService = (s) => s.type === 'Fixed';
+
+const TABS = [
+  { key: 'fixed',     label: 'Cố định',  icon: 'shield-check',      color: '#2563EB' },
+  { key: 'extension', label: 'Mở rộng',  icon: 'plus-box-multiple', color: '#F59E0B' },
+];
+
 // ── main component ──────────────────────────────────────────────────
 export default function ServiceListScreen({ navigation }) {
   const [services, setServices] = useState([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [actioningId, setActioningId] = useState(null); // serviceId being booked/cancelled
+  const [actioningId, setActioningId] = useState(null);
+  const [activeTab, setActiveTab] = useState('fixed');
+  const [bookModal, setBookModal] = useState({ visible: false, item: null });
+  const [quantity, setQuantity] = useState('1');
 
   const fetchServices = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
@@ -64,30 +78,48 @@ export default function ServiceListScreen({ navigation }) {
     useCallback(() => { fetchServices(); }, [fetchServices])
   );
 
+  // ── filtered data ──────────────────────────────────────────────────
+  const fixedServices = useMemo(
+    () => services.filter((s) => isFixedService(s)),
+    [services]
+  );
+  const extServices = useMemo(
+    () => services.filter((s) => !isFixedService(s)),
+    [services]
+  );
+  const displayedServices = activeTab === 'fixed' ? fixedServices : extServices;
+
   // ── book ───────────────────────────────────────────────────────────
-  const handleBook = (item) => {
-    Alert.alert(
-      'Đăng ký dịch vụ',
-      `Bạn có chắc muốn đăng ký dịch vụ "${item.name}"?\nGiá: ${formatCurrency(item.currentPrice ?? item.price)} / ${item.unit || 'tháng'}`,
-      [
-        { text: 'Hủy', style: 'cancel' },
-        {
-          text: 'Đăng ký',
-          onPress: async () => {
-            setActioningId(item._id);
-            try {
-              await bookServiceAPI(item._id);
-              Alert.alert('Thành công', 'Đăng ký dịch vụ thành công!');
-              fetchServices(true);
-            } catch (err) {
-              Alert.alert('Lỗi', err.message || 'Không thể đăng ký dịch vụ');
-            } finally {
-              setActioningId(null);
-            }
-          },
-        },
-      ]
-    );
+  const openBookModal = (item) => {
+    setQuantity('1');
+    setBookModal({ visible: true, item });
+  };
+
+  const closeBookModal = () => {
+    setBookModal({ visible: false, item: null });
+  };
+
+  const confirmBook = async () => {
+    const item = bookModal.item;
+    if (!item) return;
+
+    const qty = parseInt(quantity, 10);
+    if (isNaN(qty) || qty < 1) {
+      Alert.alert('Lỗi', 'Số lượng người phải là số nguyên >= 1');
+      return;
+    }
+
+    closeBookModal();
+    setActioningId(item._id);
+    try {
+      await bookServiceAPI(item._id, qty);
+      Alert.alert('Thành công', 'Đăng ký dịch vụ thành công!');
+      fetchServices(true);
+    } catch (err) {
+      Alert.alert('Lỗi', err.message || 'Không thể đăng ký dịch vụ');
+    } finally {
+      setActioningId(null);
+    }
   };
 
   // ── cancel ─────────────────────────────────────────────────────────
@@ -117,10 +149,47 @@ export default function ServiceListScreen({ navigation }) {
     );
   };
 
-  // ── render one card ────────────────────────────────────────────────
-  const renderItem = ({ item }) => {
-    // serviceCategory: 'Fixed' = hợp đồng cố định | 'Extension' = mở rộng
-    const isFixed = item.serviceCategory === 'Fixed' || item.isFixed === true;
+  // ── render fixed service card (display only) ──────────────────────
+  const renderFixedCard = ({ item }) => {
+    const icon = getTypeIcon(item.type || item.serviceType);
+    const price = item.currentPrice ?? item.price;
+    const unit = item.unit || 'tháng';
+
+    return (
+      <View style={[styles.card, styles.cardFixedBorder]}>
+        <View style={[styles.iconWrapper, { backgroundColor: '#DBEAFE' }]}>
+          <MaterialCommunityIcons name={icon} size={26} color="#2563EB" />
+        </View>
+        <View style={styles.cardBody}>
+          <Text style={styles.cardTitle} numberOfLines={1}>
+            {item.name || item.serviceName || 'Dịch vụ'}
+          </Text>
+
+          <View style={styles.typeRow}>
+            <MaterialCommunityIcons name="tag-outline" size={13} color="#9CA3AF" />
+            <Text style={styles.typeText}>{item.type || item.serviceType || '–'}</Text>
+          </View>
+
+          {!!item.description && (
+            <Text style={styles.description} numberOfLines={2}>{item.description}</Text>
+          )}
+
+          <Text style={[styles.price, { color: '#2563EB' }]}>
+            {formatCurrency(price)}{' '}
+            <Text style={styles.unit}>/ {unit}</Text>
+          </Text>
+
+          <View style={styles.fixedNote}>
+            <MaterialCommunityIcons name="shield-check-outline" size={14} color="#2563EB" />
+            <Text style={styles.fixedNoteText}>Có trong hợp đồng</Text>
+          </View>
+        </View>
+      </View>
+    );
+  };
+
+  // ── render extension service card (with book/cancel) ──────────────
+  const renderExtensionCard = ({ item }) => {
     const isBooked = item.isBooked === true;
     const isActioning = actioningId === item._id;
     const icon = getTypeIcon(item.type || item.serviceType);
@@ -128,140 +197,109 @@ export default function ServiceListScreen({ navigation }) {
     const unit = item.unit || 'tháng';
 
     return (
-      <View style={styles.card}>
-        {/* Icon */}
-        <View style={[styles.iconWrapper, { backgroundColor: isFixed ? '#EDE9FE' : '#FEF3C7' }]}>
-          <MaterialCommunityIcons
-            name={icon}
-            size={26}
-            color={isFixed ? '#7C3AED' : '#F59E0B'}
-          />
+      <View style={[styles.card, styles.cardExtBorder]}>
+        <View style={[styles.iconWrapper, { backgroundColor: '#FEF3C7' }]}>
+          <MaterialCommunityIcons name={icon} size={26} color="#F59E0B" />
         </View>
-
-        {/* Body */}
         <View style={styles.cardBody}>
           <View style={styles.cardHeader}>
-            <Text style={styles.cardTitle} numberOfLines={1}>{item.name || item.serviceName || 'Dịch vụ'}</Text>
-            {/* Category badge */}
-            <View style={[styles.catBadge, isFixed ? styles.catFixed : styles.catExtension]}>
-              <Text style={[styles.catText, { color: isFixed ? '#7C3AED' : '#D97706' }]}>
-                {isFixed ? 'Cố định' : 'Mở rộng'}
-              </Text>
-            </View>
+            <Text style={styles.cardTitle} numberOfLines={1}>
+              {item.name || item.serviceName || 'Dịch vụ'}
+            </Text>
+            {isBooked && (
+              <View style={styles.bookedPill}>
+                <MaterialCommunityIcons name="check-circle" size={13} color="#10B981" />
+                <Text style={styles.bookedPillText}>Đã đăng ký</Text>
+              </View>
+            )}
           </View>
 
-          {/* Type */}
           <View style={styles.typeRow}>
             <MaterialCommunityIcons name="tag-outline" size={13} color="#9CA3AF" />
             <Text style={styles.typeText}>{item.type || item.serviceType || '–'}</Text>
           </View>
 
-          {/* Description */}
-          {!!(item.description) && (
+          {!!item.description && (
             <Text style={styles.description} numberOfLines={2}>{item.description}</Text>
           )}
 
-          {/* Price */}
-          <Text style={[styles.price, { color: isFixed ? '#7C3AED' : '#F59E0B' }]}>
+          <Text style={[styles.price, { color: '#F59E0B' }]}>
             {formatCurrency(price)}{' '}
             <Text style={styles.unit}>/ {unit}</Text>
           </Text>
 
-          {/* Action buttons – only for Extension */}
-          {!isFixed && (
-            <View style={styles.actionRow}>
-              {isBooked ? (
-                <TouchableOpacity
-                  style={[styles.cancelBtn, isActioning && styles.btnDisabled]}
-                  onPress={() => handleCancel(item)}
-                  disabled={isActioning}
-                >
-                  {isActioning ? (
-                    <ActivityIndicator size="small" color="#EF4444" />
-                  ) : (
-                    <>
-                      <MaterialCommunityIcons name="close-circle-outline" size={15} color="#EF4444" />
-                      <Text style={styles.cancelBtnText}>Hủy đăng ký</Text>
-                    </>
-                  )}
-                </TouchableOpacity>
-              ) : (
-                <TouchableOpacity
-                  style={[styles.bookBtn, isActioning && styles.btnDisabled]}
-                  onPress={() => handleBook(item)}
-                  disabled={isActioning}
-                >
-                  {isActioning ? (
-                    <ActivityIndicator size="small" color="#FFFFFF" />
-                  ) : (
-                    <>
-                      <MaterialCommunityIcons name="plus-circle-outline" size={15} color="#FFFFFF" />
-                      <Text style={styles.bookBtnText}>Đăng ký</Text>
-                    </>
-                  )}
-                </TouchableOpacity>
-              )}
-
-              {/* Booked status pill */}
-              {isBooked && (
-                <View style={styles.bookedPill}>
-                  <MaterialCommunityIcons name="check-circle" size={13} color="#10B981" />
-                  <Text style={styles.bookedPillText}>Đã đăng ký</Text>
-                </View>
-              )}
+          {/* Quantity info */}
+          {isBooked && item.bookedQuantity != null && (
+            <View style={styles.quantityInfo}>
+              <MaterialCommunityIcons name="account-group" size={14} color="#6B7280" />
+              <Text style={styles.quantityInfoText}>
+                Số người đăng ký: <Text style={styles.quantityInfoBold}>{item.bookedQuantity}</Text>
+              </Text>
             </View>
           )}
 
-          {/* Fixed: show "Có trong hợp đồng" note */}
-          {isFixed && (
-            <View style={styles.fixedNote}>
-              <MaterialCommunityIcons name="shield-check-outline" size={13} color="#7C3AED" />
-              <Text style={styles.fixedNoteText}>Có trong hợp đồng</Text>
-            </View>
-          )}
+          {/* Action buttons */}
+          <View style={styles.actionRow}>
+            {isBooked ? (
+              <TouchableOpacity
+                style={[styles.cancelBtn, isActioning && styles.btnDisabled]}
+                onPress={() => handleCancel(item)}
+                disabled={isActioning}
+              >
+                {isActioning ? (
+                  <ActivityIndicator size="small" color="#EF4444" />
+                ) : (
+                  <>
+                    <MaterialCommunityIcons name="close-circle-outline" size={15} color="#EF4444" />
+                    <Text style={styles.cancelBtnText}>Hủy đăng ký</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                style={[styles.bookBtn, isActioning && styles.btnDisabled]}
+                onPress={() => openBookModal(item)}
+                disabled={isActioning}
+              >
+                {isActioning ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <>
+                    <MaterialCommunityIcons name="plus-circle-outline" size={15} color="#FFFFFF" />
+                    <Text style={styles.bookBtnText}>Đăng ký</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
       </View>
     );
   };
 
-  // ── section separator ──────────────────────────────────────────────
-  const fixedServices = services.filter(
-    (s) => s.serviceCategory === 'Fixed' || s.isFixed === true
-  );
-  const extServices = services.filter(
-    (s) => s.serviceCategory !== 'Fixed' && s.isFixed !== true
-  );
+  // ── choose renderer by tab ────────────────────────────────────────
+  const renderItem = activeTab === 'fixed' ? renderFixedCard : renderExtensionCard;
 
-  const sections = [
-    ...(fixedServices.length > 0
-      ? [{ _id: '__header_fixed', _isHeader: true, title: 'Dịch vụ cố định', icon: 'shield-check', color: '#7C3AED' }]
-      : []),
-    ...fixedServices,
-    ...(extServices.length > 0
-      ? [{ _id: '__header_ext', _isHeader: true, title: 'Dịch vụ mở rộng', icon: 'plus-box-multiple', color: '#F59E0B' }]
-      : []),
-    ...extServices,
-  ];
-
-  const renderRow = ({ item }) => {
-    if (item._isHeader) {
-      return (
-        <View style={styles.sectionHeader}>
-          <MaterialCommunityIcons name={item.icon} size={16} color={item.color} />
-          <Text style={[styles.sectionHeaderText, { color: item.color }]}>{item.title}</Text>
-        </View>
-      );
-    }
-    return renderItem({ item });
+  const ListEmpty = () => {
+    const isFixed = activeTab === 'fixed';
+    return (
+      <View style={styles.emptyState}>
+        <MaterialCommunityIcons
+          name={isFixed ? 'shield-check-outline' : 'room-service-outline'}
+          size={64}
+          color="#D1D5DB"
+        />
+        <Text style={styles.emptyTitle}>
+          {isFixed ? 'Không có dịch vụ cố định' : 'Không có dịch vụ mở rộng'}
+        </Text>
+        <Text style={styles.emptySubtitle}>
+          {isFixed
+            ? 'Các dịch vụ cố định trong hợp đồng sẽ hiển thị ở đây'
+            : 'Các dịch vụ mở rộng có thể đăng ký sẽ hiển thị ở đây'}
+        </Text>
+      </View>
+    );
   };
-
-  const ListEmpty = () => (
-    <View style={styles.emptyState}>
-      <MaterialCommunityIcons name="room-service-outline" size={64} color="#D1D5DB" />
-      <Text style={styles.emptyTitle}>Chưa có dịch vụ</Text>
-      <Text style={styles.emptySubtitle}>Danh sách dịch vụ sẽ hiển thị ở đây</Text>
-    </View>
-  );
 
   return (
     <SafeAreaView style={styles.safeContainer}>
@@ -274,6 +312,36 @@ export default function ServiceListScreen({ navigation }) {
         <View style={{ width: 28 }} />
       </View>
 
+      {/* Tabs */}
+      <View style={styles.tabBar}>
+        {TABS.map((tab) => {
+          const isActive = activeTab === tab.key;
+          const count = tab.key === 'fixed' ? fixedServices.length : extServices.length;
+          return (
+            <TouchableOpacity
+              key={tab.key}
+              style={[styles.tab, isActive && { borderBottomColor: tab.color }]}
+              onPress={() => setActiveTab(tab.key)}
+              activeOpacity={0.7}
+            >
+              <MaterialCommunityIcons
+                name={tab.icon}
+                size={16}
+                color={isActive ? tab.color : '#9CA3AF'}
+              />
+              <Text style={[styles.tabLabel, isActive && { color: tab.color, fontWeight: '700' }]}>
+                {tab.label}
+              </Text>
+              <View style={[styles.tabBadge, { backgroundColor: isActive ? tab.color : '#E5E7EB' }]}>
+                <Text style={[styles.tabBadgeText, { color: isActive ? '#FFFFFF' : '#6B7280' }]}>
+                  {count}
+                </Text>
+              </View>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+
       {loading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#F59E0B" />
@@ -281,12 +349,12 @@ export default function ServiceListScreen({ navigation }) {
         </View>
       ) : (
         <FlatList
-          data={sections}
+          data={displayedServices}
           keyExtractor={(item, idx) => item._id || String(idx)}
-          renderItem={renderRow}
+          renderItem={renderItem}
           ListEmptyComponent={ListEmpty}
           contentContainerStyle={
-            sections.length === 0 ? styles.flatListEmpty : styles.flatListContent
+            displayedServices.length === 0 ? styles.flatListEmpty : styles.flatListContent
           }
           refreshControl={
             <RefreshControl
@@ -298,6 +366,81 @@ export default function ServiceListScreen({ navigation }) {
           }
         />
       )}
+      {/* ── Book Quantity Modal ─────────────────────────────────── */}
+      <Modal
+        visible={bookModal.visible}
+        transparent
+        animationType="fade"
+        onRequestClose={closeBookModal}
+      >
+        <KeyboardAvoidingView
+          style={styles.modalOverlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          <View style={styles.modalCard}>
+            {/* Title */}
+            <View style={styles.modalHeader}>
+              <MaterialCommunityIcons name="plus-circle" size={24} color="#F59E0B" />
+              <Text style={styles.modalTitle}>Đăng ký dịch vụ</Text>
+            </View>
+
+            {/* Service info */}
+            {bookModal.item && (
+              <View style={styles.modalServiceInfo}>
+                <Text style={styles.modalServiceName}>{bookModal.item.name}</Text>
+                <Text style={styles.modalServicePrice}>
+                  {formatCurrency(bookModal.item.currentPrice ?? bookModal.item.price)}
+                  <Text style={styles.modalServiceUnit}> / {bookModal.item.unit || 'tháng'}</Text>
+                </Text>
+              </View>
+            )}
+
+            {/* Quantity input */}
+            <View style={styles.modalInputGroup}>
+              <Text style={styles.modalLabel}>Số lượng người</Text>
+              <View style={styles.quantityRow}>
+                <TouchableOpacity
+                  style={styles.qtyBtn}
+                  onPress={() => {
+                    const val = Math.max(1, (parseInt(quantity, 10) || 1) - 1);
+                    setQuantity(String(val));
+                  }}
+                >
+                  <MaterialCommunityIcons name="minus" size={20} color="#6B7280" />
+                </TouchableOpacity>
+                <TextInput
+                  style={styles.qtyInput}
+                  value={quantity}
+                  onChangeText={(t) => setQuantity(t.replace(/[^0-9]/g, ''))}
+                  keyboardType="number-pad"
+                  maxLength={3}
+                  selectTextOnFocus
+                />
+                <TouchableOpacity
+                  style={styles.qtyBtn}
+                  onPress={() => {
+                    const val = (parseInt(quantity, 10) || 0) + 1;
+                    setQuantity(String(val));
+                  }}
+                >
+                  <MaterialCommunityIcons name="plus" size={20} color="#6B7280" />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Buttons */}
+            <View style={styles.modalActions}>
+              <TouchableOpacity style={styles.modalCancelBtn} onPress={closeBookModal}>
+                <Text style={styles.modalCancelText}>Hủy</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.modalConfirmBtn} onPress={confirmBook}>
+                <MaterialCommunityIcons name="check" size={18} color="#FFFFFF" />
+                <Text style={styles.modalConfirmText}>Đăng ký</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -317,20 +460,39 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   headerTitle: { fontSize: 18, fontWeight: '700', color: '#1F2937' },
+
+  // tab bar
+  tabBar: {
+    flexDirection: 'row',
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  tab: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 12,
+    borderBottomWidth: 3,
+    borderBottomColor: 'transparent',
+  },
+  tabLabel: { fontSize: 14, fontWeight: '500', color: '#9CA3AF' },
+  tabBadge: {
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+  },
+  tabBadgeText: { fontSize: 11, fontWeight: '700' },
+
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 },
   loadingText: { fontSize: 14, color: '#6B7280' },
   flatListContent: { padding: 16 },
   flatListEmpty: { flex: 1 },
-
-  // section header
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginBottom: 10,
-    marginTop: 4,
-  },
-  sectionHeaderText: { fontSize: 13, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
 
   // card
   card: {
@@ -345,6 +507,8 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 2,
   },
+  cardFixedBorder: { borderLeftWidth: 3, borderLeftColor: '#2563EB' },
+  cardExtBorder:   { borderLeftWidth: 3, borderLeftColor: '#F59E0B' },
   iconWrapper: {
     width: 48,
     height: 48,
@@ -363,12 +527,6 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   cardTitle: { fontSize: 15, fontWeight: '700', color: '#1F2937', flex: 1, marginRight: 8 },
-
-  // category badge
-  catBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20 },
-  catFixed: { backgroundColor: '#EDE9FE' },
-  catExtension: { backgroundColor: '#FEF3C7' },
-  catText: { fontSize: 11, fontWeight: '600' },
 
   typeRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 },
   typeText: { fontSize: 12, color: '#9CA3AF' },
@@ -415,9 +573,117 @@ const styles = StyleSheet.create({
   fixedNote: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 5,
+    backgroundColor: '#DBEAFE',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
   },
-  fixedNoteText: { fontSize: 12, color: '#7C3AED', fontWeight: '500' },
+  fixedNoteText: { fontSize: 12, color: '#2563EB', fontWeight: '600' },
+
+  quantityInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: '#F3F4F6',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+    marginBottom: 8,
+  },
+  quantityInfoText: { fontSize: 12, color: '#6B7280' },
+  quantityInfoBold: { fontWeight: '700', color: '#1F2937' },
+
+  // modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+  },
+  modalCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 24,
+    width: '100%',
+    maxWidth: 400,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 16,
+  },
+  modalTitle: { fontSize: 18, fontWeight: '700', color: '#1F2937' },
+  modalServiceInfo: {
+    backgroundColor: '#FEF3C7',
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 16,
+  },
+  modalServiceName: { fontSize: 15, fontWeight: '600', color: '#1F2937', marginBottom: 4 },
+  modalServicePrice: { fontSize: 14, fontWeight: '700', color: '#F59E0B' },
+  modalServiceUnit: { fontSize: 12, fontWeight: '400', color: '#9CA3AF' },
+  modalInputGroup: { marginBottom: 20 },
+  modalLabel: { fontSize: 14, fontWeight: '600', color: '#374151', marginBottom: 8 },
+  quantityRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 0,
+  },
+  qtyBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 10,
+    backgroundColor: '#F3F4F6',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  qtyInput: {
+    flex: 1,
+    height: 44,
+    textAlign: 'center',
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1F2937',
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 10,
+    marginHorizontal: 10,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  modalCancelBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    alignItems: 'center',
+  },
+  modalCancelText: { fontSize: 14, fontWeight: '600', color: '#6B7280' },
+  modalConfirmBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    gap: 6,
+    paddingVertical: 12,
+    borderRadius: 10,
+    backgroundColor: '#F59E0B',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalConfirmText: { fontSize: 14, fontWeight: '600', color: '#FFFFFF' },
 
   // empty
   emptyState: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 32, paddingVertical: 80 },
