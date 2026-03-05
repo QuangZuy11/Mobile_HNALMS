@@ -44,13 +44,14 @@ export const bookServiceAPI = async (serviceId, quantity = 1) => {
 };
 
 /**
- * DELETE /api/services/book/:serviceId
- * Cancel a booked Extension service.
+ * PATCH /api/services/book/:serviceId/cancel
+ * Cancel a booked Extension service (sets endDate = now).
  */
 export const cancelBookedServiceAPI = async (serviceId) => {
   const token = await getToken();
-  const response = await apiClient.delete(
-    `${API_CONFIG.ENDPOINTS.SERVICE.CANCEL_BOOK}/${serviceId}`,
+  const response = await apiClient.patch(
+    `${API_CONFIG.ENDPOINTS.SERVICE.CANCEL_BOOK}/${serviceId}/cancel`,
+    {},
     { headers: { Authorization: `Bearer ${token}` } }
   );
   if (!response.data.success) {
