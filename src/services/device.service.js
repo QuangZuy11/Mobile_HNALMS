@@ -55,3 +55,29 @@ export const getDevicesAPI = async () => {
     throw new Error(error.response?.data?.message || error.message || 'Có lỗi xảy ra. Vui lòng thử lại');
   }
 };
+
+/**
+ * Get devices of tenant's current rented room
+ * GET /api/roomdevices/my-room
+ */
+export const getDevicesByRoomAPI = async () => {
+  try {
+    const token = await AsyncStorage.getItem('authToken');
+    if (!token) throw new Error('Vui lòng đăng nhập để tiếp tục');
+
+    const response = await apiClient.get(API_CONFIG.ENDPOINTS.DEVICE.MY_ROOM_DEVICES, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    if (!response.data.success) {
+      throw new Error(response.data.message || 'Không thể lấy danh sách thiết bị');
+    }
+
+    return response.data;
+  } catch (error) {
+    if (error.status === 401 || error.response?.status === 401) {
+      throw new Error('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại');
+    }
+    throw new Error(error.response?.data?.message || error.message || 'Có lỗi xảy ra. Vui lòng thử lại');
+  }
+};
