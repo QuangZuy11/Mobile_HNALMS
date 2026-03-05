@@ -31,18 +31,6 @@ export default function HomeScreen({ navigation }) {
         <View style={styles.contentContainer}>
           {/* Features Grid */}
           <View style={styles.featuresGrid}>
-            {/* Profile Card */}
-            <TouchableOpacity
-              style={styles.featureCard}
-              onPress={() => navigation.navigate('Profile')}
-            >
-              <View style={[styles.cardIconContainer, { backgroundColor: '#DBEAFE' }]}>
-                <MaterialCommunityIcons name="account" size={40} color="#3B82F6" />
-              </View>
-              <Text style={styles.cardTitle}>Thông tin cá nhân</Text>
-              <Text style={styles.cardSubtitle}>Xem & cập nhật</Text>
-            </TouchableOpacity>
-
             {/* Notifications Card */}
             <TouchableOpacity
               style={styles.featureCard}
