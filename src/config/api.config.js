@@ -40,6 +40,7 @@ export const API_CONFIG = {
             LIST: '/invoices',
             TENANT_LIST: '/invoices/tenant',
             DETAIL: '/invoices/:id',
+            INCURRED_DETAIL: '/invoices/:id/incurred',
             PAY: '/invoices/pay',
         },
 

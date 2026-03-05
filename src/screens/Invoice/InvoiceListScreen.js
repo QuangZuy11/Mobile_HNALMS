@@ -208,7 +208,7 @@ export default function InvoiceListScreen({ navigation }) {
       <TouchableOpacity
         style={styles.card}
         activeOpacity={0.85}
-        onPress={() => navigation.navigate('InvoiceDetail', { invoiceId: item._id })}
+        onPress={() => navigation.navigate('InvoiceDetail', { invoiceId: item._id, invoiceType: item.type })}
       >
         <View style={styles.cardHeader}>
           <View style={[styles.cardIconBox, { backgroundColor: cfg.bg }]}>

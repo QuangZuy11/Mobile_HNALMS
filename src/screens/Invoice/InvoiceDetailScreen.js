@@ -5,7 +5,7 @@ import {
     ScrollView, ActivityIndicator,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { getInvoiceDetailAPI } from '../../services/invoice.service';
+import { getInvoiceDetailAPI, getIncurredInvoiceDetailAPI } from '../../services/invoice.service';
 
 const STATUS_CONFIG = {
     Unpaid: { label: 'Chưa thanh toán', color: '#DC2626', bg: '#FEE2E2', icon: 'clock-alert-outline' },
@@ -89,18 +89,21 @@ function Section({ icon, title, color, children }) {
 }
 
 export default function InvoiceDetailScreen({ navigation, route }) {
-    const { invoiceId } = route.params ?? {};
+    const { invoiceId, invoiceType } = route.params ?? {};
     const [invoice, setInvoice] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
+    const isIncurred = invoiceType === 'Incurred' || invoice?.type === 'Incurred';
+
     useEffect(() => {
         if (!invoiceId) { setError('Không tìm thấy mã hóa đơn'); setLoading(false); return; }
-        getInvoiceDetailAPI(invoiceId)
+        const fetchAPI = invoiceType === 'Incurred' ? getIncurredInvoiceDetailAPI : getInvoiceDetailAPI;
+        fetchAPI(invoiceId)
             .then((res) => setInvoice(res?.data))
             .catch((err) => setError(err?.response?.data?.message || err.message || 'Đã xảy ra lỗi'))
             .finally(() => setLoading(false));
-    }, [invoiceId]);
+    }, [invoiceId, invoiceType]);
 
     const cfg = STATUS_CONFIG[invoice?.status] ?? STATUS_CONFIG.Unpaid;
     const room = invoice?.roomId;
@@ -180,51 +183,85 @@ export default function InvoiceDetailScreen({ navigation, route }) {
                         <Section icon="information-outline" title="Thông tin hóa đơn" color="#3B82F6">
                             <InfoRow icon="barcode" label="Mã hóa đơn" value={invoice.invoiceCode} />
                             <InfoRow icon="tag-outline" label="Loại Hóa Đơn" value={TYPE_LABEL[invoice.type] ?? invoice.type} />
-                            {room && <InfoRow icon="home-outline" label="Phòng" value={`${room.name} `} />}
-                            {room?.roomTypeId?.currentPrice != null && (
+                            {/* Periodic: room from roomId object */}
+                            {!isIncurred && room && <InfoRow icon="home-outline" label="Phòng" value={`${room.name} `} />}
+                            {!isIncurred && room?.roomTypeId?.currentPrice != null && (
                                 <InfoRow icon="currency-usd" label="Giá phòng" value={formatCurrency(room.roomTypeId.currentPrice)} />
                             )}
-
+                            {/* Incurred: roomName is a string */}
+                            {isIncurred && invoice.roomName && (
+                                <InfoRow icon="home-outline" label="Phòng" value={invoice.roomName} />
+                            )}
                             <InfoRow icon="calendar-plus" label="Ngày tạo" value={formatDate(invoice.createdAt)} />
                             <InfoRow icon="calendar-clock" label="Đến hạn" value={formatDate(invoice.dueDate)}
                                 valueStyle={invoice.status === 'Overdue' ? { color: '#F59E0B', fontWeight: '700' } : {}} />
                         </Section>
 
-                        {/* ── Chi tiết khoản thu ── */}
-                        <Section icon="format-list-bulleted" title="Chi tiết khoản thu" color="#F59E0B">
-                            {completeItems.map((item, idx) => {
-                                const display = item._icon
-                                    ? { icon: item._icon, color: item._color }
-                                    : getItemIcon(item.itemName);
-                                const hasAmount = item.amount != null && item.amount > 0;
-                                const hasUsage = item.usage != null && item.usage > 0 && item.unitPrice != null;
-                                return (
-                                    <View key={item._id ?? `svc-${idx}`}
-                                        style={[styles.svcRow, idx < completeItems.length - 1 && styles.svcRowBorder]}>
-                                        <View style={styles.svcTop}>
-                                            <View style={[styles.svcIconWrap, { backgroundColor: display.color + '15' }]}>
-                                                <MaterialCommunityIcons name={display.icon} size={16} color={display.color} />
-                                            </View>
-                                            <Text style={styles.svcName} numberOfLines={2}>{item.itemName}</Text>
-                                            <Text style={[styles.svcAmount, !hasAmount && styles.svcAmountEmpty]}>
-                                                {hasAmount ? fmtNum(item.amount) : '—'}
-                                            </Text>
+                        {/* ── Incurred: device info ── */}
+                        {isIncurred && (
+                            <Section icon="wrench" title="Chi tiết khoản thu" color="#EF4444">
+                                <View style={styles.incurredCard}>
+                                    <View style={styles.incurredDeviceRow}>
+                                        <View style={[styles.svcIconWrap, { backgroundColor: '#EF44441A' }]}>
+                                            <MaterialCommunityIcons name="cog-outline" size={18} color="#EF4444" />
                                         </View>
-                                        {hasUsage && (
-                                            <View style={styles.svcMeta}>
-                                                <Text style={styles.svcMetaText}>
-                                                    SL: {item.usage} × {fmtNum(item.unitPrice)}
+                                        <View style={{ flex: 1 }}>
+                                            <Text style={styles.incurredDeviceName}>{invoice.deviceName || 'Thiết bị'}</Text>
+                                            <Text style={styles.incurredTitle}>{invoice.title}</Text>
+                                        </View>
+                                        <Text style={styles.incurredAmount}>{formatCurrency(invoice.totalAmount)}</Text>
+                                    </View>
+                                    {invoice.description ? (
+                                        <View style={styles.incurredDescBox}>
+                                            <MaterialCommunityIcons name="text-box-outline" size={14} color="#6B7280" />
+                                            <Text style={styles.incurredDescText}>{invoice.description}</Text>
+                                        </View>
+                                    ) : null}
+                                </View>
+                                <View style={styles.svcTotalRow}>
+                                    <Text style={styles.svcTotalLabel}>TỔNG CỘNG</Text>
+                                    <Text style={styles.svcTotalValue}>{formatCurrency(invoice.totalAmount)}</Text>
+                                </View>
+                            </Section>
+                        )}
+
+                        {/* ── Periodic: Chi tiết khoản thu ── */}
+                        {!isIncurred && (
+                            <Section icon="format-list-bulleted" title="Chi tiết khoản thu" color="#F59E0B">
+                                {completeItems.map((item, idx) => {
+                                    const display = item._icon
+                                        ? { icon: item._icon, color: item._color }
+                                        : getItemIcon(item.itemName);
+                                    const hasAmount = item.amount != null && item.amount > 0;
+                                    const hasUsage = item.usage != null && item.usage > 0 && item.unitPrice != null;
+                                    return (
+                                        <View key={item._id ?? `svc-${idx}`}
+                                            style={[styles.svcRow, idx < completeItems.length - 1 && styles.svcRowBorder]}>
+                                            <View style={styles.svcTop}>
+                                                <View style={[styles.svcIconWrap, { backgroundColor: display.color + '15' }]}>
+                                                    <MaterialCommunityIcons name={display.icon} size={16} color={display.color} />
+                                                </View>
+                                                <Text style={styles.svcName} numberOfLines={2}>{item.itemName}</Text>
+                                                <Text style={[styles.svcAmount, !hasAmount && styles.svcAmountEmpty]}>
+                                                    {hasAmount ? fmtNum(item.amount) : '—'}
                                                 </Text>
                                             </View>
-                                        )}
-                                    </View>
-                                );
-                            })}
-                            <View style={styles.svcTotalRow}>
-                                <Text style={styles.svcTotalLabel}>TỔNG CỘNG</Text>
-                                <Text style={styles.svcTotalValue}>{formatCurrency(invoice.totalAmount)}</Text>
-                            </View>
-                        </Section>
+                                            {hasUsage && (
+                                                <View style={styles.svcMeta}>
+                                                    <Text style={styles.svcMetaText}>
+                                                        SL: {item.usage} × {fmtNum(item.unitPrice)}
+                                                    </Text>
+                                                </View>
+                                            )}
+                                        </View>
+                                    );
+                                })}
+                                <View style={styles.svcTotalRow}>
+                                    <Text style={styles.svcTotalLabel}>TỔNG CỘNG</Text>
+                                    <Text style={styles.svcTotalValue}>{formatCurrency(invoice.totalAmount)}</Text>
+                                </View>
+                            </Section>
+                        )}
 
                         <View style={{ height: 90 }} />
                     </ScrollView>
@@ -334,6 +371,19 @@ const styles = StyleSheet.create({
     },
     svcTotalLabel: { fontSize: 14, fontWeight: '800', color: '#1F2937' },
     svcTotalValue: { fontSize: 16, fontWeight: '800', color: '#DC2626' },
+
+    /* incurred card */
+    incurredCard: { padding: 14 },
+    incurredDeviceRow: { flexDirection: 'row', alignItems: 'center' },
+    incurredDeviceName: { fontSize: 14, fontWeight: '700', color: '#1F2937' },
+    incurredTitle: { fontSize: 12, color: '#6B7280', marginTop: 2 },
+    incurredAmount: { fontSize: 16, fontWeight: '800', color: '#EF4444', marginLeft: 8 },
+    incurredDescBox: {
+        flexDirection: 'row', alignItems: 'flex-start', gap: 8,
+        marginTop: 12, backgroundColor: '#FEF2F2', borderRadius: 10,
+        padding: 12, borderLeftWidth: 3, borderLeftColor: '#EF4444',
+    },
+    incurredDescText: { flex: 1, fontSize: 13, color: '#374151', lineHeight: 20 },
 
     /* pay bar */
     payBar: {

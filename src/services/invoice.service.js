@@ -43,3 +43,21 @@ export const getInvoiceDetailAPI = async (invoiceId) => {
         throw error;
     }
 };
+
+/**
+ * Get incurred invoice detail by id
+ * @param {string} invoiceId
+ * @returns {Promise} Incurred invoice detail
+ */
+export const getIncurredInvoiceDetailAPI = async (invoiceId) => {
+    try {
+        const token = await AsyncStorage.getItem('authToken');
+        const response = await apiClient.get(
+            API_CONFIG.ENDPOINTS.INVOICE.INCURRED_DETAIL.replace(':id', invoiceId),
+            { headers: { Authorization: `Bearer ${token}` } }
+        );
+        return response.data;
+    } catch (error) {
+        throw error;
+    }
+};
