@@ -83,6 +83,8 @@ export const API_CONFIG = {
         // Device
         DEVICE: {
             LIST: '/devices',
+            BY_ROOM_TYPE: '/roomdevices',
+            MY_ROOM_DEVICES: '/roomdevices/my-room',
         },
 
         // Notification
