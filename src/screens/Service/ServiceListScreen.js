@@ -16,6 +16,8 @@ import {
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import apiClient from '../../services/api.service';
 import {
   getAllServicesForTenantAPI,
   bookServiceAPI,
@@ -46,6 +48,8 @@ const getTypeIcon = (type) => TYPE_ICON[type] || 'room-service-outline';
 const isFixedService = (s) => s.type === 'Fixed';
 const isWashingMachine = (item) =>
   item?.type === 'Giặt ủi' || /máy\s*giặt/i.test(item?.name || '');
+const isElevatorService = (item) =>
+  /thang\s*máy/i.test(item?.name || '');
 
 const TABS = [
   { key: 'fixed',     label: 'Cố định',  icon: 'shield-check',      color: '#2563EB' },
@@ -55,6 +59,7 @@ const TABS = [
 // ── main component ──────────────────────────────────────────────────
 export default function ServiceListScreen({ navigation }) {
   const [services, setServices] = useState([]);
+  const [isFloor1, setIsFloor1] = useState(false);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [actioningId, setActioningId] = useState(null);
@@ -66,7 +71,22 @@ export default function ServiceListScreen({ navigation }) {
     if (isRefresh) setRefreshing(true);
     else setLoading(true);
     try {
-      const res = await getAllServicesForTenantAPI();
+      const [res] = await Promise.all([
+        getAllServicesForTenantAPI(),
+        (async () => {
+          try {
+            const token = await AsyncStorage.getItem('authToken');
+            const contractRes = await apiClient.get('/contracts/my-contracts', {
+              headers: { Authorization: `Bearer ${token}` },
+            });
+            const contracts = contractRes.data?.data || [];
+            const active = contracts.find((c) => c.status === 'active') || contracts[0];
+            const floorName = active?.roomId?.floorId?.name || '';
+            // floor 1: tầng 1, floor 01, or name ending with 1
+            setIsFloor1(/tầng\s*1\b|floor\s*1\b|\b01\b/i.test(floorName) || floorName.trim().endsWith('1'));
+          } catch (_) {}
+        })(),
+      ]);
       setServices(res.data || []);
     } catch (error) {
       Alert.alert('Lỗi', error.message || 'Không thể tải danh sách dịch vụ');
@@ -82,8 +102,8 @@ export default function ServiceListScreen({ navigation }) {
 
   // ── filtered data ──────────────────────────────────────────────────
   const fixedServices = useMemo(
-    () => services.filter((s) => isFixedService(s)),
-    [services]
+    () => services.filter((s) => isFixedService(s) && !(isFloor1 && isElevatorService(s))),
+    [services, isFloor1]
   );
   const extServices = useMemo(
     () => services.filter((s) => !isFixedService(s)),
