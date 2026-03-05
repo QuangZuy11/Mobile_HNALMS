@@ -2,7 +2,15 @@
 
 ## 📌 Tổng quan
 
-Tính năng thanh toán hóa đơn qua QR sử dụng **Sepay/VietQR** cho phép cư dân thanh toán hóa đơn phát sinh (Incurred) bằng cách quét mã QR ngân hàng.
+Tính năng thanh toán hóa đơn qua QR sử dụng **Sepay/VietQR** cho phép cư dân thanh toán **tất cả loại hóa đơn** (Periodic & Incurred) bằng cách quét mã QR ngân hàng.
+
+> **Loại hóa đơn hỗ trợ:**
+> - `Periodic` — Hóa đơn định kỳ hàng tháng (tiền phòng + dịch vụ)
+> - `Incurred` — Hóa đơn phát sinh từ yêu cầu sửa chữa/thiết bị hỏng
+>
+> **Điều kiện hiển thị nút Thanh toán:**
+> - `status = 'Unpaid'` — Chưa thanh toán
+> - `status = 'Overdue'` — Quá hạn
 
 ---
 

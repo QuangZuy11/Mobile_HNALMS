@@ -1,4 +1,4 @@
-// Pay Invoice Screen — Incurred Invoice Payment via QR (Sepay/VietQR)
+// Pay Invoice Screen — QR Payment for all invoice types (Periodic & Incurred) via Sepay/VietQR
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
     View, Text, SafeAreaView, StyleSheet, TouchableOpacity,
@@ -7,7 +7,7 @@ import {
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import * as MediaLibrary from 'expo-media-library';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import {
     initiatePaymentAPI,
     getPaymentStatusAPI,
@@ -202,9 +202,13 @@ export default function PayInvoiceScreen({ navigation, route }) {
     };
 
     /* ── Back handler for success/expired ── */
-    const handleDone = () => {
-        // Pop back to InvoiceDetail (or InvoiceList)
-        navigation.goBack();
+    const handleDone = (isSuccess = false) => {
+        if (isSuccess) {
+            // Thanh toán thành công → về danh sách hóa đơn và refresh
+            navigation.navigate('InvoiceList', { refresh: Date.now() });
+        } else {
+            navigation.goBack();
+        }
     };
 
     /* ── Tải QR về thư viện ── */
@@ -283,7 +287,7 @@ export default function PayInvoiceScreen({ navigation, route }) {
                         Hóa đơn {paymentData?.invoiceCode} đã được thanh toán.
                     </Text>
                     <Text style={styles.resultAmount}>{fmtMoney(paymentData?.invoiceAmount)}</Text>
-                    <TouchableOpacity style={[styles.resultBtn, { backgroundColor: '#10B981' }]} onPress={handleDone}>
+                    <TouchableOpacity style={[styles.resultBtn, { backgroundColor: '#10B981' }]} onPress={() => handleDone(true)}>
                         <MaterialCommunityIcons name="check" size={18} color="#FFF" />
                         <Text style={styles.resultBtnText}>Hoàn tất</Text>
                     </TouchableOpacity>

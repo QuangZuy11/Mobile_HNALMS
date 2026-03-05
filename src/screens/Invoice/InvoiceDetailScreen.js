@@ -105,9 +105,13 @@ export default function InvoiceDetailScreen({ navigation, route }) {
             .finally(() => setLoading(false));
     }, [invoiceId, invoiceType]);
 
-    const cfg = STATUS_CONFIG[invoice?.status] ?? STATUS_CONFIG.Unpaid;
+    // Chuẩn hóa status - hỗ trợ cả PascalCase và lowercase từ API
+    const rawStatus = invoice?.status || invoice?.paymentStatus || '';
+    const normalizedStatus = rawStatus.charAt(0).toUpperCase() + rawStatus.slice(1).toLowerCase();
+    const cfg = STATUS_CONFIG[normalizedStatus] ?? STATUS_CONFIG.Unpaid;
     const room = invoice?.roomId;
-    const isUnpaid = invoice?.status === 'Unpaid' || invoice?.status === 'Overdue';
+    // Chỉ hiện nút thanh toán khi status là Unpaid hoặc Overdue
+    const isUnpaid = normalizedStatus === 'Unpaid' || normalizedStatus === 'Overdue';
 
     const completeItems = useMemo(() => {
         const apiItems = invoice?.items || [];
@@ -266,17 +270,19 @@ export default function InvoiceDetailScreen({ navigation, route }) {
                         <View style={{ height: 90 }} />
                     </ScrollView>
 
-                    {/* ── Floating pay button ── */}
-                    <View style={styles.payBar}>
-                        <TouchableOpacity
-                            style={styles.payBtn}
-                            activeOpacity={0.85}
-                            onPress={() => navigation.navigate('PayInvoice', { invoiceId })}
-                        >
-                            <MaterialCommunityIcons name="credit-card-outline" size={20} color="#FFF" />
-                            <Text style={styles.payBtnText}>Thanh toán</Text>
-                        </TouchableOpacity>
-                    </View>
+                    {/* ── Floating pay button (chỉ hiển thị khi chưa thanh toán) ── */}
+                    {isUnpaid && (
+                        <View style={styles.payBar}>
+                            <TouchableOpacity
+                                style={styles.payBtn}
+                                activeOpacity={0.85}
+                                onPress={() => navigation.navigate('PayInvoice', { invoiceId })}
+                            >
+                                <MaterialCommunityIcons name="credit-card-outline" size={20} color="#FFF" />
+                                <Text style={styles.payBtnText}>Thanh toán</Text>
+                            </TouchableOpacity>
+                        </View>
+                    )}
                 </>
             )}
         </SafeAreaView>

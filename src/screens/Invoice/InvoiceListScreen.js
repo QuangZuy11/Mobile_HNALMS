@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -130,12 +130,13 @@ function DatePickerModal({ visible, title, selected, onSelect, onClose }) {
   );
 }
 
-export default function InvoiceListScreen({ navigation }) {
+export default function InvoiceListScreen({ navigation, route }) {
   const [allInvoices, setAllInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
   const [tenantId, setTenantId] = useState(null);
+  const lastRefreshRef = useRef(null);
 
   const [typeFilter, setTypeFilter] = useState('all');
   const [searchText, setSearchText] = useState('');
@@ -171,6 +172,16 @@ export default function InvoiceListScreen({ navigation }) {
 
   useEffect(() => { if (tenantId) fetchAll(); }, [tenantId, fetchAll]);
 
+  // Reload khi navigate từ PayInvoice về với refresh param
+  useEffect(() => {
+    const refreshParam = route.params?.refresh;
+    if (refreshParam && refreshParam !== lastRefreshRef.current && tenantId) {
+      lastRefreshRef.current = refreshParam;
+      setRefreshing(true);
+      fetchAll();
+    }
+  }, [route.params?.refresh, tenantId, fetchAll]);
+
   const onRefresh = () => { setRefreshing(true); fetchAll(); };
 
   const stats = useMemo(() => ({
@@ -185,7 +196,14 @@ export default function InvoiceListScreen({ navigation }) {
     if (searchText.trim()) list = list.filter((i) =>
       i.title?.toLowerCase().includes(searchText.toLowerCase()) ||
       i.invoiceCode?.toLowerCase().includes(searchText.toLowerCase()));
-    if (statusFilter !== 'all') list = list.filter((i) => i.status === statusFilter);
+    if (statusFilter !== 'all') {
+      list = list.filter((i) => {
+        // Chuẩn hóa status từ API về PascalCase để so sánh
+        const rawStatus = i.status || i.paymentStatus || '';
+        const normalizedStatus = rawStatus.charAt(0).toUpperCase() + rawStatus.slice(1).toLowerCase();
+        return normalizedStatus === statusFilter;
+      });
+    }
     if (sentDate) list = list.filter((i) => toDateKey(i.createdAt) === sentDate);
     if (dueDate) list = list.filter((i) => toDateKey(i.dueDate) === dueDate);
     return list;
@@ -203,7 +221,10 @@ export default function InvoiceListScreen({ navigation }) {
   };
 
   const renderItem = ({ item }) => {
-    const cfg = STATUS_CONFIG[item.status] || STATUS_CONFIG.Unpaid;
+    // Hỗ trợ cả status và paymentStatus, chuẩn hóa thành PascalCase
+    const rawStatus = item.status || item.paymentStatus || 'Unpaid';
+    const normalizedStatus = rawStatus.charAt(0).toUpperCase() + rawStatus.slice(1).toLowerCase();
+    const cfg = STATUS_CONFIG[normalizedStatus] || STATUS_CONFIG.Unpaid;
     return (
       <TouchableOpacity
         style={styles.card}
