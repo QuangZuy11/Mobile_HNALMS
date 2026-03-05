@@ -14,6 +14,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import apiClient from '../../services/api.service';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { handleCallManager } from '../../utils/phoneHelper';
+import { getDevicesByRoomAPI } from '../../services/device.service';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -42,6 +43,7 @@ const getRoomStatusBadge = (status) => {
 
 export default function MyRoomScreen({ navigation }) {
   const [roomData, setRoomData] = useState(null);
+  const [devices, setDevices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
@@ -60,6 +62,13 @@ export default function MyRoomScreen({ navigation }) {
         const active = contracts.find((c) => c.status === 'active') || contracts[0];
         if (active?.roomId) {
           setRoomData(active.roomId);
+          // Fetch devices via dedicated my-room endpoint
+          try {
+            const devRes = await getDevicesByRoomAPI();
+            setDevices(devRes.data?.devices || []);
+          } catch (_) {
+            setDevices([]);
+          }
         } else {
           setError('Không tìm thấy thông tin phòng');
         }
@@ -259,6 +268,50 @@ export default function MyRoomScreen({ navigation }) {
             </View>
           </View>
         )}
+
+        {/* ── Devices ── */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Thiết bị trong phòng</Text>
+          {devices.length === 0 ? (
+            <View style={[styles.infoCard, { padding: 20, alignItems: 'center' }]}>
+              <MaterialCommunityIcons name="devices" size={32} color="#D1D5DB" />
+              <Text style={{ marginTop: 8, fontSize: 13, color: '#9CA3AF' }}>Không có thiết bị nào</Text>
+            </View>
+          ) : (
+            <View style={styles.infoCard}>
+              {devices.map((device, idx) => {
+                const info = device.deviceId || {};
+                const isLast = idx === devices.length - 1;
+                return (
+                  <React.Fragment key={device._id || idx}>
+                    <View style={styles.deviceRow}>
+                      <View style={styles.deviceIconWrapper}>
+                        <MaterialCommunityIcons name="devices" size={20} color="#6366F1" />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.deviceName} numberOfLines={1}>
+                          {info.name || 'Thiết bị'}
+                        </Text>
+                        {info.category && (
+                          <Text style={styles.deviceType}>{info.category}</Text>
+                        )}
+                        {(info.brand || info.model) && (
+                          <Text style={styles.deviceDesc} numberOfLines={1}>
+                            {[info.brand, info.model].filter(Boolean).join(' – ')}
+                          </Text>
+                        )}
+                        {device.quantity > 1 && (
+                          <Text style={styles.deviceDesc}>Số lượng: {device.quantity}</Text>
+                        )}
+                      </View>
+                    </View>
+                    {!isLast && <View style={styles.divider} />}
+                  </React.Fragment>
+                );
+              })}
+            </View>
+          )}
+        </View>
 
         {/* ── Action Buttons ── */}
         <View style={styles.section}>
@@ -507,6 +560,49 @@ const styles = StyleSheet.create({
     color: '#374151',
     lineHeight: 20,
     flex: 1,
+  },
+
+  // ── Devices ──
+  deviceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    gap: 12,
+  },
+  deviceIconWrapper: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    backgroundColor: '#EEF2FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  deviceName: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#1F2937',
+  },
+  deviceType: {
+    fontSize: 11,
+    color: '#9CA3AF',
+    marginTop: 2,
+  },
+  deviceDesc: {
+    fontSize: 11,
+    color: '#6B7280',
+    marginTop: 2,
+    lineHeight: 16,
+  },
+  deviceStatusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+    marginLeft: 8,
+  },
+  deviceStatusText: {
+    fontSize: 10,
+    fontWeight: '600',
   },
 
   // ── Actions ──
