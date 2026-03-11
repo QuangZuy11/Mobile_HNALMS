@@ -14,7 +14,7 @@ import {
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { createRepairRequestAPI } from '../../services/request.service';
-import { getDevicesAPI } from '../../services/device.service';
+import { getDevicesByRoomAPI } from '../../services/device.service';
 import { uploadMultipleImages } from '../../services/upload.service';
 
 export default function CreateRepairRequestScreen({ navigation }) {
@@ -28,55 +28,63 @@ export default function CreateRepairRequestScreen({ navigation }) {
   const [fetchingDevices, setFetchingDevices] = useState(true);
   const [devicesError, setDevicesError] = useState(null);
 
-  // Map device types to icons
+  // Map device types to icons (MaterialCommunityIcons)
   const getDeviceIcon = (deviceName) => {
     const name = deviceName?.toLowerCase() || '';
-    if (name.includes('cửa') || name.includes('khóa')) return 'door';
-    if (name.includes('sổ') || name.includes('cửa sổ')) return 'window-closed';
-    if (name.includes('điện') || name.includes('đèn')) return 'flash';
-    if (name.includes('nước') || name.includes('vòi')) return 'pipe';
-    if (name.includes('giường') || name.includes('bàn') || name.includes('ghế') || name.includes('tủ')) return 'bed';
-    if (name.includes('sàn')) return 'floor-plan';
-    if (name.includes('tường') || name.includes('trần')) return 'wall';
-    if (name.includes('máy') || name.includes('điều hòa') || name.includes('lạnh')) return 'air-conditioner';
-    if (name.includes('tủ lạnh')) return 'fridge';
-    return 'tools';
+    if (name.includes('tủ lạnh')) return 'fridge-outline';
+    if (name.includes('máy giặt')) return 'washing-machine';
+    if (name.includes('điều hòa') || name.includes('máy lạnh')) return 'snowflake';
+    if (name.includes('quạt trần') || name.includes('quạt')) return 'fan';
+    if (name.includes('tivi') || name.includes('tv') || name.includes('ti vi')) return 'television';
+    if (name.includes('wifi') || name.includes('router') || name.includes('mạng')) return 'wifi';
+    if (name.includes('toilet') || name.includes('bồn cầu') || name.includes('vệ sinh')) return 'toilet';
+    if (name.includes('vòi') || name.includes('bồn rửa') || name.includes('chậu')) return 'faucet';
+    if (name.includes('nước') || name.includes('bình nước')) return 'water-pump';
+    if (name.includes('khóa')) return 'lock';
+    if (name.includes('cửa sổ')) return 'window-closed-variant';
+    if (name.includes('cửa')) return 'door';
+    if (name.includes('đèn') || name.includes('bóng đèn')) return 'lightbulb-outline';
+    if (name.includes('ổ điện') || name.includes('ổ cắm')) return 'power-socket-eu';
+    if (name.includes('điện')) return 'lightning-bolt';
+    if (name.includes('giường')) return 'bed';
+    if (name.includes('ghế') || name.includes('sofa')) return 'sofa';
+    if (name.includes('bàn')) return 'table-furniture';
+    if (name.includes('tủ')) return 'wardrobe-outline';
+    if (name.includes('sàn')) return 'texture-box';
+    if (name.includes('tường') || name.includes('trần')) return 'bricks';
+    if (name.includes('máy')) return 'cog-outline';
+    return 'wrench';
   };
 
-  // Fetch devices from API
+  // Fetch devices of tenant's room from API
   useEffect(() => {
     const fetchDevices = async () => {
       try {
         setFetchingDevices(true);
         setDevicesError(null);
-        const response = await getDevicesAPI();
-        
+        const response = await getDevicesByRoomAPI();
+
         if (response.success && response.data) {
-          console.log('Raw devices from API:', response.data);
-          
-          // Map devices to the format needed for UI
-          const mappedDevices = response.data.map((device) => {
-            // Backend uses: _id, name, category
-            const deviceId = device._id;
-            const deviceName = device.name;
-            const deviceCategory = device.category;
-            
-            console.log('Mapping device:', { 
-              id: deviceId, 
-              name: deviceName, 
-              category: deviceCategory 
-            });
-            
+          const roomDevices = response.data.devices || response.data || [];
+          console.log('Raw room devices from API:', roomDevices);
+
+          // Each item: { _id, deviceId: { _id, name, category, ... }, quantity, ... }
+          const mappedDevices = roomDevices.map((item) => {
+            const info = item.deviceId || {};
+            const deviceId = info._id;
+            const deviceName = info.name;
+            const deviceCategory = info.category;
+
             return {
               id: deviceId,
-              label: deviceName,
+              label: deviceName || 'Thiết bị',
               icon: getDeviceIcon(deviceName),
               category: deviceCategory,
             };
-          });
-          
+          }).filter((d) => d.id); // bỏ qua item không có device ID
+
           setDevices(mappedDevices);
-          console.log('Total devices loaded:', mappedDevices.length);
+          console.log('Total room devices loaded:', mappedDevices.length);
         }
       } catch (error) {
         console.error('Error fetching devices:', error);
@@ -109,18 +117,30 @@ export default function CreateRepairRequestScreen({ navigation }) {
     })();
   }, []);
 
+  const MAX_IMAGES = 10;
+
   const pickImage = async () => {
+    if (images.length >= MAX_IMAGES) {
+      Alert.alert('Thông báo', `Chỉ được đính kèm tối đa ${MAX_IMAGES} ảnh.`);
+      return;
+    }
     try {
+      const remaining = MAX_IMAGES - images.length;
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
         allowsMultipleSelection: true,
+        selectionLimit: remaining,
         quality: 0.7,
         base64: false,
       });
 
       if (!result.canceled) {
         const newImages = result.assets.map(asset => asset.uri);
-        setImages([...images, ...newImages]);
+        const combined = [...images, ...newImages];
+        if (combined.length > MAX_IMAGES) {
+          Alert.alert('Thông báo', `Chỉ được đính kèm tối đa ${MAX_IMAGES} ảnh. Một số ảnh đã bị bỏ qua.`);
+        }
+        setImages(combined.slice(0, MAX_IMAGES));
       }
     } catch (error) {
       console.error('Error picking image:', error);
@@ -129,6 +149,10 @@ export default function CreateRepairRequestScreen({ navigation }) {
   };
 
   const takePhoto = async () => {
+    if (images.length >= MAX_IMAGES) {
+      Alert.alert('Thông báo', `Chỉ được đính kèm tối đa ${MAX_IMAGES} ảnh.`);
+      return;
+    }
     try {
       const result = await ImagePicker.launchCameraAsync({
         mediaTypes: ['images'],
