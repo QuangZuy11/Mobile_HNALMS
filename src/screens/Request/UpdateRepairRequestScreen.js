@@ -68,7 +68,6 @@ export default function UpdateRepairRequestScreen({ navigation, route }) {
           setDevices(mapped);
         }
       } catch (error) {
-        console.error('Error fetching devices:', error);
         setDevicesError(error.message);
         Alert.alert(
           'Lỗi',
@@ -107,7 +106,6 @@ export default function UpdateRepairRequestScreen({ navigation, route }) {
         setNewLocalImages((prev) => [...prev, ...uris]);
       }
     } catch (error) {
-      console.error('Error picking image:', error);
       Alert.alert('Lỗi', 'Không thể chọn ảnh');
     }
   };
@@ -123,7 +121,6 @@ export default function UpdateRepairRequestScreen({ navigation, route }) {
         setNewLocalImages((prev) => [...prev, result.assets[0].uri]);
       }
     } catch (error) {
-      console.error('Error taking photo:', error);
       Alert.alert('Lỗi', 'Không thể chụp ảnh');
     }
   };
@@ -175,17 +172,14 @@ export default function UpdateRepairRequestScreen({ navigation, route }) {
       let newUploadedUrls = [];
 
       if (newLocalImages.length > 0) {
-        console.log(`Uploading ${newLocalImages.length} new images to Cloudinary...`);
         try {
           newUploadedUrls = await uploadMultipleImages(
             newLocalImages,
             'ml_default',
             (current, total) => {
               setUploadProgress({ current, total });
-              console.log(`Upload progress: ${current}/${total}`);
             }
           );
-          console.log(`Successfully uploaded ${newUploadedUrls.length} images`);
 
           if (newUploadedUrls.length < newLocalImages.length) {
             Alert.alert(
@@ -198,7 +192,6 @@ export default function UpdateRepairRequestScreen({ navigation, route }) {
             );
           }
         } catch (uploadError) {
-          console.error('Error uploading images:', uploadError);
           Alert.alert(
             'Lỗi tải ảnh',
             uploadError.message + '\n\nBạn có muốn tiếp tục không có ảnh mới?',
@@ -228,7 +221,6 @@ export default function UpdateRepairRequestScreen({ navigation, route }) {
       );
     } catch (error) {
       Alert.alert('Lỗi', error.message || 'Không thể cập nhật yêu cầu. Vui lòng thử lại.');
-      console.error('Error updating repair request:', error);
     } finally {
       setLoading(false);
     }

@@ -71,7 +71,6 @@ export default function UpdateTransferRequestScreen({ navigation, route }) {
         }
       }
     } catch (error) {
-      console.error('Error fetching available rooms:', error);
       Alert.alert('Lỗi', 'Không thể tải danh sách phòng trống.');
     } finally {
       setLoadingRooms(false);

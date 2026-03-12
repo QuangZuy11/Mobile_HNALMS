@@ -25,7 +25,6 @@ export default function UpdateRequestScreen({ navigation, route }) {
   const loadRequestDetails = async () => {
     try {
       setInitialLoading(true);
-      console.log('Loading complaint for update, ID:', requestId);
       
       const response = await getComplaintRequestDetailAPI(requestId);
       
@@ -47,7 +46,6 @@ export default function UpdateRequestScreen({ navigation, route }) {
         setRequestStatus(data.status);
       }
     } catch (error) {
-      console.error('Error loading request details:', error);
       
       let errorMessage = 'Không thể tải thông tin yêu cầu. Vui lòng thử lại.';
       if (error.status === 403) errorMessage = 'Bạn không có quyền chỉnh sửa yêu cầu này';
@@ -130,7 +128,6 @@ export default function UpdateRequestScreen({ navigation, route }) {
         ]
       );
     } catch (error) {
-      console.error('Error updating request:', error);
       
       const errorMessage = error.message || 
                           error.data?.message || 
