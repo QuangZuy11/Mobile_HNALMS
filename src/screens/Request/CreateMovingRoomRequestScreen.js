@@ -51,7 +51,6 @@ export default function CreateMovingRoomRequestScreen({ navigation }) {
         setAvailableRooms([]);
       }
     } catch (error) {
-      console.error('Error fetching available rooms:', error);
       Alert.alert('Lỗi', error?.response?.data?.message || 'Không thể tải danh sách phòng trống. Vui lòng thử lại.');
       setAvailableRooms([]);
     } finally {

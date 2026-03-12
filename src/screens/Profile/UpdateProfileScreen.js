@@ -196,11 +196,7 @@ export default function UpdateProfileScreen({ route, navigation }) {
         dob: convertDateToBackendFormat(formData.dob),
       };
       
-      console.log('Sending update data:', dataToSend);
-      
       const response = await updateProfileAPI(dataToSend);
-
-      console.log('Update response:', response);
 
       // Backend returns { success: true, message, data: updatedProfile }
       if (response && response.success) {
@@ -214,7 +210,6 @@ export default function UpdateProfileScreen({ route, navigation }) {
         Alert.alert('Lỗi', response?.message || 'Cập nhật thất bại');
       }
     } catch (error) {
-      console.error('Update profile error:', error);
       Alert.alert('Lỗi', error.message || 'Đã xảy ra lỗi khi cập nhật');
     } finally {
       setLoading(false);

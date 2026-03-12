@@ -71,7 +71,6 @@ export default function CreateComplaintRequestScreen({ navigation }) {
       // Handle error
       const errorMessage = error.message || error.data?.message || 'Không thể gửi khiếu nại. Vui lòng thử lại.';
       Alert.alert('Lỗi', errorMessage);
-      console.error('Error creating complaint request:', error);
     } finally {
       setLoading(false);
     }
