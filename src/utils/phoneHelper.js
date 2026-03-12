@@ -18,7 +18,6 @@ export const handleCallManager = () => {
       }
     })
     .catch((err) => {
-      console.error('Error opening phone app:', err);
       Alert.alert('Lỗi', 'Không thể thực hiện cuộc gọi');
     });
 };

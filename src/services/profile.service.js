@@ -47,8 +47,6 @@ export const updateProfileAPI = async (profileData) => {
       phoneNumber: profileData.phoneNumber,
     };
     
-    console.log('Sending to API:', updateData);
-    
     const response = await apiClient.put(
       API_CONFIG.ENDPOINTS.PROFILE.UPDATE,
       updateData,

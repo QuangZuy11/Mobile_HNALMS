@@ -55,9 +55,6 @@ export const getComplaintRequestsAPI = async (filters = {}) => {
   try {
     const token = await AsyncStorage.getItem('authToken');
     
-    console.log('Getting complaint requests list');
-    console.log('Token exists:', !!token);
-    
     if (!token) {
       throw new Error('Vui lòng đăng nhập để tiếp tục');
     }
@@ -70,7 +67,6 @@ export const getComplaintRequestsAPI = async (filters = {}) => {
     if (filters.limit) queryParams.append('limit', filters.limit);
     
     const endpoint = `${API_CONFIG.ENDPOINTS.REQUEST.CREATE_COMPLAINT}?${queryParams.toString()}`;
-    console.log('Request endpoint:', endpoint);
     
     const response = await apiClient.get(
       endpoint,
@@ -80,15 +76,8 @@ export const getComplaintRequestsAPI = async (filters = {}) => {
         },
       }
     );
-    
-    console.log('Response status:', response.status);
     return response.data;
   } catch (error) {
-    console.error('API Error in getComplaintRequestsAPI:', {
-      message: error.message,
-      status: error.status,
-      response: error.response?.data,
-    });
     
     // Add network error flag
     if (error.message?.includes('Network request failed') || 
@@ -121,9 +110,6 @@ export const getAllRequestsAPI = async (filters = {}) => {
   try {
     const token = await AsyncStorage.getItem('authToken');
     
-    console.log('Getting all requests (merging from multiple endpoints)');
-    console.log('Token exists:', !!token);
-    
     if (!token) {
       throw new Error('Vui lòng đăng nhập để tiếp tục');
     }
@@ -134,25 +120,18 @@ export const getAllRequestsAPI = async (filters = {}) => {
       getRepairRequestsAPI(filters),
     ]);
     
-    console.log('Complaints response:', complaintsResponse.status);
-    console.log('Repairs response:', repairsResponse.status);
-    
     // Merge results
     let allRequests = [];
     
     if (complaintsResponse.status === 'fulfilled' && complaintsResponse.value?.success) {
       const complaints = complaintsResponse.value.data?.data || complaintsResponse.value.data || [];
       allRequests = allRequests.concat(complaints);
-      console.log('Complaints count:', complaints.length);
     }
     
     if (repairsResponse.status === 'fulfilled' && repairsResponse.value?.success) {
       const repairs = repairsResponse.value.data?.data || repairsResponse.value.data || [];
       allRequests = allRequests.concat(repairs);
-      console.log('Repairs count:', repairs.length);
     }
-    
-    console.log('Total merged requests:', allRequests.length);
     
     // Return in same format as other APIs
     return {
@@ -160,11 +139,6 @@ export const getAllRequestsAPI = async (filters = {}) => {
       data: allRequests,
     };
   } catch (error) {
-    console.error('API Error in getAllRequestsAPI:', {
-      message: error.message,
-      status: error.status,
-      response: error.response?.data,
-    });
     
     // Add network error flag
     if (error.message?.includes('Network request failed') || 
@@ -191,15 +165,11 @@ export const getRepairRequestDetailAPI = async (id) => {
   try {
     const token = await AsyncStorage.getItem('authToken');
     
-    console.log('Getting repair request detail for ID:', id);
-    console.log('Token exists:', !!token);
-    
     if (!token) {
       throw new Error('Vui lòng đăng nhập để tiếp tục');
     }
     
     const endpoint = `${API_CONFIG.ENDPOINTS.REQUEST.CREATE_REPAIR}/${id}`;
-    console.log('Request endpoint:', endpoint);
     
     const response = await apiClient.get(
       endpoint,
@@ -209,15 +179,8 @@ export const getRepairRequestDetailAPI = async (id) => {
         },
       }
     );
-    
-    console.log('Response status:', response.status);
     return response.data;
   } catch (error) {
-    console.error('API Error in getRepairRequestDetailAPI:', {
-      message: error.message,
-      status: error.status,
-      response: error.response?.data,
-    });
     
     // Handle 403 specifically
     if (error.status === 403 || error.response?.status === 403) {
@@ -244,9 +207,6 @@ export const getRepairRequestsAPI = async (filters = {}) => {
   try {
     const token = await AsyncStorage.getItem('authToken');
     
-    console.log('Getting repair requests (my requests)');
-    console.log('Token exists:', !!token);
-    
     if (!token) {
       throw new Error('Vui lòng đăng nhập để tiếp tục');
     }
@@ -259,7 +219,6 @@ export const getRepairRequestsAPI = async (filters = {}) => {
     if (filters.limit) queryParams.append('limit', filters.limit);
     
     const endpoint = `${API_CONFIG.ENDPOINTS.REQUEST.MY_REPAIRS}${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
-    console.log('Request endpoint:', endpoint);
     
     const response = await apiClient.get(
       endpoint,
@@ -269,15 +228,8 @@ export const getRepairRequestsAPI = async (filters = {}) => {
         },
       }
     );
-    
-    console.log('Response status:', response.status);
     return response.data;
   } catch (error) {
-    console.error('API Error in getRepairRequestsAPI:', {
-      message: error.message,
-      status: error.status,
-      response: error.response?.data,
-    });
     
     // Add network error flag
     if (error.message?.includes('Network request failed') || 
@@ -304,16 +256,11 @@ export const getComplaintRequestDetailAPI = async (id) => {
   try {
     const token = await AsyncStorage.getItem('authToken');
     
-    console.log('Getting complaint detail for ID:', id);
-    console.log('Token exists:', !!token);
-    console.log('Token preview:', token ? token.substring(0, 20) + '...' : 'null');
-    
     if (!token) {
       throw new Error('Vui lòng đăng nhập để tiếp tục');
     }
     
     const endpoint = `${API_CONFIG.ENDPOINTS.REQUEST.CREATE_COMPLAINT}/${id}`;
-    console.log('Request endpoint:', endpoint);
     
     const response = await apiClient.get(
       endpoint,
@@ -326,15 +273,8 @@ export const getComplaintRequestDetailAPI = async (id) => {
         },
       }
     );
-    
-    console.log('Response status:', response.status);
     return response.data;
   } catch (error) {
-    console.error('API Error in getComplaintRequestDetailAPI:', {
-      message: error.message,
-      status: error.status,
-      response: error.response?.data,
-    });
     
     // Handle 403 specifically
     if (error.status === 403 || error.response?.status === 403) {
@@ -360,7 +300,6 @@ export const deleteComplaintRequestAPI = async (id) => {
     if (!response.data.success) throw new Error(response.data.message || 'Kh\u00f4ng th\u1ec3 x\u00f3a khi\u1ebfu n\u1ea1i');
     return response.data;
   } catch (error) {
-    console.error('API Error in deleteComplaintRequestAPI:', error.message);
     if (error.response?.status === 403 || error.status === 403)
       throw new Error('B\u1ea1n kh\u00f4ng c\u00f3 quy\u1ec1n x\u00f3a khi\u1ebfu n\u1ea1i n\u00e0y');
     if (error.response?.status === 400 || error.status === 400)
@@ -406,11 +345,6 @@ export const updateComplaintRequestAPI = async (id, updateData) => {
     
     return response.data;
   } catch (error) {
-    console.error('API Error in updateComplaintRequestAPI:', {
-      message: error.message,
-      status: error.status,
-      response: error.response?.data,
-    });
     
     if (error.response?.status === 403 || error.status === 403) {
       throw new Error('Bạn không có quyền cập nhật yêu cầu này');
@@ -438,9 +372,6 @@ export const createRepairRequestAPI = async (repairData) => {
   try {
     const token = await AsyncStorage.getItem('authToken');
     
-    console.log('Creating repair request with data:', repairData);
-    console.log('Token exists:', !!token);
-    
     if (!token) {
       throw new Error('Vui lòng đăng nhập để tiếp tục');
     }
@@ -455,8 +386,6 @@ export const createRepairRequestAPI = async (repairData) => {
       }
     );
     
-    console.log('Response status:', response.status);
-    
     // Check if response is successful
     if (!response.data.success) {
       throw new Error(response.data.message || 'Không thể tạo yêu cầu sửa chữa/bảo trì');
@@ -464,11 +393,6 @@ export const createRepairRequestAPI = async (repairData) => {
     
     return response.data;
   } catch (error) {
-    console.error('API Error in createRepairRequestAPI:', {
-      message: error.message,
-      status: error.status,
-      response: error.response?.data,
-    });
     
     // Handle specific errors
     if (error.status === 401 || error.response?.status === 401) {
@@ -506,7 +430,6 @@ export const updateRepairRequestAPI = async (id, updateData) => {
     }
     return response.data;
   } catch (error) {
-    console.error('API Error in updateRepairRequestAPI:', error);
     if (error.status === 401 || error.response?.status === 401) {
       throw new Error('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại');
     } else if (error.status === 403 || error.response?.status === 403) {
@@ -529,15 +452,11 @@ export const deleteRepairRequestAPI = async (id) => {
   try {
     const token = await AsyncStorage.getItem('authToken');
     
-    console.log('Deleting repair request ID:', id);
-    console.log('Token exists:', !!token);
-    
     if (!token) {
       throw new Error('Vui lòng đăng nhập để tiếp tục');
     }
     
     const endpoint = `${API_CONFIG.ENDPOINTS.REQUEST.CREATE_REPAIR}/${id}`;
-    console.log('Request endpoint:', endpoint);
     
     const response = await apiClient.delete(
       endpoint,
@@ -548,19 +467,12 @@ export const deleteRepairRequestAPI = async (id) => {
       }
     );
     
-    console.log('Response status:', response.status);
-    
     if (!response.data.success) {
       throw new Error(response.data.message || 'Không thể xóa yêu cầu');
     }
     
     return response.data;
   } catch (error) {
-    console.error('API Error in deleteRepairRequestAPI:', {
-      message: error.message,
-      status: error.status,
-      response: error.response?.data,
-    });
     
     // Handle specific errors
     if (error.status === 403 || error.response?.status === 403) {
@@ -590,7 +502,6 @@ export const getAvailableRoomsForTransferAPI = async () => {
     );
     return response.data;
   } catch (error) {
-    console.error('API Error in getAvailableRoomsForTransferAPI:', error.message);
     throw error;
   }
 };
@@ -616,7 +527,6 @@ export const createTransferRequestAPI = async (transferData) => {
     }
     return response.data;
   } catch (error) {
-    console.error('API Error in createTransferRequestAPI:', error.message);
     throw error;
   }
 };
@@ -636,7 +546,6 @@ export const getMyTransferRequestsAPI = async () => {
     );
     return response.data;
   } catch (error) {
-    console.error('API Error in getMyTransferRequestsAPI:', error.message);
     throw error;
   }
 };
@@ -658,7 +567,6 @@ export const updateTransferRequestAPI = async (id, updateData) => {
     if (!response.data.success) throw new Error(response.data.message || 'Kh\u00f4ng th\u1ec3 c\u1eadp nh\u1eadt y\u00eau c\u1ea7u');
     return response.data;
   } catch (error) {
-    console.error('API Error in updateTransferRequestAPI:', error.message);
     if (error.response?.status === 403) throw new Error('B\u1ea1n kh\u00f4ng c\u00f3 quy\u1ec1n c\u1eadp nh\u1eadt y\u00eau c\u1ea7u n\u00e0y');
     if (error.response?.status === 400) throw new Error(error.response?.data?.message || 'Y\u00eau c\u1ea7u kh\u00f4ng h\u1ee3p l\u1ec7');
     throw error;
@@ -680,7 +588,6 @@ export const deleteTransferRequestAPI = async (id) => {
     if (!response.data.success) throw new Error(response.data.message || 'Kh\u00f4ng th\u1ec3 x\u00f3a y\u00eau c\u1ea7u');
     return response.data;
   } catch (error) {
-    console.error('API Error in deleteTransferRequestAPI:', error.message);
     if (error.response?.status === 403) throw new Error('B\u1ea1n kh\u00f4ng c\u00f3 quy\u1ec1n x\u00f3a y\u00eau c\u1ea7u n\u00e0y');
     if (error.response?.status === 400) throw new Error(error.response?.data?.message || 'Ch\u1ec9 c\u00f3 th\u1ec3 x\u00f3a y\u00eau c\u1ea7u \u1edf tr\u1ea1ng th\u00e1i Pending');
     if (error.response?.status === 404) throw new Error('Kh\u00f4ng t\u00ecm th\u1ea5y y\u00eau c\u1ea7u');
@@ -705,7 +612,6 @@ export const cancelTransferRequestAPI = async (requestId) => {
     );
     return response.data;
   } catch (error) {
-    console.error('API Error in cancelTransferRequestAPI:', error.message);
     throw error;
   }
 };

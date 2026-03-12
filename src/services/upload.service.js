@@ -9,8 +9,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
  */
 export const uploadImageToCloudinary = async (imageUri) => {
   try {
-    console.log('=== Uploading image via Backend API ===');
-    console.log('Image URI:', imageUri);
 
     const token = await AsyncStorage.getItem('authToken');
     if (!token) {
@@ -41,8 +39,6 @@ export const uploadImageToCloudinary = async (imageUri) => {
 
     formData.append('image', file);
 
-    console.log('Uploading to backend API...');
-
     const response = await fetch(`${API_CONFIG.BASE_URL}/upload/image`, {
       method: 'POST',
       headers: {
@@ -57,14 +53,9 @@ export const uploadImageToCloudinary = async (imageUri) => {
     if (!result.success) {
       throw new Error(result.message || 'Upload thất bại');
     }
-
-    console.log('Upload successful!');
-    console.log('Image URL:', result.data.url);
     
     return result.data.url;
   } catch (error) {
-    console.error('=== Upload Error ===');
-    console.error('Error message:', error.message);
     
     throw new Error(error.message || 'Không thể tải ảnh lên. Vui lòng thử lại.');
   }
@@ -83,7 +74,6 @@ export const uploadMultipleImages = async (
   onProgress = null
 ) => {
   try {
-    console.log(`=== Uploading ${imageUris.length} images via Backend API ===`);
     
     const token = await AsyncStorage.getItem('authToken');
     if (!token) {
@@ -115,8 +105,6 @@ export const uploadMultipleImages = async (
       formData.append('images', file);
     });
 
-    console.log('Uploading batch to backend API...');
-
     const response = await fetch(`${API_CONFIG.BASE_URL}/upload/images`, {
       method: 'POST',
       headers: {
@@ -130,8 +118,6 @@ export const uploadMultipleImages = async (
     if (!result.success) {
       throw new Error(result.message || 'Upload thất bại');
     }
-
-    console.log(`Upload successful: ${result.data.successful}/${result.data.total} images`);
     
     // Call progress callback if provided
     if (onProgress) {
@@ -140,7 +126,6 @@ export const uploadMultipleImages = async (
     
     return result.data.urls;
   } catch (error) {
-    console.error('Error in uploadMultipleImages:', error);
     throw new Error(error.message || 'Không thể tải ảnh lên. Vui lòng thử lại.');
   }
 };
