@@ -94,15 +94,12 @@ export default function MyContractScreen({ navigation }) {
         headers: { Authorization: `Bearer ${token}` },
       });
 
-      console.log('Contracts API Response:', JSON.stringify(response.data, null, 2));
-
       if (response.data?.success) {
         setContracts(response.data.data || []);
       } else {
         setError('Không thể tải danh sách hợp đồng');
       }
     } catch (err) {
-      console.error('Contracts fetch error:', err);
       if (err.status === 401) {
         setError('Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại');
       } else {

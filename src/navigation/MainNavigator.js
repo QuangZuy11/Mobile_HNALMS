@@ -218,7 +218,6 @@ export function MainNavigator() {
             try {
               await logoutAPI();
             } catch (error) {
-              console.log('Logout API error (ignored):', error.message);
             } finally {
               await signOut();
             }

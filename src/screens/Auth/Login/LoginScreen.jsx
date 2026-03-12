@@ -101,7 +101,6 @@ export default function LoginScreen({ navigation }) {
         errorMessage = error.data.message;
       }
       
-      console.error('Login error:', error);
       showValidationPopup(errorMessage);
       setLoading(false);
     }
