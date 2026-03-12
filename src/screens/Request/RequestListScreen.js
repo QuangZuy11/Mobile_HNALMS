@@ -53,14 +53,9 @@ export default function RequestListScreen({ navigation }) {
       const token = await AsyncStorage.getItem('authToken');
       const userDataStr = await AsyncStorage.getItem('userData');
       
-      console.log('=== Auth Check ===');
-      console.log('Token exists:', !!token);
-      console.log('Token preview:', token ? token.substring(0, 30) + '...' : 'null');
-      
       if (userDataStr) {
         const userData = JSON.parse(userDataStr);
         setUserInfo(userData);
-        console.log('User info:', userData);
       }
       
       if (!token) {
@@ -70,7 +65,6 @@ export default function RequestListScreen({ navigation }) {
       
       return true;
     } catch (error) {
-      console.error('Error checking auth:', error);
       return false;
     }
   };
@@ -146,7 +140,6 @@ export default function RequestListScreen({ navigation }) {
   const formatRequest = (item) => {
     try {
       if (!item || !item._id) {
-        console.error('Invalid request item:', item);
         return null;
       }
 
@@ -189,8 +182,6 @@ export default function RequestListScreen({ navigation }) {
         fullData: item,
       };
     } catch (error) {
-      console.error('Error formatting request:', error);
-      console.error('Item causing error:', item);
       return null;
     }
   };
@@ -310,7 +301,6 @@ export default function RequestListScreen({ navigation }) {
 
       setRequests(mappedRequests);
     } catch (error) {
-      console.error('Error loading requests:', error);
       
       let errorMessage = 'Không thể tải danh sách yêu cầu. Vui lòng thử lại.';
       

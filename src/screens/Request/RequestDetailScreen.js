@@ -60,10 +60,7 @@ export default function RequestDetailScreen({ navigation, route }) {
   const loadRequestDetails = async () => {
     try {
       setLoading(true);
-      console.log('Loading complaint request details for ID:', requestId);
       const response = await getComplaintRequestDetailAPI(requestId);
-      
-      console.log('API Response:', JSON.stringify(response, null, 2));
       
       if (response.success && response.data) {
         const data = response.data;
@@ -84,25 +81,14 @@ export default function RequestDetailScreen({ navigation, route }) {
             (data.responseBy.fullname || data.responseBy.username || data.responseBy.email) : null,
           responseDate: data.responseDate ? formatDateTime(data.responseDate) : null,
         };
-        
-        console.log('Mapped request:', mappedRequest);
         setRequest(mappedRequest);
       } else {
-        console.error('API response not successful or no data');
         throw new Error('Không thể tải thông tin yêu cầu');
       }
     } catch (error) {
-      console.error('Error loading request details:', error);
-      console.error('Error details:', {
-        message: error.message,
-        status: error.status,
-        data: error.data,
-        isNetworkError: error.isNetworkError,
-      });
       
       // Debug auth state on 403 error
       if (error.status === 403 || error.status === 401) {
-        console.log('Auth error detected, debugging auth state...');
         await debugAuthState();
       }
       

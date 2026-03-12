@@ -66,7 +66,6 @@ export default function CreateRepairRequestScreen({ navigation }) {
 
         if (response.success && response.data) {
           const roomDevices = response.data.devices || response.data || [];
-          console.log('Raw room devices from API:', roomDevices);
 
           // Each item: { _id, deviceId: { _id, name, category, ... }, quantity, ... }
           const mappedDevices = roomDevices.map((item) => {
@@ -84,10 +83,8 @@ export default function CreateRepairRequestScreen({ navigation }) {
           }).filter((d) => d.id); // bỏ qua item không có device ID
 
           setDevices(mappedDevices);
-          console.log('Total room devices loaded:', mappedDevices.length);
         }
       } catch (error) {
-        console.error('Error fetching devices:', error);
         setDevicesError(error.message);
         Alert.alert(
           'Lỗi',
@@ -112,7 +109,6 @@ export default function CreateRepairRequestScreen({ navigation }) {
       const { status: galleryStatus } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       
       if (cameraStatus !== 'granted' || galleryStatus !== 'granted') {
-        console.log('Camera/Gallery permissions not granted');
       }
     })();
   }, []);
@@ -143,7 +139,6 @@ export default function CreateRepairRequestScreen({ navigation }) {
         setImages(combined.slice(0, MAX_IMAGES));
       }
     } catch (error) {
-      console.error('Error picking image:', error);
       Alert.alert('Lỗi', 'Không thể chọn ảnh');
     }
   };
@@ -164,7 +159,6 @@ export default function CreateRepairRequestScreen({ navigation }) {
         setImages([...images, result.assets[0].uri]);
       }
     } catch (error) {
-      console.error('Error taking photo:', error);
       Alert.alert('Lỗi', 'Không thể chụp ảnh');
     }
   };
@@ -210,7 +204,6 @@ export default function CreateRepairRequestScreen({ navigation }) {
       // Upload images to Cloudinary if any
       let imageUrls = [];
       if (images.length > 0) {
-        console.log(`Uploading ${images.length} images to Cloudinary...`);
         
         try {
           imageUrls = await uploadMultipleImages(
@@ -218,11 +211,8 @@ export default function CreateRepairRequestScreen({ navigation }) {
             'ml_default', // Upload preset - ensure this exists in Cloudinary
             (current, total) => {
               setUploadProgress({ current, total });
-              console.log(`Upload progress: ${current}/${total}`);
             }
           );
-          
-          console.log(`Successfully uploaded ${imageUrls.length} images`);
           
           if (imageUrls.length < images.length) {
             Alert.alert(
@@ -235,7 +225,6 @@ export default function CreateRepairRequestScreen({ navigation }) {
             );
           }
         } catch (uploadError) {
-          console.error('Error uploading images:', uploadError);
           Alert.alert(
             'Lỗi tải ảnh',
             uploadError.message + '\n\nBạn có muốn tiếp tục không có ảnh?',
@@ -254,20 +243,12 @@ export default function CreateRepairRequestScreen({ navigation }) {
       // Find selected device
       const selectedDevice = devices.find((d) => d.id === itemType);
       
-      console.log('Submitting repair request:');
-      console.log('- Type:', type);
-      console.log('- Selected device ID:', itemType);
-      console.log('- Selected device info:', selectedDevice);
-      console.log('- Image URLs:', imageUrls);
-      
       const repairData = {
         devicesId: itemType, // Device ID from database (_id)
         type: type, // "Sửa chữa" or "Bảo trì"
         description: description.trim(),
         images: imageUrls, // Array of Cloudinary URLs
       };
-      
-      console.log('- Request data:', repairData);
 
       const response = await createRepairRequestAPI(repairData);
 
@@ -283,7 +264,6 @@ export default function CreateRepairRequestScreen({ navigation }) {
       );
     } catch (error) {
       Alert.alert('Lỗi', error.message || 'Không thể gửi yêu cầu. Vui lòng thử lại.');
-      console.error('Error creating repair request:', error);
     } finally {
       setLoading(false);
     }
@@ -367,7 +347,6 @@ export default function CreateRepairRequestScreen({ navigation }) {
                       itemType === item.id && styles.itemTypeButtonSelected,
                     ]}
                     onPress={() => {
-                      console.log('Selected device:', { id: item.id, label: item.label });
                       setItemType(item.id); // Store device ID, not name
                     }}
                   >
