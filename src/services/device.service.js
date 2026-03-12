@@ -12,10 +12,6 @@ export const getDevicesAPI = async () => {
   try {
     const token = await AsyncStorage.getItem('authToken');
     
-    console.log('=== Getting devices list ===');
-    console.log('Token exists:', !!token);
-    console.log('API Endpoint:', API_CONFIG.ENDPOINTS.DEVICE.LIST);
-    
     if (!token) {
       throw new Error('Vui lòng đăng nhập để tiếp tục');
     }
@@ -29,9 +25,6 @@ export const getDevicesAPI = async () => {
       }
     );
     
-    console.log('Response status:', response.status);
-    console.log('Response data:', JSON.stringify(response.data, null, 2));
-    
     // Check if response is successful
     if (!response.data.success) {
       throw new Error(response.data.message || 'Không thể lấy danh sách thiết bị');
@@ -39,11 +32,6 @@ export const getDevicesAPI = async () => {
     
     return response.data;
   } catch (error) {
-    console.error('=== API Error in getDevicesAPI ===');
-    console.error('Error message:', error.message);
-    console.error('Error status:', error.status);
-    console.error('Error response:', error.response?.data);
-    console.error('Full error:', error);
     
     // Handle specific errors
     if (error.status === 401 || error.response?.status === 401) {

@@ -14,17 +14,9 @@ const apiClient = axios.create({
 // Add request interceptor
 apiClient.interceptors.request.use(
   (config) => {
-    console.log('API Request:', {
-      method: config.method?.toUpperCase(),
-      url: config.url,
-      baseURL: config.baseURL,
-      fullURL: `${config.baseURL}${config.url}`,
-      hasAuth: !!config.headers?.Authorization,
-    });
     return config;
   },
   (error) => {
-    console.error('Request interceptor error:', error);
     return Promise.reject(error);
   }
 );
@@ -32,21 +24,9 @@ apiClient.interceptors.request.use(
 // Add response interceptor
 apiClient.interceptors.response.use(
   (response) => {
-    console.log('API Response:', {
-      status: response.status,
-      url: response.config.url,
-      success: response.data?.success,
-    });
     return response;
   },
   (error) => {
-    console.error('API Error Interceptor:', {
-      url: error.config?.url,
-      status: error.response?.status,
-      statusText: error.response?.statusText,
-      data: error.response?.data,
-    });
-    
     // Handle error responses
     if (error.response) {
       // Server responded with error status

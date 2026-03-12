@@ -31,7 +31,6 @@ const TestDBScreen = () => {
 
             setData(response.data);
         } catch (err) {
-            console.error('Error fetching data:', err);
             setError(err.message || 'Không thể kết nối đến server');
         } finally {
             setLoading(false);
