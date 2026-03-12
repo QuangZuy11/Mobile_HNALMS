@@ -76,7 +76,6 @@ export default function MyRoomScreen({ navigation }) {
         setError('Bạn chưa được phân phòng');
       }
     } catch (err) {
-      console.error('MyRoom fetch error:', err);
       if (err.status === 401) {
         setError('Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại');
       } else {

@@ -68,7 +68,6 @@ export default function ProfileScreen({ navigation }) {
         setError('Không thể tải thông tin profile');
       }
     } catch (err) {
-      console.error('Profile error:', err);
       setError(err.message || 'Đã xảy ra lỗi khi tải dữ liệu');
     } finally {
       setLoading(false);

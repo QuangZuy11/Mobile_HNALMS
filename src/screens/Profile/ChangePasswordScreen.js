@@ -86,7 +86,6 @@ export default function ChangePasswordScreen({ navigation }) {
         Alert.alert('Lỗi', response?.message || 'Đổi mật khẩu thất bại');
       }
     } catch (error) {
-      console.error('Change password error:', error);
 
       // Handle specific error messages
       let errorMessage = error.message || 'Đã xảy ra lỗi khi đổi mật khẩu';
