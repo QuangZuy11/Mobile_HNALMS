@@ -50,6 +50,22 @@ const isWashingMachine = (item) =>
   item?.type === 'Giặt ủi' || /máy\s*giặt/i.test(item?.name || '');
 const isElevatorService = (item) =>
   /thang\s*máy/i.test(item?.name || '');
+const isParkingService = (item) =>
+  item?.type === 'Giữ xe' || /giữ\s*xe/i.test(item?.name || '');
+
+// Extract the most meaningful error message from backend responses.
+// Priority: raw response data > err.data > err.message > fallback
+const getBackendMsg = (err, fallback = 'Đã xảy ra lỗi, vui lòng thử lại') => {
+  const d = err?.response?.data || err?.data;
+  // Validation errors array
+  if (d?.errors && Array.isArray(d.errors) && d.errors.length > 0) {
+    return d.errors
+      .map((e) => (typeof e === 'string' ? e : e?.message || e?.msg || JSON.stringify(e)))
+      .join('\n');
+  }
+  // Single message from backend
+  return d?.message || d?.error || d?.msg || err?.message || fallback;
+};
 
 const TABS = [
   { key: 'fixed',     label: 'Cố định',  icon: 'shield-check',      color: '#2563EB' },
@@ -60,6 +76,7 @@ const TABS = [
 export default function ServiceListScreen({ navigation }) {
   const [services, setServices] = useState([]);
   const [isFloor1, setIsFloor1] = useState(false);
+  const [roomCapacity, setRoomCapacity] = useState(null);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [actioningId, setActioningId] = useState(null);
@@ -84,6 +101,8 @@ export default function ServiceListScreen({ navigation }) {
             const floorName = active?.roomId?.floorId?.name || '';
             // floor 1: tầng 1, floor 01, or name ending with 1
             setIsFloor1(/tầng\s*1\b|floor\s*1\b|\b01\b/i.test(floorName) || floorName.trim().endsWith('1'));
+            const personMax = active?.roomId?.roomTypeId?.personMax;
+            if (personMax != null) setRoomCapacity(Number(personMax));
           } catch (_) {}
         })(),
       ]);
@@ -131,6 +150,15 @@ export default function ServiceListScreen({ navigation }) {
       return;
     }
 
+    // Parking service: quantity cannot exceed room capacity
+    if (isParkingService(item) && roomCapacity != null && qty > roomCapacity) {
+      Alert.alert(
+        'Vượt giới hạn',
+        `Phòng tối đa ${roomCapacity} người nên chỉ được đăng ký tối đa ${roomCapacity} xe.`
+      );
+      return;
+    }
+
     closeBookModal();
     setActioningId(item._id);
     try {
@@ -138,7 +166,7 @@ export default function ServiceListScreen({ navigation }) {
       Alert.alert('Thành công', 'Đăng ký dịch vụ thành công!');
       fetchServices(true);
     } catch (err) {
-      Alert.alert('Lỗi', err.message || 'Không thể đăng ký dịch vụ');
+      Alert.alert('Đăng ký thất bại', getBackendMsg(err, 'Không thể đăng ký dịch vụ'));
     } finally {
       setActioningId(null);
     }
@@ -161,7 +189,7 @@ export default function ServiceListScreen({ navigation }) {
               Alert.alert('Thành công', 'Đã hủy dịch vụ.');
               fetchServices(true);
             } catch (err) {
-              Alert.alert('Lỗi', err.message || 'Không thể hủy dịch vụ');
+              Alert.alert('Hủy thất bại', getBackendMsg(err, 'Không thể hủy dịch vụ'));
             } finally {
               setActioningId(null);
             }
@@ -420,6 +448,14 @@ export default function ServiceListScreen({ navigation }) {
             )}
 
             {/* Quantity input – ẩn với dịch vụ máy giặt */}
+            {!isWashingMachine(bookModal.item) && isParkingService(bookModal.item) && roomCapacity != null && (
+              <View style={styles.parkingHint}>
+                <MaterialCommunityIcons name="information-outline" size={14} color="#F59E0B" />
+                <Text style={styles.parkingHintText}>
+                  Phòng tối đa {roomCapacity} người – đăng ký tối đa {roomCapacity} xe
+                </Text>
+              </View>
+            )}
             {!isWashingMachine(bookModal.item) && (
               <View style={styles.modalInputGroup}>
                 <Text style={styles.modalLabel}>Số lượng người</Text>
@@ -444,7 +480,11 @@ export default function ServiceListScreen({ navigation }) {
                   <TouchableOpacity
                     style={styles.qtyBtn}
                     onPress={() => {
-                      const val = (parseInt(quantity, 10) || 0) + 1;
+                      const max =
+                        isParkingService(bookModal.item) && roomCapacity != null
+                          ? roomCapacity
+                          : Infinity;
+                      const val = Math.min((parseInt(quantity, 10) || 0) + 1, max);
                       setQuantity(String(val));
                     }}
                   >
@@ -658,6 +698,19 @@ const styles = StyleSheet.create({
   modalServiceName: { fontSize: 15, fontWeight: '600', color: '#1F2937', marginBottom: 4 },
   modalServicePrice: { fontSize: 14, fontWeight: '700', color: '#F59E0B' },
   modalServiceUnit: { fontSize: 12, fontWeight: '400', color: '#9CA3AF' },
+  parkingHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#FFFBEB',
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    marginBottom: 14,
+  },
+  parkingHintText: { flex: 1, fontSize: 12, color: '#92400E' },
   modalInputGroup: { marginBottom: 20 },
   modalLabel: { fontSize: 14, fontWeight: '600', color: '#374151', marginBottom: 8 },
   quantityRow: {

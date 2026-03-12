@@ -38,7 +38,14 @@ export const bookServiceAPI = async (serviceId, quantity = 1) => {
     { headers: { Authorization: `Bearer ${token}` } }
   );
   if (!response.data.success) {
-    throw new Error(response.data.message || 'Không thể đăng ký dịch vụ');
+    const err = new Error(
+      response.data.message ||
+      response.data.error ||
+      response.data.msg ||
+      'Không thể đăng ký dịch vụ'
+    );
+    err.data = response.data;
+    throw err;
   }
   return response.data;
 };
@@ -55,7 +62,14 @@ export const cancelBookedServiceAPI = async (serviceId) => {
     { headers: { Authorization: `Bearer ${token}` } }
   );
   if (!response.data.success) {
-    throw new Error(response.data.message || 'Không thể huỷ dịch vụ');
+    const err = new Error(
+      response.data.message ||
+      response.data.error ||
+      response.data.msg ||
+      'Không thể huỷ dịch vụ'
+    );
+    err.data = response.data;
+    throw err;
   }
   return response.data;
 };
