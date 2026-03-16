@@ -42,11 +42,13 @@ const getRoomStatusBadge = (status) => {
 // ── Main Component ──────────────────────────────────────────────────────────
 
 export default function MyRoomScreen({ navigation }) {
-  const [roomData, setRoomData] = useState(null);
-  const [devices, setDevices] = useState([]);
+  const [roomsList, setRoomsList] = useState([]);
+  const [selectedRoom, setSelectedRoom] = useState(null);
+  const [selectedRoomDevices, setSelectedRoomDevices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
+  const [showRoomDetail, setShowRoomDetail] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
@@ -59,16 +61,19 @@ export default function MyRoomScreen({ navigation }) {
 
       if (response.data?.success && response.data.data?.length > 0) {
         const contracts = response.data.data;
-        const active = contracts.find((c) => c.status === 'active') || contracts[0];
-        if (active?.roomId) {
-          setRoomData(active.roomId);
-          // Fetch devices via dedicated my-room endpoint
-          try {
-            const devRes = await getDevicesByRoomAPI();
-            setDevices(devRes.data?.devices || []);
-          } catch (_) {
-            setDevices([]);
+        // Extract all unique rooms from contracts
+        const uniqueRooms = {};
+        contracts.forEach((contract) => {
+          if (contract.roomId && contract.roomId._id) {
+            uniqueRooms[contract.roomId._id] = contract.roomId;
           }
+        });
+        
+        const rooms = Object.values(uniqueRooms);
+        if (rooms.length > 0) {
+          setRoomsList(rooms);
+          // Set first room as selected by default
+          setSelectedRoom(rooms[0]);
         } else {
           setError('Không tìm thấy thông tin phòng');
         }
@@ -90,6 +95,21 @@ export default function MyRoomScreen({ navigation }) {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  // Fetch devices when selected room changes
+  useEffect(() => {
+    if (selectedRoom?._id && showRoomDetail) {
+      const fetchDevices = async () => {
+        try {
+          const devRes = await getDevicesByRoomAPI(selectedRoom._id);
+          setSelectedRoomDevices(devRes.data?.devices || []);
+        } catch (_) {
+          setSelectedRoomDevices([]);
+        }
+      };
+      fetchDevices();
+    }
+  }, [selectedRoom, showRoomDetail]);
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -140,7 +160,7 @@ export default function MyRoomScreen({ navigation }) {
     );
   }
 
-  if (!roomData) {
+  if (roomsList.length === 0) {
     return (
       <SafeAreaView style={styles.safeContainer}>
         {renderHeader()}
@@ -152,182 +172,248 @@ export default function MyRoomScreen({ navigation }) {
     );
   }
 
-  // ── Extract room info ──
+  // ── Handle room selection ──
+  const handleSelectRoom = (room) => {
+    setSelectedRoom(room);
+    setShowRoomDetail(true);
+  };
 
-  const roomType = roomData.roomTypeId;
-  const floor = roomData.floorId;
-  const statusBadge = getRoomStatusBadge(roomData.status);
+  // ── Extract room info ──
+  const roomType = selectedRoom?.roomTypeId;
+  const floor = selectedRoom?.floorId;
+  const statusBadge = getRoomStatusBadge(selectedRoom?.status);
 
   return (
     <SafeAreaView style={styles.safeContainer}>
       {renderHeader()}
 
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={{ paddingBottom: 32 }}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#3B82F6" />
-        }
-      >
-        {/* ── Room Hero Card ── */}
-        <View style={styles.heroCard}>
-          <View style={styles.heroTop}>
-            <View style={styles.heroIconWrapper}>
-              <MaterialCommunityIcons name="door-open" size={32} color="#3B82F6" />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.heroRoomName}>{roomData.name || 'N/A'}</Text>
-              <Text style={styles.heroRoomCode}>{roomData.roomCode || ''}</Text>
-            </View>
-            <View style={[styles.statusBadge, { backgroundColor: statusBadge.bg }]}>
-              <Text style={[styles.statusBadgeText, { color: statusBadge.text }]}>
-                {statusBadge.label}
-              </Text>
-            </View>
-          </View>
-
-          {/* Quick stats */}
-          <View style={styles.heroStatsRow}>
-            {floor && (
-              <View style={styles.heroStat}>
-                <MaterialCommunityIcons name="office-building" size={18} color="#6B7280" />
-                <Text style={styles.heroStatText}>{floor.name}</Text>
-              </View>
-            )}
-            {roomType && (
-              <View style={styles.heroStat}>
-                <MaterialCommunityIcons name="tag" size={18} color="#6B7280" />
-                <Text style={styles.heroStatText}>{roomType.typeName || 'N/A'}</Text>
-              </View>
-            )}
-            {roomType?.personMax && (
-              <View style={styles.heroStat}>
-                <MaterialCommunityIcons name="account-group" size={18} color="#6B7280" />
-                <Text style={styles.heroStatText}>Tối đa {roomType.personMax} người</Text>
-              </View>
-            )}
-          </View>
-        </View>
-
-        {/* ── Room Type Images ── */}
-        {roomType?.images && roomType.images.length > 0 && (
+      {!showRoomDetail ? (
+        // ── ROOM LIST VIEW ──
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={{ paddingBottom: 32 }}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#3B82F6" />
+          }
+        >
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Hình ảnh phòng</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              {roomType.images.map((imgUrl, idx) => (
-                <Image
-                  key={idx}
-                  source={{ uri: imgUrl }}
-                  style={styles.roomImage}
-                  resizeMode="cover"
-                />
-              ))}
-            </ScrollView>
-          </View>
-        )}
+            <Text style={styles.sectionTitle}>Các phòng của tôi ({roomsList.length})</Text>
+            {roomsList.map((room, index) => {
+              const badge = getRoomStatusBadge(room.status);
+              const rtype = room.roomTypeId;
+              const flr = room.floorId;
+              return (
+                <TouchableOpacity
+                  key={room._id || index}
+                  style={styles.roomListCard}
+                  onPress={() => handleSelectRoom(room)}
+                >
+                  <View style={styles.roomListCardContent}>
+                    <View style={styles.roomListCardLeft}>
+                      <View style={styles.roomListIconWrapper}>
+                        <MaterialCommunityIcons name="door-open" size={24} color="#3B82F6" />
+                      </View>
+                    </View>
+                    
+                    <View style={styles.roomListCardMiddle}>
+                      <Text style={styles.roomListName} numberOfLines={1}>{room.name || 'N/A'}</Text>
+                      <Text style={styles.roomListCode}>{room.roomCode || 'N/A'}</Text>
+                      {flr && <Text style={styles.roomListFloor}>{flr.name}</Text>}
+                      {rtype && <Text style={styles.roomListType}>{rtype.typeName || 'N/A'}</Text>}
+                    </View>
 
-        {/* ── Room Info ── */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Thông tin phòng</Text>
-          <View style={styles.infoCard}>
-            <InfoRow icon="door" color="#3B82F6" label="Tên phòng" value={roomData.name} />
-            <InfoRow icon="barcode" color="#3B82F6" label="Mã phòng" value={roomData.roomCode} />
-            {floor && <InfoRow icon="office-building" color="#3B82F6" label="Tầng" value={floor.name} />}
-            <View style={styles.infoRow}>
-              <View style={styles.infoLabelContainer}>
-                <MaterialCommunityIcons name="check-circle" size={20} color="#3B82F6" />
-                <Text style={styles.infoLabel}>Trạng thái</Text>
+                    <View style={styles.roomListCardRight}>
+                      <View style={[styles.statusBadge, { backgroundColor: badge.bg }]}>
+                        <Text style={[styles.statusBadgeText, { color: badge.text }]}>
+                          {badge.label}
+                        </Text>
+                      </View>
+                      <MaterialCommunityIcons name="chevron-right" size={24} color="#9CA3AF" />
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </ScrollView>
+      ) : (
+        // ── ROOM DETAIL VIEW ──
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={{ paddingBottom: 32 }}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#3B82F6" />
+          }
+        >
+          {/* Back to list button */}
+          <TouchableOpacity
+            style={styles.backToListButton}
+            onPress={() => setShowRoomDetail(false)}
+          >
+            <MaterialCommunityIcons name="arrow-left" size={20} color="#3B82F6" />
+            <Text style={styles.backToListText}>Quay lại danh sách</Text>
+          </TouchableOpacity>
+
+          {/* ── Room Hero Card ── */}
+          <View style={styles.heroCard}>
+            <View style={styles.heroTop}>
+              <View style={styles.heroIconWrapper}>
+                <MaterialCommunityIcons name="door-open" size={32} color="#3B82F6" />
               </View>
-              <View style={[styles.statusBadgeSmall, { backgroundColor: statusBadge.bg }]}>
-                <Text style={[styles.statusBadgeSmallText, { color: statusBadge.text }]}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.heroRoomName}>{selectedRoom.name || 'N/A'}</Text>
+                <Text style={styles.heroRoomCode}>{selectedRoom.roomCode || ''}</Text>
+              </View>
+              <View style={[styles.statusBadge, { backgroundColor: statusBadge.bg }]}>
+                <Text style={[styles.statusBadgeText, { color: statusBadge.text }]}>
                   {statusBadge.label}
                 </Text>
               </View>
             </View>
-          </View>
-        </View>
 
-        {/* ── Room Type Detail ── */}
-        {roomType && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Loại phòng</Text>
-            <View style={styles.infoCard}>
-              <InfoRow icon="tag" color="#10B981" label="Loại phòng" value={roomType.typeName} />
-              <InfoRow icon="currency-usd" color="#10B981" label="Giá phòng/tháng" value={formatCurrency(roomType.currentPrice)} />
-              <InfoRow icon="account-group" color="#10B981" label="Số người tối đa" value={`${roomType.personMax || '–'} người`} isLast={!roomType.description} />
-              {roomType.description && (
-                <>
-                  <View style={styles.divider} />
-                  <View style={styles.descriptionWrapper}>
-                    <MaterialCommunityIcons name="text" size={18} color="#10B981" />
-                    <Text style={styles.descriptionText}>{roomType.description}</Text>
-                  </View>
-                </>
+            {/* Quick stats */}
+            <View style={styles.heroStatsRow}>
+              {floor && (
+                <View style={styles.heroStat}>
+                  <MaterialCommunityIcons name="office-building" size={18} color="#6B7280" />
+                  <Text style={styles.heroStatText}>{floor.name}</Text>
+                </View>
+              )}
+              {roomType && (
+                <View style={styles.heroStat}>
+                  <MaterialCommunityIcons name="tag" size={18} color="#6B7280" />
+                  <Text style={styles.heroStatText}>{roomType.typeName || 'N/A'}</Text>
+                </View>
+              )}
+              {roomType?.personMax && (
+                <View style={styles.heroStat}>
+                  <MaterialCommunityIcons name="account-group" size={18} color="#6B7280" />
+                  <Text style={styles.heroStatText}>Tối đa {roomType.personMax} người</Text>
+                </View>
               )}
             </View>
           </View>
-        )}
 
-        {/* ── Devices ── */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Thiết bị trong phòng</Text>
-          {devices.length === 0 ? (
-            <View style={[styles.infoCard, { padding: 20, alignItems: 'center' }]}>
-              <MaterialCommunityIcons name="devices" size={32} color="#D1D5DB" />
-              <Text style={{ marginTop: 8, fontSize: 13, color: '#9CA3AF' }}>Không có thiết bị nào</Text>
-            </View>
-          ) : (
-            <View style={styles.infoCard}>
-              {devices.map((device, idx) => {
-                const info = device.deviceId || {};
-                const isLast = idx === devices.length - 1;
-                return (
-                  <React.Fragment key={device._id || idx}>
-                    <View style={styles.deviceRow}>
-                      <View style={styles.deviceIconWrapper}>
-                        <MaterialCommunityIcons name="devices" size={20} color="#6366F1" />
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.deviceName} numberOfLines={1}>
-                          {info.name || 'Thiết bị'}
-                        </Text>
-                        {info.category && (
-                          <Text style={styles.deviceType}>{info.category}</Text>
-                        )}
-                        {(info.brand || info.model) && (
-                          <Text style={styles.deviceDesc} numberOfLines={1}>
-                            {[info.brand, info.model].filter(Boolean).join(' – ')}
-                          </Text>
-                        )}
-                        {device.quantity > 1 && (
-                          <Text style={styles.deviceDesc}>Số lượng: {device.quantity}</Text>
-                        )}
-                      </View>
-                    </View>
-                    {!isLast && <View style={styles.divider} />}
-                  </React.Fragment>
-                );
-              })}
+          {/* ── Room Type Images ── */}
+          {roomType?.images && roomType.images.length > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Hình ảnh phòng</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                {roomType.images.map((imgUrl, idx) => (
+                  <Image
+                    key={idx}
+                    source={{ uri: imgUrl }}
+                    style={styles.roomImage}
+                    resizeMode="cover"
+                  />
+                ))}
+              </ScrollView>
             </View>
           )}
-        </View>
 
-        {/* ── Action Buttons ── */}
-        <View style={styles.section}>
-          <TouchableOpacity style={styles.actionButton} onPress={handleCallManager}>
-            <MaterialCommunityIcons name="phone" size={20} color="#FFF" />
-            <Text style={styles.actionButtonText}>Liên hệ quản lý</Text>
-          </TouchableOpacity>
+          {/* ── Room Info ── */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Thông tin phòng</Text>
+            <View style={styles.infoCard}>
+              <InfoRow icon="door" color="#3B82F6" label="Tên phòng" value={selectedRoom.name} />
+              <InfoRow icon="barcode" color="#3B82F6" label="Mã phòng" value={selectedRoom.roomCode} />
+              {floor && <InfoRow icon="office-building" color="#3B82F6" label="Tầng" value={floor.name} />}
+              <View style={styles.infoRow}>
+                <View style={styles.infoLabelContainer}>
+                  <MaterialCommunityIcons name="check-circle" size={20} color="#3B82F6" />
+                  <Text style={styles.infoLabel}>Trạng thái</Text>
+                </View>
+                <View style={[styles.statusBadgeSmall, { backgroundColor: statusBadge.bg }]}>
+                  <Text style={[styles.statusBadgeSmallText, { color: statusBadge.text }]}>
+                    {statusBadge.label}
+                  </Text>
+                </View>
+              </View>
+            </View>
+          </View>
 
-          <TouchableOpacity
-            style={[styles.actionButton, styles.actionButtonSecondary]}
-            onPress={() => navigation.navigate('ContractList')}
-          >
-            <MaterialCommunityIcons name="file-document" size={20} color="#3B82F6" />
-            <Text style={styles.actionButtonTextSecondary}>Xem hợp đồng</Text>
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
+          {/* ── Room Type Detail ── */}
+          {roomType && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Loại phòng</Text>
+              <View style={styles.infoCard}>
+                <InfoRow icon="tag" color="#10B981" label="Loại phòng" value={roomType.typeName} />
+                <InfoRow icon="currency-usd" color="#10B981" label="Giá phòng/tháng" value={formatCurrency(roomType.currentPrice)} />
+                <InfoRow icon="account-group" color="#10B981" label="Số người tối đa" value={`${roomType.personMax || '–'} người`} isLast={!roomType.description} />
+                {roomType.description && (
+                  <>
+                    <View style={styles.divider} />
+                    <View style={styles.descriptionWrapper}>
+                      <MaterialCommunityIcons name="text" size={18} color="#10B981" />
+                      <Text style={styles.descriptionText}>{roomType.description}</Text>
+                    </View>
+                  </>
+                )}
+              </View>
+            </View>
+          )}
+
+          {/* ── Devices ── */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Thiết bị trong phòng</Text>
+            {selectedRoomDevices.length === 0 ? (
+              <View style={[styles.infoCard, { padding: 20, alignItems: 'center' }]}>
+                <MaterialCommunityIcons name="devices" size={32} color="#D1D5DB" />
+                <Text style={{ marginTop: 8, fontSize: 13, color: '#9CA3AF' }}>Không có thiết bị nào</Text>
+              </View>
+            ) : (
+              <View style={styles.infoCard}>
+                {selectedRoomDevices.map((device, idx) => {
+                  const info = device.deviceId || {};
+                  const isLast = idx === selectedRoomDevices.length - 1;
+                  return (
+                    <React.Fragment key={device._id || idx}>
+                      <View style={styles.deviceRow}>
+                        <View style={styles.deviceIconWrapper}>
+                          <MaterialCommunityIcons name="devices" size={20} color="#6366F1" />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.deviceName} numberOfLines={1}>
+                            {info.name || 'Thiết bị'}
+                          </Text>
+                          {info.category && (
+                            <Text style={styles.deviceType}>{info.category}</Text>
+                          )}
+                          {(info.brand || info.model) && (
+                            <Text style={styles.deviceDesc} numberOfLines={1}>
+                              {[info.brand, info.model].filter(Boolean).join(' – ')}
+                            </Text>
+                          )}
+                          {device.quantity > 1 && (
+                            <Text style={styles.deviceDesc}>Số lượng: {device.quantity}</Text>
+                          )}
+                        </View>
+                      </View>
+                      {!isLast && <View style={styles.divider} />}
+                    </React.Fragment>
+                  );
+                })}
+              </View>
+            )}
+          </View>
+
+          {/* ── Action Buttons ── */}
+          <View style={styles.section}>
+            <TouchableOpacity style={styles.actionButton} onPress={handleCallManager}>
+              <MaterialCommunityIcons name="phone" size={20} color="#FFF" />
+              <Text style={styles.actionButtonText}>Liên hệ quản lý</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.actionButton, styles.actionButtonSecondary]}
+              onPress={() => navigation.navigate('ContractList')}
+            >
+              <MaterialCommunityIcons name="file-document" size={20} color="#3B82F6" />
+              <Text style={styles.actionButtonTextSecondary}>Xem hợp đồng</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      )}
     </SafeAreaView>
   );
 }
@@ -510,6 +596,78 @@ const styles = StyleSheet.create({
     color: '#1F2937',
     marginBottom: 10,
   },
+
+  // ── Room List Card ──
+  roomListCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    overflow: 'hidden',
+  },
+  roomListCardContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+  },
+  roomListCardLeft: {
+    marginRight: 12,
+  },
+  roomListIconWrapper: {
+    width: 44,
+    height: 44,
+    borderRadius: 10,
+    backgroundColor: '#EFF6FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  roomListCardMiddle: {
+    flex: 1,
+  },
+  roomListName: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#1F2937',
+  },
+  roomListCode: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginTop: 2,
+  },
+  roomListFloor: {
+    fontSize: 11,
+    color: '#9CA3AF',
+    marginTop: 2,
+  },
+  roomListType: {
+    fontSize: 11,
+    color: '#3B82F6',
+    fontWeight: '500',
+    marginTop: 1,
+  },
+  roomListCardRight: {
+    alignItems: 'flex-end',
+    gap: 8,
+  },
+
+  // ── Back to List ──
+  backToListButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 8,
+    paddingVertical: 8,
+    gap: 6,
+  },
+  backToListText: {
+    fontSize: 14,
+    color: '#3B82F6',
+    fontWeight: '600',
+  },
+
   infoCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
