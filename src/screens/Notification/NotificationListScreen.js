@@ -8,12 +8,12 @@ import {
   FlatList,
   ActivityIndicator,
   RefreshControl,
-  Alert,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getMyNotificationsAPI } from '../../services/notification.service';
+import { getMyNotificationsAPI, checkAndShowNotifications, updateBadgeCount } from '../../services/notification.service';
+import NotificationDetailModal from './NotificationDetailScreen';
 
 export default function NotificationListScreen({ navigation }) {
   const PAGE_LIMIT = 20;
@@ -27,6 +27,8 @@ export default function NotificationListScreen({ navigation }) {
   const [error, setError] = useState(null);
   const [filter, setFilter] = useState('all'); // all | unread | read
   const [readIds, setReadIds] = useState(() => new Set());
+  const [selectedNotification, setSelectedNotification] = useState(null);
+  const [modalVisible, setModalVisible] = useState(false);
   const isFetchingRef = useRef(false);
   const didLoadOnFocusRef = useRef(false);
 
@@ -74,7 +76,16 @@ export default function NotificationListScreen({ navigation }) {
     setIsLoading(true);
     setItems([]);
     try {
+      // Get last viewed timestamp before loading
+      const lastViewedAt = await AsyncStorage.getItem(LAST_VIEWED_KEY);
+
       await loadPage({ page: 1, replace: true });
+
+      // Check for new notifications and show local notification
+      const currentItems = await getMyNotificationsAPI({ page: 1, limit: 5 });
+      const notifications = currentItems?.data?.notifications || [];
+      await checkAndShowNotifications(notifications, lastViewedAt);
+
       // Mark "seen" timestamp to support Home badge for "new" notifications
       await AsyncStorage.setItem(LAST_VIEWED_KEY, new Date().toISOString());
     } finally {
@@ -103,10 +114,16 @@ export default function NotificationListScreen({ navigation }) {
     setItems([]);
     try {
       await loadPage({ page: 1, replace: true });
+
+      // Get notifications and update badge count
+      const currentItems = await getMyNotificationsAPI({ page: 1, limit: 20 });
+      const notifications = currentItems?.data?.notifications || [];
+      const unreadCount = notifications.filter((n) => n?._id && !readIds.has(n._id)).length;
+      await updateBadgeCount(unreadCount);
     } finally {
       setIsRefreshing(false);
     }
-  }, [loadPage]);
+  }, [loadPage, readIds]);
 
   const onLoadMore = useCallback(async () => {
     if (isLoadingMore) return;
@@ -128,7 +145,8 @@ export default function NotificationListScreen({ navigation }) {
       setReadIds(next);
       persistReadState(next);
     }
-    Alert.alert(item?.title || 'Thông báo', item?.content || '');
+    setSelectedNotification(item);
+    setModalVisible(true);
   }, [readIds, persistReadState]);
 
   const onMarkAllRead = useCallback(async () => {
@@ -238,6 +256,14 @@ export default function NotificationListScreen({ navigation }) {
           <Text style={styles.emptyStateText}>Chưa có thông báo</Text>
           <Text style={styles.emptyStateSubtext}>Bạn sẽ nhận được thông báo từ quản lí tòa nhà</Text>
         </View>
+      ) : filteredItems.length === 0 ? (
+        <View style={styles.emptyState}>
+          <MaterialCommunityIcons name="filter-off-outline" size={64} color="#D1D5DB" />
+          <Text style={styles.emptyStateText}>
+            {filter === 'unread' ? 'Không có thông báo chưa đọc' : filter === 'read' ? 'Không có thông báo đã đọc' : 'Không có kết quả'}
+          </Text>
+          <Text style={styles.emptyStateSubtext}>Hãy thử chọn bộ lọc khác</Text>
+        </View>
       ) : (
         <FlatList
           data={filteredItems}
@@ -256,6 +282,15 @@ export default function NotificationListScreen({ navigation }) {
           }
         />
       )}
+
+      <NotificationDetailModal
+        visible={modalVisible}
+        notification={selectedNotification}
+        onClose={() => {
+          setModalVisible(false);
+          setSelectedNotification(null);
+        }}
+      />
     </SafeAreaView>
   );
 }
