@@ -89,8 +89,11 @@ export const API_CONFIG = {
         // Notification
         NOTIFICATION: {
             LIST: '/notifications',
+            MY_NOTIFICATIONS: '/notifications/my-notifications',
             DETAIL: '/notifications/:id',
             MARK_READ: '/notifications/:id/read',
+            MARK_ALL_READ: '/notifications/mark-all-read',
+            UNREAD_COUNT: '/notifications/unread-count',
         },
     },
 };

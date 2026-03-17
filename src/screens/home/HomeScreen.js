@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   View,
   Text,
@@ -9,9 +9,40 @@ import {
   Image,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getMyNotificationsAPI } from '../../services/notification.service';
 import logoImage from '../../../assets/images/z7463676981543_494642986e53789b49de728b4f4a3a1e.jpg';
 
 export default function HomeScreen({ navigation }) {
+  const LAST_VIEWED_KEY = 'notification_last_viewed_at';
+  const [newCount, setNewCount] = useState(0);
+
+  const refreshNewBadge = useCallback(async () => {
+    try {
+      const lastViewedRaw = await AsyncStorage.getItem(LAST_VIEWED_KEY);
+      const lastViewed = lastViewedRaw ? new Date(lastViewedRaw).getTime() : 0;
+
+      // Only fetch first page for badge to keep it light
+      const res = await getMyNotificationsAPI({ page: 1, limit: 50 });
+      const list = res?.data?.notifications || [];
+      const count = list.filter((n) => {
+        const t = new Date(n?.createdAt || 0).getTime();
+        return t > lastViewed;
+      }).length;
+      setNewCount(count);
+    } catch {
+      setNewCount(0);
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      refreshNewBadge();
+      return () => { };
+    }, [refreshNewBadge])
+  );
+
   return (
     <SafeAreaView style={styles.safeContainer}>
       <ScrollView
@@ -37,7 +68,14 @@ export default function HomeScreen({ navigation }) {
               onPress={() => navigation.navigate('NotificationList')}
             >
               <View style={[styles.cardIconContainer, { backgroundColor: '#DBEAFE' }]}>
-                <MaterialCommunityIcons name="bell" size={40} color="#3B82F6" />
+                <View style={styles.badgeIconWrap}>
+                  <MaterialCommunityIcons name="bell" size={40} color="#3B82F6" />
+                  {newCount > 0 && (
+                    <View style={styles.badge}>
+                      <Text style={styles.badgeText}>{newCount > 99 ? '99+' : String(newCount)}</Text>
+                    </View>
+                  )}
+                </View>
               </View>
               <Text style={styles.cardTitle}>Thông báo</Text>
               <Text style={styles.cardSubtitle}>Tin tức & cập nhật</Text>
@@ -166,6 +204,30 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 12,
+  },
+  badgeIconWrap: {
+    position: 'relative',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  badge: {
+    position: 'absolute',
+    top: -6,
+    right: -10,
+    minWidth: 20,
+    height: 20,
+    paddingHorizontal: 6,
+    borderRadius: 10,
+    backgroundColor: '#EF4444',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#DBEAFE',
+  },
+  badgeText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '700',
   },
   cardTitle: {
     fontSize: 15,
