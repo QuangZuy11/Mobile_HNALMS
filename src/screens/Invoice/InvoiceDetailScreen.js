@@ -99,9 +99,16 @@ export default function InvoiceDetailScreen({ navigation, route }) {
     useEffect(() => {
         if (!invoiceId) { setError('Không tìm thấy mã hóa đơn'); setLoading(false); return; }
         const fetchAPI = invoiceType === 'Incurred' ? getIncurredInvoiceDetailAPI : getInvoiceDetailAPI;
+        console.log('InvoiceDetailScreen - invoiceId:', invoiceId, 'invoiceType:', invoiceType);
         fetchAPI(invoiceId)
-            .then((res) => setInvoice(res?.data))
-            .catch((err) => setError(err?.response?.data?.message || err.message || 'Đã xảy ra lỗi'))
+            .then((res) => {
+                console.log('InvoiceDetailScreen - response:', JSON.stringify(res?.data));
+                setInvoice(res?.data);
+            })
+            .catch((err) => {
+                console.log('InvoiceDetailScreen - error:', err.message);
+                setError(err?.response?.data?.message || err.message || 'Đã xảy ra lỗi');
+            })
             .finally(() => setLoading(false));
     }, [invoiceId, invoiceType]);
 

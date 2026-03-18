@@ -63,20 +63,25 @@ export const getIncurredInvoiceDetailAPI = async (invoiceId) => {
 };
 
 /**
- * Initiate payment for an incurred invoice
+ * Initiate payment for an invoice
  * @param {string} invoiceId
  * @returns {Promise} { transactionCode, qrUrl, bankInfo, expireAt, ... }
  */
 export const initiatePaymentAPI = async (invoiceId) => {
     try {
         const token = await AsyncStorage.getItem('authToken');
+        console.log('initiatePaymentAPI - invoiceId:', invoiceId);
+        const endpoint = API_CONFIG.ENDPOINTS.INVOICE.PAYMENT_INITIATE.replace(':id', invoiceId);
+        console.log('initiatePaymentAPI - endpoint:', endpoint);
         const response = await apiClient.post(
-            API_CONFIG.ENDPOINTS.INVOICE.PAYMENT_INITIATE.replace(':id', invoiceId),
+            endpoint,
             {},
             { headers: { Authorization: `Bearer ${token}` } }
         );
+        console.log('initiatePaymentAPI - response:', response.data);
         return response.data;
     } catch (error) {
+        console.log('initiatePaymentAPI - error:', error.message);
         throw error;
     }
 };
