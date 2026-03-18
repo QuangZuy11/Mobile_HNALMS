@@ -28,6 +28,7 @@ import NotificationListScreen from '../screens/Notification/NotificationListScre
 import InvoiceListScreen from '../screens/Invoice/InvoiceListScreen';
 import InvoiceDetailScreen from '../screens/Invoice/InvoiceDetailScreen';
 import PayInvoiceScreen from '../screens/Invoice/PayInvoiceScreen';
+import BookServiceScreen from '../screens/Service/BookServiceScreen';
 import ServiceListScreen from '../screens/Service/ServiceListScreen';
 
 const Stack = createNativeStackNavigator();
@@ -164,6 +165,14 @@ function HomeStack() {
         component={PayInvoiceScreen}
         options={{
           title: 'Thanh toán',
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
+        name="BookService"
+        component={BookServiceScreen}
+        options={{
+          title: 'Chọn phòng để xem dịch vụ',
           headerShown: false,
         }}
       />
