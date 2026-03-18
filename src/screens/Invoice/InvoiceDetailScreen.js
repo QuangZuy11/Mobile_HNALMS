@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
     View, Text, SafeAreaView, StyleSheet, TouchableOpacity,
-    ScrollView, ActivityIndicator,
+    ScrollView, ActivityIndicator, Image,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { getInvoiceDetailAPI, getIncurredInvoiceDetailAPI } from '../../services/invoice.service';
@@ -196,7 +196,10 @@ export default function InvoiceDetailScreen({ navigation, route }) {
                         {/* ── Basic info ── */}
                         <Section icon="information-outline" title="Thông tin hóa đơn" color="#3B82F6">
                             <InfoRow icon="barcode" label="Mã hóa đơn" value={invoice.invoiceCode} />
-                            <InfoRow icon="tag-outline" label="Loại Hóa Đơn" value={TYPE_LABEL[invoice.type] ?? invoice.type} />
+                            {/* Hiển thị Loại Hóa Đơn theo từng loại */}
+                            {isViolation && <InfoRow icon="tag-outline" label="Loại Hóa Đơn" value="Vi phạm" />}
+                            {isRepair && <InfoRow icon="tag-outline" label="Loại Hóa Đơn" value="Sửa chữa" />}
+                            {!isIncurred && <InfoRow icon="tag-outline" label="Loại Hóa Đơn" value="Định kỳ" />}
                             {/* Periodic: room from roomId object */}
                             {!isIncurred && room && <InfoRow icon="home-outline" label="Phòng" value={`${room.name} `} />}
                             {!isIncurred && room?.roomTypeId?.currentPrice != null && (
@@ -211,9 +214,37 @@ export default function InvoiceDetailScreen({ navigation, route }) {
                                 valueStyle={invoice.status === 'Overdue' ? { color: '#F59E0B', fontWeight: '700' } : {}} />
                         </Section>
 
-                        {/* ── Incurred: device info ── */}
-                        {isIncurred && (
-                            <Section icon="wrench" title="Chi tiết khoản thu" color="#EF4444">
+                        {/* ── Incurred: Violation - Hiển thị hình ảnh ── */}
+                        {isViolation && (
+                            <Section icon="camera-outline" title="Hình ảnh vi phạm" color="#EF4444">
+                                {invoice.images && invoice.images.length > 0 ? (
+                                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.imageScroll}>
+                                        {invoice.images.map((img, idx) => (
+                                            <Image key={idx} source={{ uri: img }} style={styles.violationImage} />
+                                        ))}
+                                    </ScrollView>
+                                ) : (
+                                    <View style={styles.noImageBox}>
+                                        <MaterialCommunityIcons name="image-off-outline" size={32} color="#D1D5DB" />
+                                        <Text style={styles.noImageText}>Không có hình ảnh</Text>
+                                    </View>
+                                )}
+                                {invoice.description ? (
+                                    <View style={styles.incurredDescBox}>
+                                        <MaterialCommunityIcons name="text-box-outline" size={14} color="#6B7280" />
+                                        <Text style={styles.incurredDescText}>{invoice.description}</Text>
+                                    </View>
+                                ) : null}
+                                <View style={styles.svcTotalRow}>
+                                    <Text style={styles.svcTotalLabel}>TỔNG CỘNG</Text>
+                                    <Text style={styles.svcTotalValue}>{formatCurrency(invoice.totalAmount)}</Text>
+                                </View>
+                            </Section>
+                        )}
+
+                        {/* ── Incurred: Repair - Hiển thị thông tin sửa chữa ── */}
+                        {isRepair && (
+                            <Section icon="wrench" title="Chi tiết sửa chữa" color="#EF4444">
                                 <View style={styles.incurredCard}>
                                     <View style={styles.incurredDeviceRow}>
                                         <View style={[styles.svcIconWrap, { backgroundColor: '#EF44441A' }]}>
@@ -221,14 +252,14 @@ export default function InvoiceDetailScreen({ navigation, route }) {
                                         </View>
                                         <View style={{ flex: 1 }}>
                                             <Text style={styles.incurredDeviceName}>{invoice.deviceName || 'Thiết bị'}</Text>
-                                            <Text style={styles.incurredTitle}>{invoice.title}</Text>
+                                            {/* <Text style={styles.incurredTitle}>{invoice.title}</Text> */}
                                         </View>
                                         <Text style={styles.incurredAmount}>{formatCurrency(invoice.totalAmount)}</Text>
                                     </View>
-                                    {invoice.description ? (
+                                    {invoice.repairDescription ? (
                                         <View style={styles.incurredDescBox}>
                                             <MaterialCommunityIcons name="text-box-outline" size={14} color="#6B7280" />
-                                            <Text style={styles.incurredDescText}>{invoice.description}</Text>
+                                            <Text style={styles.incurredDescText}>{invoice.repairDescription}</Text>
                                         </View>
                                     ) : null}
                                 </View>
@@ -400,6 +431,12 @@ const styles = StyleSheet.create({
         padding: 12, borderLeftWidth: 3, borderLeftColor: '#EF4444',
     },
     incurredDescText: { flex: 1, fontSize: 13, color: '#374151', lineHeight: 20 },
+
+    /* violation image */
+    imageScroll: { paddingHorizontal: 14, paddingVertical: 10 },
+    violationImage: { width: 150, height: 150, borderRadius: 10, marginRight: 10 },
+    noImageBox: { alignItems: 'center', justifyContent: 'center', paddingVertical: 30, backgroundColor: '#F9FAFB', marginHorizontal: 14, borderRadius: 10 },
+    noImageText: { fontSize: 13, color: '#9CA3AF', marginTop: 8 },
 
     /* pay bar */
     payBar: {

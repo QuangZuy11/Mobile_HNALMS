@@ -14,7 +14,7 @@ import {
     cancelPaymentAPI,
 } from '../../services/invoice.service';
 
-const POLL_INTERVAL = 4000; // 4 giây
+const POLL_INTERVAL = 5 * 60 * 1000; // 5 phút
 const fmtMoney = (v) => new Intl.NumberFormat('vi-VN').format(Math.round(v ?? 0)) + ' đ';
 
 /* ────────────────────────── CountdownTimer ────────────────────────── */
