@@ -13,6 +13,7 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
+  ScrollView,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
@@ -73,7 +74,10 @@ const TABS = [
 ];
 
 // ── main component ──────────────────────────────────────────────────
-export default function ServiceListScreen({ navigation }) {
+export default function ServiceListScreen({ navigation, route }) {
+  const routeContractId = route?.params?.contractId || null;
+  const [contracts, setContracts] = useState([]);
+  const [selectedContractId, setSelectedContractId] = useState(routeContractId);
   const [services, setServices] = useState([]);
   const [isFloor1, setIsFloor1] = useState(false);
   const [roomCapacity, setRoomCapacity] = useState(null);
@@ -83,41 +87,80 @@ export default function ServiceListScreen({ navigation }) {
   const [activeTab, setActiveTab] = useState('fixed');
   const [bookModal, setBookModal] = useState({ visible: false, item: null });
   const [quantity, setQuantity] = useState('1');
+  const [fetchingContracts, setFetchingContracts] = useState(true);
 
   const fetchServices = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
     else setLoading(true);
     try {
-      const [res] = await Promise.all([
-        getAllServicesForTenantAPI(),
-        (async () => {
-          try {
-            const token = await AsyncStorage.getItem('authToken');
-            const contractRes = await apiClient.get('/contracts/my-contracts', {
-              headers: { Authorization: `Bearer ${token}` },
-            });
-            const contracts = contractRes.data?.data || [];
-            const active = contracts.find((c) => c.status === 'active') || contracts[0];
-            const floorName = active?.roomId?.floorId?.name || '';
-            // floor 1: tầng 1, floor 01, or name ending with 1
-            setIsFloor1(/tầng\s*1\b|floor\s*1\b|\b01\b/i.test(floorName) || floorName.trim().endsWith('1'));
-            const personMax = active?.roomId?.roomTypeId?.personMax;
-            if (personMax != null) setRoomCapacity(Number(personMax));
-          } catch (_) {}
-        })(),
-      ]);
+      const token = await AsyncStorage.getItem('authToken');
+      
+      // Always fetch contracts to get room info
+      const contractRes = await apiClient.get('/contracts/my-contracts', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const contractList = contractRes.data?.data || [];
+      
+      // If specific contract is provided from route, use it; otherwise use active contract
+      let selectedContract = null;
+      if (routeContractId) {
+        selectedContract = contractList.find((c) => c._id === routeContractId);
+      }
+      if (!selectedContract) {
+        selectedContract = contractList.find((c) => c.status === 'active') || contractList[0];
+      }
+      
+      setContracts(contractList);
+      const contractId = selectedContract?._id || null;
+      setSelectedContractId(contractId);
+
+      // Set room info from selected contract
+      if (selectedContract) {
+        const floorName = selectedContract?.roomId?.floorId?.name || '';
+        setIsFloor1(/tầng\s*1\b|floor\s*1\b|\b01\b/i.test(floorName) || floorName.trim().endsWith('1'));
+        const personMax = selectedContract?.roomId?.roomTypeId?.personMax;
+        if (personMax != null) setRoomCapacity(Number(personMax));
+      }
+
+      // Fetch services with selected contract
+      const res = await getAllServicesForTenantAPI(contractId);
       setServices(res.data || []);
     } catch (error) {
       Alert.alert('Lỗi', error.message || 'Không thể tải danh sách dịch vụ');
     } finally {
       setLoading(false);
       setRefreshing(false);
+      setFetchingContracts(false);
     }
-  }, []);
+  }, [routeContractId]);
 
   useFocusEffect(
     useCallback(() => { fetchServices(); }, [fetchServices])
   );
+
+  // ── handle contract selection ────────────────────────────────────
+  const handleSelectContract = async (contractId) => {
+    setSelectedContractId(contractId);
+    setLoading(true);
+    try {
+      // Set room info from selected contract
+      const selectedContract = contracts.find(c => c._id === contractId);
+      if (selectedContract) {
+        const floorName = selectedContract?.roomId?.floorId?.name || '';
+        setIsFloor1(/tầng\s*1\b|floor\s*1\b|\b01\b/i.test(floorName) || floorName.trim().endsWith('1'));
+        const personMax = selectedContract?.roomId?.roomTypeId?.personMax;
+        if (personMax != null) setRoomCapacity(Number(personMax));
+      }
+      
+      // Fetch services with selected contract
+      const res = await getAllServicesForTenantAPI(contractId);
+      setServices(res.data || []);
+    } catch (error) {
+      Alert.alert('Lỗi', error.message || 'Không thể tải danh sách dịch vụ');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // ── filtered data ──────────────────────────────────────────────────
   const fixedServices = useMemo(
@@ -162,7 +205,7 @@ export default function ServiceListScreen({ navigation }) {
     closeBookModal();
     setActioningId(item._id);
     try {
-      await bookServiceAPI(item._id, qty);
+      await bookServiceAPI(item._id, qty, selectedContractId);
       Alert.alert('Thành công', 'Đăng ký dịch vụ thành công!');
       fetchServices(true);
     } catch (err) {
@@ -185,7 +228,7 @@ export default function ServiceListScreen({ navigation }) {
           onPress: async () => {
             setActioningId(item._id);
             try {
-              await cancelBookedServiceAPI(item._id);
+              await cancelBookedServiceAPI(item._id, selectedContractId);
               Alert.alert('Thành công', 'Đã hủy dịch vụ.');
               fetchServices(true);
             } catch (err) {
@@ -360,9 +403,59 @@ export default function ServiceListScreen({ navigation }) {
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <MaterialCommunityIcons name="chevron-left" size={28} color="#1F2937" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Dịch vụ</Text>
+        <View style={{ flex: 1, marginLeft: 12 }}>
+          <Text style={styles.headerTitle}>Dịch vụ</Text>
+          {routeContractId && contracts.length > 0 && (
+            <Text style={styles.headerSubtitle}>
+              {contracts.find(c => c._id === selectedContractId)?.roomId?.name || 'Phòng'}
+            </Text>
+          )}
+        </View>
         <View style={{ width: 28 }} />
       </View>
+
+      {/* Contract Selector */}
+      {!routeContractId && contracts.length > 0 && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.contractSelectorContainer}
+          contentContainerStyle={styles.contractSelectorContent}
+        >
+          {fetchingContracts && (
+            <View style={styles.contractLoadingContainer}>
+              <ActivityIndicator size="small" color="#F59E0B" />
+            </View>
+          )}
+          {contracts.map((contract) => {
+            const isSelected = selectedContractId === contract._id;
+            const roomName = contract.roomId?.name || 'Phòng';
+            const floorName = contract.roomId?.floorId?.name || '';
+            const displayText = floorName ? `${roomName} • ${floorName}` : roomName;
+            return (
+              <TouchableOpacity
+                key={contract._id}
+                style={[
+                  styles.contractButton,
+                  isSelected && styles.contractButtonSelected,
+                ]}
+                onPress={() => handleSelectContract(contract._id)}
+                disabled={fetchingContracts}
+              >
+                <Text
+                  style={[
+                    styles.contractButtonText,
+                    isSelected && styles.contractButtonTextSelected,
+                  ]}
+                  numberOfLines={1}
+                >
+                  {displayText}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      )}
 
       {/* Tabs */}
       <View style={styles.tabBar}>
@@ -396,7 +489,7 @@ export default function ServiceListScreen({ navigation }) {
 
       {loading ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#F59E0B" />
+          <ActivityIndicator size="small" color="#F59E0B" />
           <Text style={styles.loadingText}>Đang tải...</Text>
         </View>
       ) : (
@@ -526,6 +619,51 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   headerTitle: { fontSize: 18, fontWeight: '700', color: '#1F2937' },
+  headerSubtitle: { fontSize: 12, color: '#6B7280', marginTop: 2 },
+
+  // contract selector
+  contractSelectorContainer: {
+    height: 56,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  contractSelectorContent: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    gap: 8,
+  },
+  contractLoadingContainer: {
+    paddingHorizontal: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    height: 40,
+  },
+  contractButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 18,
+    backgroundColor: '#F3F4F6',
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    justifyContent: 'center',
+    alignItems: 'center',
+    height: 40,
+  },
+  contractButtonSelected: {
+    backgroundColor: '#FEF3C7',
+    borderColor: '#F59E0B',
+    borderWidth: 2,
+  },
+  contractButtonText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#6B7280',
+  },
+  contractButtonTextSelected: {
+    color: '#F59E0B',
+    fontWeight: '600',
+  },
 
   // tab bar
   tabBar: {
@@ -555,8 +693,8 @@ const styles = StyleSheet.create({
   },
   tabBadgeText: { fontSize: 11, fontWeight: '700' },
 
-  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 },
-  loadingText: { fontSize: 14, color: '#6B7280' },
+  loadingContainer: { paddingVertical: 40, justifyContent: 'center', alignItems: 'center', gap: 4 },
+  loadingText: { fontSize: 11, color: '#9CA3AF' },
   flatListContent: { padding: 16 },
   flatListEmpty: { flex: 1 },
 
