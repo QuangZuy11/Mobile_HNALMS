@@ -132,7 +132,7 @@ export default function HomeScreen({ navigation }) {
             {/* Services Card */}
             <TouchableOpacity
               style={styles.featureCard}
-              onPress={() => navigation.navigate('ServiceList')}
+              onPress={() => navigation.navigate('BookService')}
             >
               <View style={[styles.cardIconContainer, { backgroundColor: '#DBEAFE' }]}>
                 <MaterialCommunityIcons name="briefcase" size={40} color="#3B82F6" />
