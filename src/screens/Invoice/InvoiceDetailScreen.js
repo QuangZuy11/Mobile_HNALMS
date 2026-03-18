@@ -15,6 +15,7 @@ const STATUS_CONFIG = {
 };
 
 const TYPE_LABEL = { Periodic: 'Định kỳ', Incurred: 'Phát sinh', Other: 'Khác' };
+const VIOLATION_TYPE_LABEL = { violation: 'Vi phạm', repair: 'Sửa chữa' };
 
 const FIXED_SERVICES = [
     { key: 'internet', label: 'Internet', icon: 'wifi', color: '#6366F1' },
@@ -94,7 +95,9 @@ export default function InvoiceDetailScreen({ navigation, route }) {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
-    const isIncurred = invoiceType === 'Incurred' || invoice?.type === 'Incurred';
+    const isIncurred = invoiceType === 'Incurred' || invoice?.invoiceType === 'Incurred';
+    const isViolation = invoice?.type === 'violation';
+    const isRepair = invoice?.type === 'repair';
 
     useEffect(() => {
         if (!invoiceId) { setError('Không tìm thấy mã hóa đơn'); setLoading(false); return; }
@@ -203,7 +206,7 @@ export default function InvoiceDetailScreen({ navigation, route }) {
                             {isIncurred && invoice.roomName && (
                                 <InfoRow icon="home-outline" label="Phòng" value={invoice.roomName} />
                             )}
-                            <InfoRow icon="calendar-plus" label="Ngày tạo" value={formatDate(invoice.createdAt)} />
+                            <InfoRow icon="calendar-plus" label="Ngày gửi" value={formatDate(invoice.createdAt)} />
                             <InfoRow icon="calendar-clock" label="Đến hạn" value={formatDate(invoice.dueDate)}
                                 valueStyle={invoice.status === 'Overdue' ? { color: '#F59E0B', fontWeight: '700' } : {}} />
                         </Section>
