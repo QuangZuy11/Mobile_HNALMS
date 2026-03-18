@@ -27,7 +27,7 @@ export const getTenantInvoicesAPI = async (tenantId, page = 1, limit = 10) => {
 };
 
 /**
- * Get invoice detail by id
+ * Get periodic invoice detail by id
  * @param {string} invoiceId
  * @returns {Promise} Invoice detail
  */
@@ -35,7 +35,7 @@ export const getInvoiceDetailAPI = async (invoiceId) => {
     try {
         const token = await AsyncStorage.getItem('authToken');
         const response = await apiClient.get(
-            API_CONFIG.ENDPOINTS.INVOICE.DETAIL.replace(':id', invoiceId),
+            `${API_CONFIG.ENDPOINTS.INVOICE.PERIODIC_DETAIL}/${invoiceId}`,
             { headers: { Authorization: `Bearer ${token}` } }
         );
         return response.data;
@@ -53,7 +53,7 @@ export const getIncurredInvoiceDetailAPI = async (invoiceId) => {
     try {
         const token = await AsyncStorage.getItem('authToken');
         const response = await apiClient.get(
-            API_CONFIG.ENDPOINTS.INVOICE.INCURRED_DETAIL.replace(':id', invoiceId),
+            `${API_CONFIG.ENDPOINTS.INVOICE.INCURRED_DETAIL}/${invoiceId}`,
             { headers: { Authorization: `Bearer ${token}` } }
         );
         return response.data;
@@ -64,18 +64,19 @@ export const getIncurredInvoiceDetailAPI = async (invoiceId) => {
 
 /**
  * Initiate payment for an invoice
- * @param {string} invoiceId
+ * @param {string} invoiceId - Invoice ID
+ * @param {string} invoiceType - 'periodic' or 'incurred'
  * @returns {Promise} { transactionCode, qrUrl, bankInfo, expireAt, ... }
  */
-export const initiatePaymentAPI = async (invoiceId) => {
+export const initiatePaymentAPI = async (invoiceId, invoiceType = 'incurred') => {
     try {
         const token = await AsyncStorage.getItem('authToken');
-        console.log('initiatePaymentAPI - invoiceId:', invoiceId);
+        console.log('initiatePaymentAPI - invoiceId:', invoiceId, 'invoiceType:', invoiceType);
         const endpoint = API_CONFIG.ENDPOINTS.INVOICE.PAYMENT_INITIATE.replace(':id', invoiceId);
         console.log('initiatePaymentAPI - endpoint:', endpoint);
         const response = await apiClient.post(
             endpoint,
-            {},
+            { type: invoiceType },  // Send type in body: 'periodic' or 'incurred'
             { headers: { Authorization: `Bearer ${token}` } }
         );
         console.log('initiatePaymentAPI - response:', response.data);
