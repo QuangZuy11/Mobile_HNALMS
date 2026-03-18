@@ -89,7 +89,7 @@ export const API_CONFIG = {
         // Notification
         NOTIFICATION: {
             LIST: '/notifications',
-            MY_NOTIFICATIONS: '/notifications', // Get all notifications including system type
+            MY_NOTIFICATIONS: '/notifications/my-notifications', // Get all notifications including renew type
             DETAIL: '/notifications/:id',
             MARK_READ: '/notifications/:id/read',
             MARK_ALL_READ: '/notifications/mark-all-read',
