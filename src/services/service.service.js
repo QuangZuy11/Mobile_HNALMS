@@ -13,12 +13,17 @@ const getToken = async () => {
  * GET /api/services/list
  * Get all services with booking status for the current tenant.
  * Returns Fixed (contract) + Extension services, each with isBooked flag.
+ * @param {string} contractId - Optional: specific contract ID
  */
-export const getAllServicesForTenantAPI = async () => {
+export const getAllServicesForTenantAPI = async (contractId = null) => {
   const token = await getToken();
+  const params = contractId ? { contractId } : {};
   const response = await apiClient.get(
     API_CONFIG.ENDPOINTS.SERVICE.LIST_FOR_TENANT,
-    { headers: { Authorization: `Bearer ${token}` } }
+    { 
+      params,
+      headers: { Authorization: `Bearer ${token}` } 
+    }
   );
   if (!response.data.success) {
     throw new Error(response.data.message || 'Không thể tải danh sách dịch vụ');
@@ -29,12 +34,18 @@ export const getAllServicesForTenantAPI = async () => {
 /**
  * POST /api/services/book
  * Book an Extension service.
+ * @param {string} serviceId - Service ID to book
+ * @param {number} quantity - Number of people (default: 1)
+ * @param {string} contractId - Optional: specific contract ID
  */
-export const bookServiceAPI = async (serviceId, quantity = 1) => {
+export const bookServiceAPI = async (serviceId, quantity = 1, contractId = null) => {
   const token = await getToken();
+  const data = { serviceId, quantity };
+  if (contractId) data.contractId = contractId;
+  
   const response = await apiClient.post(
     API_CONFIG.ENDPOINTS.SERVICE.BOOK,
-    { serviceId, quantity },
+    data,
     { headers: { Authorization: `Bearer ${token}` } }
   );
   if (!response.data.success) {
@@ -53,13 +64,20 @@ export const bookServiceAPI = async (serviceId, quantity = 1) => {
 /**
  * PATCH /api/services/book/:serviceId/cancel
  * Cancel a booked Extension service (sets endDate = now).
+ * @param {string} serviceId - Service ID to cancel
+ * @param {string} contractId - Optional: specific contract ID
  */
-export const cancelBookedServiceAPI = async (serviceId) => {
+export const cancelBookedServiceAPI = async (serviceId, contractId = null) => {
   const token = await getToken();
+  const params = contractId ? { contractId } : {};
+  
   const response = await apiClient.patch(
     `${API_CONFIG.ENDPOINTS.SERVICE.CANCEL_BOOK}/${serviceId}/cancel`,
     {},
-    { headers: { Authorization: `Bearer ${token}` } }
+    { 
+      params,
+      headers: { Authorization: `Bearer ${token}` } 
+    }
   );
   if (!response.data.success) {
     const err = new Error(

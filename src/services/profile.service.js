@@ -107,3 +107,50 @@ export const getMyRoomAPI = async () => {
     throw error;
   }
 };
+
+/**
+ * Get all rooms of current tenant
+ * Fetches from contracts endpoint and extracts unique rooms
+ * @returns {Promise} List of tenant's rooms
+ */
+export const getTenantRoomsAPI = async () => {
+  try {
+    const token = await AsyncStorage.getItem('authToken');
+    
+    if (!token) {
+      throw new Error('Vui lòng đăng nhập để tiếp tục');
+    }
+
+    const response = await apiClient.get('/contracts/my-contracts', {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (response.data?.success && response.data.data?.length > 0) {
+      const contracts = response.data.data;
+      // Extract all unique rooms from contracts
+      const uniqueRooms = {};
+      contracts.forEach((contract) => {
+        if (contract.roomId && contract.roomId._id) {
+          uniqueRooms[contract.roomId._id] = contract.roomId;
+        }
+      });
+      
+      const rooms = Object.values(uniqueRooms);
+      return {
+        success: true,
+        data: rooms,
+        message: `Tìm thấy ${rooms.length} phòng`,
+      };
+    }
+
+    return {
+      success: true,
+      data: [],
+      message: 'Không tìm thấy phòng nào',
+    };
+  } catch (error) {
+    throw error;
+  }
+};

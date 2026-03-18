@@ -18,6 +18,7 @@ import {
   getAvailableRoomsForTransferAPI,
   createTransferRequestAPI,
 } from '../../services/request.service';
+import { getTenantRoomsAPI } from '../../services/profile.service';
 
 export default function CreateMovingRoomRequestScreen({ navigation }) {
   const [availableRooms, setAvailableRooms] = useState([]);
@@ -29,12 +30,44 @@ export default function CreateMovingRoomRequestScreen({ navigation }) {
   const [loading, setLoading] = useState(false);
   const [showRoomModal, setShowRoomModal] = useState(false);
   const [showDateModal, setShowDateModal] = useState(false);
+  
+  // Current room selection states
+  const [currentRooms, setCurrentRooms] = useState([]);
+  const [selectedCurrentRoom, setSelectedCurrentRoom] = useState(null);
+  const [fetchingCurrentRooms, setFetchingCurrentRooms] = useState(true);
+  
   const today = new Date(); today.setHours(0,0,0,0);
   const [calYear, setCalYear] = useState(today.getFullYear());
   const [calMonth, setCalMonth] = useState(today.getMonth());
 
   useEffect(() => {
     fetchAvailableRooms();
+  }, []);
+
+  // Fetch current rooms of tenant
+  useEffect(() => {
+    const fetchCurrentRooms = async () => {
+      try {
+        setFetchingCurrentRooms(true);
+        const response = await getTenantRoomsAPI();
+
+        if (response.success && response.data && response.data.length > 0) {
+          setCurrentRooms(response.data);
+          // Set first room as selected by default
+          setSelectedCurrentRoom(response.data[0]._id);
+        } else {
+          setCurrentRooms([]);
+          Alert.alert('Lỗi', 'Không tìm thấy phòng hiện tại của bạn');
+        }
+      } catch (error) {
+        setCurrentRooms([]);
+        Alert.alert('Lỗi', error.message || 'Không thể tải danh sách phòng hiện tại');
+      } finally {
+        setFetchingCurrentRooms(false);
+      }
+    };
+
+    fetchCurrentRooms();
   }, []);
 
   const fetchAvailableRooms = async () => {
@@ -130,6 +163,10 @@ export default function CreateMovingRoomRequestScreen({ navigation }) {
   };
 
   const handleSubmit = async () => {
+    if (!selectedCurrentRoom) {
+      Alert.alert('Thiếu thông tin', 'Vui lòng chọn phòng hiện tại của bạn');
+      return;
+    }
     if (!selectedRoom) {
       Alert.alert('Thiếu thông tin', 'Vui lòng chọn phòng muốn chuyển đến');
       return;
@@ -150,6 +187,7 @@ export default function CreateMovingRoomRequestScreen({ navigation }) {
     setLoading(true);
     try {
       const payload = {
+        roomId: selectedCurrentRoom, // Current room ID
         targetRoomId: selectedRoom._id,
         transferDate: parseDate(transferDate.trim()),
         reason: reason.trim(),
@@ -257,10 +295,61 @@ export default function CreateMovingRoomRequestScreen({ navigation }) {
         </View>
 
         <View style={styles.formContainer}>
-          {/* Step 1: Select Room */}
+          {/* Step 0: Select Current Room */}
           <View style={styles.stepHeader}>
             <View style={styles.stepBadge}>
               <Text style={styles.stepBadgeText}>1</Text>
+            </View>
+            <Text style={styles.stepTitle}>Phòng hiện tại của bạn</Text>
+          </View>
+
+          {fetchingCurrentRooms ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="small" color="#3B82F6" />
+              <Text style={styles.loadingText}>Đang tải danh sách phòng...</Text>
+            </View>
+          ) : currentRooms.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <MaterialCommunityIcons name="alert-circle-outline" size={24} color="#9CA3AF" />
+              <Text style={styles.emptyText}>Không có phòng nào</Text>
+            </View>
+          ) : (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.currentRoomScroll}
+            >
+              {currentRooms.map((room) => (
+                <TouchableOpacity
+                  key={room._id}
+                  style={[
+                    styles.currentRoomButton,
+                    selectedCurrentRoom === room._id && styles.currentRoomButtonSelected,
+                  ]}
+                  onPress={() => setSelectedCurrentRoom(room._id)}
+                >
+                  <MaterialCommunityIcons
+                    name="door"
+                    size={24}
+                    color={selectedCurrentRoom === room._id ? '#3B82F6' : '#9CA3AF'}
+                  />
+                  <Text
+                    style={[
+                      styles.currentRoomButtonText,
+                      selectedCurrentRoom === room._id && styles.currentRoomButtonTextSelected,
+                    ]}
+                  >
+                    {room.name}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          )}
+
+          {/* Step 1: Select Target Room */}
+          <View style={[styles.stepHeader, { marginTop: 28 }]}>
+            <View style={styles.stepBadge}>
+              <Text style={styles.stepBadgeText}>2</Text>
             </View>
             <Text style={styles.stepTitle}>Chọn phòng muốn chuyển đến</Text>
           </View>
@@ -304,7 +393,7 @@ export default function CreateMovingRoomRequestScreen({ navigation }) {
           {/* Step 2: Transfer Date */}
           <View style={[styles.stepHeader, { marginTop: 28 }]}>
             <View style={styles.stepBadge}>
-              <Text style={styles.stepBadgeText}>2</Text>
+              <Text style={styles.stepBadgeText}>3</Text>
             </View>
             <Text style={styles.stepTitle}>Ngày chuyển phòng</Text>
           </View>
@@ -331,7 +420,7 @@ export default function CreateMovingRoomRequestScreen({ navigation }) {
           {/* Step 3: Reason */}
           <View style={[styles.stepHeader, { marginTop: 28 }]}>
             <View style={styles.stepBadge}>
-              <Text style={styles.stepBadgeText}>3</Text>
+              <Text style={styles.stepBadgeText}>4</Text>
             </View>
             <Text style={styles.stepTitle}>Lý do chuyển phòng</Text>
           </View>
@@ -365,9 +454,9 @@ export default function CreateMovingRoomRequestScreen({ navigation }) {
       {/* Submit Button */}
       <View style={styles.buttonContainer}>
         <TouchableOpacity
-          style={[styles.submitButton, (loading || !selectedRoom) && styles.submitButtonDisabled]}
+          style={[styles.submitButton, (loading || !selectedCurrentRoom || !selectedRoom) && styles.submitButtonDisabled]}
           onPress={handleSubmit}
-          disabled={loading || !selectedRoom}
+          disabled={loading || !selectedCurrentRoom || !selectedRoom}
           activeOpacity={0.8}
         >
           {loading ? (
@@ -593,6 +682,70 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: '#1F2937',
+  },
+
+  // Current Room Selection
+  currentRoomScroll: {
+    marginHorizontal: -4,
+  },
+  currentRoomButton: {
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginHorizontal: 4,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 10,
+    minWidth: 100,
+  },
+  currentRoomButtonSelected: {
+    borderWidth: 2,
+    borderColor: '#3B82F6',
+    backgroundColor: '#DBEAFE',
+  },
+  currentRoomButtonText: {
+    fontSize: 13,
+    color: '#6B7280',
+    marginTop: 8,
+    textAlign: 'center',
+    fontWeight: '500',
+  },
+  currentRoomButtonTextSelected: {
+    color: '#3B82F6',
+    fontWeight: '600',
+  },
+
+  // Loading & Empty States
+  loadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F9FAFB',
+    paddingVertical: 20,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  loadingText: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginLeft: 10,
+  },
+  emptyContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F9FAFB',
+    paddingVertical: 20,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  emptyText: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginLeft: 10,
   },
 
   // Room Picker Button

@@ -362,6 +362,7 @@ export const updateComplaintRequestAPI = async (id, updateData) => {
  * Create a repair/maintenance request
  * POST /api/requests/repair
  * @param {Object} repairData - Repair request data
+ * @param {string} repairData.roomId - Room ID where repair is needed
  * @param {string} repairData.devicesId - Device/Item ID that needs repair
  * @param {string} repairData.type - Type of repair needed
  * @param {string} repairData.description - Description of the issue
@@ -411,7 +412,7 @@ export const createRepairRequestAPI = async (repairData) => {
  * Update a repair/maintenance request (tenant, only when Pending)
  * PUT /api/requests/repair/:requestId
  * @param {string} id - Repair request ID
- * @param {Object} updateData - { type?, devicesId?, description?, images? }
+ * @param {Object} updateData - { roomId?, type?, devicesId?, description?, images? }
  * @returns {Promise} - Response with updated repair request
  */
 export const updateRepairRequestAPI = async (id, updateData) => {
@@ -509,7 +510,7 @@ export const getAvailableRoomsForTransferAPI = async () => {
 /**
  * Create a transfer room request
  * POST /api/requests/transfer
- * Body: { targetRoomId, transferDate, reason }
+ * Body: { roomId, targetRoomId, transferDate, reason }
  */
 export const createTransferRequestAPI = async (transferData) => {
   try {
@@ -553,7 +554,7 @@ export const getMyTransferRequestsAPI = async () => {
 /**
  * Update a transfer request (only when Pending)
  * PUT /api/requests/transfer/:id
- * Body: { targetRoomId?, transferDate?, reason? }
+ * Body: { roomId?, targetRoomId?, transferDate?, reason? }
  */
 export const updateTransferRequestAPI = async (id, updateData) => {
   try {
