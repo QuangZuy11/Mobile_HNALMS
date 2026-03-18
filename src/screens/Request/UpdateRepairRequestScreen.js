@@ -14,6 +14,7 @@ import {
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { updateRepairRequestAPI } from '../../services/request.service';
+import { getTenantRoomsAPI } from '../../services/profile.service';
 import { getDevicesAPI } from '../../services/device.service';
 import { uploadMultipleImages } from '../../services/upload.service';
 
@@ -51,6 +52,12 @@ export default function UpdateRepairRequestScreen({ navigation, route }) {
   const [fetchingDevices, setFetchingDevices] = useState(true);
   const [devicesError, setDevicesError] = useState(null);
 
+  // Room selection states
+  const [rooms, setRooms] = useState([]);
+  const [selectedRoom, setSelectedRoom] = useState(initialData?.roomId?._id || initialData?.roomId || null);
+  const [fetchingRooms, setFetchingRooms] = useState(true);
+  const [roomsError, setRoomsError] = useState(null);
+
   // ── Fetch devices ──────────────────────────────────────────────────────────
   useEffect(() => {
     const fetchDevices = async () => {
@@ -82,6 +89,42 @@ export default function UpdateRepairRequestScreen({ navigation, route }) {
       }
     };
     fetchDevices();
+  }, []);
+
+  // ── Fetch rooms ────────────────────────────────────────────────────────────
+  useEffect(() => {
+    const fetchRooms = async () => {
+      try {
+        setFetchingRooms(true);
+        setRoomsError(null);
+        const response = await getTenantRoomsAPI();
+
+        if (response.success && response.data && response.data.length > 0) {
+          setRooms(response.data);
+          // Set first room as selected by default if no initial room
+          if (!selectedRoom) {
+            setSelectedRoom(response.data[0]._id);
+          }
+        } else {
+          setRoomsError('Không tìm thấy phòng nào');
+          setRooms([]);
+        }
+      } catch (error) {
+        setRoomsError(error.message);
+        Alert.alert(
+          'Lỗi',
+          'Không thể tải danh sách phòng. ' + error.message,
+          [
+            { text: 'Thử lại', onPress: () => fetchRooms() },
+            { text: 'Hủy', onPress: () => navigation.goBack() },
+          ]
+        );
+      } finally {
+        setFetchingRooms(false);
+      }
+    };
+
+    fetchRooms();
   }, []);
 
   // ── Permissions (same as CreateRepairRequestScreen) ────────────────────────
@@ -154,6 +197,10 @@ export default function UpdateRepairRequestScreen({ navigation, route }) {
 
   // ── Submit (mirrors CreateRepairRequestScreen) ─────────────────────────────
   const handleSubmit = async () => {
+    if (!selectedRoom) {
+      Alert.alert('Lỗi', 'Vui lòng chọn phòng gửi yêu cầu');
+      return;
+    }
     if (!selectedDeviceId) {
       Alert.alert('Lỗi', 'Vui lòng chọn thiết bị cần ' + type.toLowerCase());
       return;
@@ -208,6 +255,7 @@ export default function UpdateRepairRequestScreen({ navigation, route }) {
       const finalImages = [...existingImages, ...newUploadedUrls];
 
       const response = await updateRepairRequestAPI(requestId, {
+        roomId: selectedRoom, // Room ID where repair is needed
         devicesId: selectedDeviceId,
         type,
         description: description.trim(),
@@ -240,6 +288,58 @@ export default function UpdateRepairRequestScreen({ navigation, route }) {
 
       <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
         <View style={styles.formContainer}>
+
+          {/* Room Selection */}
+          <View style={styles.formGroup}>
+            <Text style={styles.label}>Chọn phòng *</Text>
+            {fetchingRooms ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="small" color="#3B82F6" />
+                <Text style={styles.loadingText}>Đang tải danh sách phòng...</Text>
+              </View>
+            ) : rooms.length === 0 ? (
+              <View style={styles.emptyContainer}>
+                <MaterialCommunityIcons name="alert-circle-outline" size={24} color="#9CA3AF" />
+                <Text style={styles.emptyText}>Không có phòng nào</Text>
+              </View>
+            ) : (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.roomScroll}
+              >
+                {rooms.map((room) => (
+                  <TouchableOpacity
+                    key={room._id}
+                    style={[
+                      styles.roomButton,
+                      selectedRoom === room._id && styles.roomButtonSelected,
+                    ]}
+                    onPress={() => setSelectedRoom(room._id)}
+                  >
+                    <MaterialCommunityIcons
+                      name="door-open"
+                      size={24}
+                      color={selectedRoom === room._id ? '#3B82F6' : '#9CA3AF'}
+                    />
+                    <Text
+                      style={[
+                        styles.roomButtonText,
+                        selectedRoom === room._id && styles.roomButtonTextSelected,
+                      ]}
+                    >
+                      {room.name}
+                    </Text>
+                    {room.roomTypeId?.currentPrice && (
+                      <Text style={styles.roomPrice}>
+                        {new Intl.NumberFormat('vi-VN').format(room.roomTypeId.currentPrice)} VNĐ
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            )}
+          </View>
 
           {/* Type Selection */}
           <View style={styles.formGroup}>
@@ -476,6 +576,39 @@ const styles = StyleSheet.create({
 
   // Device scroll (same as Create)
   itemTypeScroll: { marginHorizontal: -4 },
+  roomScroll: { marginHorizontal: -4 },
+  roomButton: {
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginHorizontal: 4,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 10,
+    minWidth: 120,
+  },
+  roomButtonSelected: {
+    borderWidth: 2,
+    borderColor: '#3B82F6',
+    backgroundColor: '#DBEAFE',
+  },
+  roomButtonText: {
+    fontSize: 13,
+    color: '#6B7280',
+    marginTop: 8,
+    textAlign: 'center',
+    fontWeight: '500',
+  },
+  roomButtonTextSelected: {
+    color: '#3B82F6',
+    fontWeight: '600',
+  },
+  roomPrice: {
+    fontSize: 11,
+    color: '#9CA3AF',
+    marginTop: 4,
+  },
   itemTypeButton: {
     alignItems: 'center',
     paddingHorizontal: 12,
