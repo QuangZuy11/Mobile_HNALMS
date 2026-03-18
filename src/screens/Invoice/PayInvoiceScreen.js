@@ -14,7 +14,7 @@ import {
     cancelPaymentAPI,
 } from '../../services/invoice.service';
 
-const POLL_INTERVAL = 5 * 60 * 1000; // 5 phút
+const POLL_INTERVAL = 3000; // 3 giây
 const fmtMoney = (v) => new Intl.NumberFormat('vi-VN').format(Math.round(v ?? 0)) + ' đ';
 
 /* ────────────────────────── CountdownTimer ────────────────────────── */
@@ -24,12 +24,22 @@ function CountdownTimer({ expireAt, onExpire }) {
         return diff;
     });
 
+    const onExpireRef = useRef(onExpire);
+    onExpireRef.current = onExpire;
+
     useEffect(() => {
-        if (remaining <= 0) { onExpire?.(); return; }
+        if (remaining <= 0) {
+            setTimeout(() => onExpireRef.current?.(), 0);
+            return;
+        }
         const t = setInterval(() => {
             setRemaining((prev) => {
                 const next = prev - 1;
-                if (next <= 0) { clearInterval(t); onExpire?.(); return 0; }
+                if (next <= 0) {
+                    clearInterval(t);
+                    setTimeout(() => onExpireRef.current?.(), 0);
+                    return 0;
+                }
                 return next;
             });
         }, 1000);
@@ -134,11 +144,13 @@ export default function PayInvoiceScreen({ navigation, route }) {
         const poll = async () => {
             try {
                 const res = await getPaymentStatusAPI(paymentData.transactionCode);
+                console.log('PayInvoiceScreen - Payment status response:', JSON.stringify(res?.data));
                 const st = res?.data?.status;
+                console.log('PayInvoiceScreen - Status:', st);
                 if (st === 'Success') { stopTimers(); setPhase('success'); }
                 else if (st === 'Expired') { stopTimers(); setPhase('expired'); }
                 else if (st === 'Failed') { stopTimers(); setErrorMsg('Giao dịch thất bại'); setPhase('error'); }
-            } catch {
+            } catch (err) {
                 // 404 = expired/deleted
                 stopTimers(); setPhase('expired');
             }
@@ -167,9 +179,11 @@ export default function PayInvoiceScreen({ navigation, route }) {
                     pollingRef.current = setInterval(async () => {
                         try {
                             const res = await getPaymentStatusAPI(paymentData.transactionCode);
+                            console.log('PayInvoiceScreen (bg) - Payment status:', JSON.stringify(res?.data));
                             const st = res?.data?.status;
                             if (st === 'Success') { stopTimers(); setPhase('success'); }
                             else if (st === 'Expired') { stopTimers(); setPhase('expired'); }
+                            else if (st === 'Failed') { stopTimers(); setErrorMsg('Giao dịch thất bại'); setPhase('error'); }
                         } catch { stopTimers(); setPhase('expired'); }
                     }, POLL_INTERVAL);
                 }
