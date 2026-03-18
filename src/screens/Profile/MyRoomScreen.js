@@ -61,21 +61,28 @@ export default function MyRoomScreen({ navigation }) {
 
       if (response.data?.success && response.data.data?.length > 0) {
         const contracts = response.data.data;
-        // Extract all unique rooms from contracts
-        const uniqueRooms = {};
-        contracts.forEach((contract) => {
-          if (contract.roomId && contract.roomId._id) {
-            uniqueRooms[contract.roomId._id] = contract.roomId;
-          }
-        });
+        // Filter only active contracts and extract unique rooms
+        const activeContracts = contracts.filter((c) => c.status?.toLowerCase() === 'active');
         
-        const rooms = Object.values(uniqueRooms);
-        if (rooms.length > 0) {
-          setRoomsList(rooms);
-          // Set first room as selected by default
-          setSelectedRoom(rooms[0]);
+        if (activeContracts.length === 0) {
+          setError('Không có hợp đồng đang hoạt động');
+          setRoomsList([]);
         } else {
-          setError('Không tìm thấy thông tin phòng');
+          const uniqueRooms = {};
+          activeContracts.forEach((contract) => {
+            if (contract.roomId && contract.roomId._id) {
+              uniqueRooms[contract.roomId._id] = contract.roomId;
+            }
+          });
+          
+          const rooms = Object.values(uniqueRooms);
+          if (rooms.length > 0) {
+            setRoomsList(rooms);
+            // Set first room as selected by default
+            setSelectedRoom(rooms[0]);
+          } else {
+            setError('Không tìm thấy thông tin phòng');
+          }
         }
       } else {
         setError('Bạn chưa được phân phòng');

@@ -267,7 +267,8 @@ export default function MyContractScreen({ navigation }) {
               <InfoRow icon="barcode" color="#8B5CF6" label="Mã hợp đồng" value={contract.contractCode} />
               <InfoRow icon="calendar-start" color="#8B5CF6" label="Ngày bắt đầu" value={formatDate(contract.startDate)} />
               <InfoRow icon="calendar-end" color="#8B5CF6" label="Ngày kết thúc" value={formatDate(contract.endDate)} />
-              <InfoRow icon="timer-sand" color="#8B5CF6" label="Thời hạn" value={`${contract.duration || '–'} tháng`} isLast />
+              <InfoRow icon="timer-sand" color="#8B5CF6" label="Thời hạn" value={`${contract.duration || '–'} tháng`} />
+              <InfoRow icon="cash-check" color="#8B5CF6" label="Tiền thuê thanh toán đến" value={formatDate(contract.rentPaidUntil)} isLast />
             </View>
 
             {/* Room Info */}
@@ -332,7 +333,7 @@ export default function MyContractScreen({ navigation }) {
                       </View>
                     </View>
                   )}
-                  <InfoRow icon="calendar" color="#10B981" label="Ngày đặt cọc" value={formatDate(deposit.createdDate)} />
+                  <InfoRow icon="calendar" color="#10B981" label="Ngày đặt cọc" value={formatDate(deposit.createdAt)} />
                   {deposit.phone && <InfoRow icon="phone" color="#10B981" label="SĐT" value={deposit.phone} />}
                   {deposit.email && <InfoRow icon="email" color="#10B981" label="Email" value={deposit.email} isLast />}
                 </View>

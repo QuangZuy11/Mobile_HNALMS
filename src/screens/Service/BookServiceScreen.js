@@ -58,7 +58,9 @@ export default function BookServiceScreen({ navigation }) {
       });
 
       if (response.data?.data) {
-        setContracts(response.data.data || []);
+        // Filter only active contracts
+        const activeContracts = response.data.data.filter((c) => c.status?.toLowerCase() === 'active');
+        setContracts(activeContracts || []);
       } else {
         setContracts([]);
       }

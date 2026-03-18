@@ -129,9 +129,12 @@ export const getTenantRoomsAPI = async () => {
 
     if (response.data?.success && response.data.data?.length > 0) {
       const contracts = response.data.data;
-      // Extract all unique rooms from contracts
+      // Filter only active contracts
+      const activeContracts = contracts.filter((c) => c.status?.toLowerCase() === 'active');
+      
+      // Extract all unique rooms from active contracts only
       const uniqueRooms = {};
-      contracts.forEach((contract) => {
+      activeContracts.forEach((contract) => {
         if (contract.roomId && contract.roomId._id) {
           uniqueRooms[contract.roomId._id] = contract.roomId;
         }
