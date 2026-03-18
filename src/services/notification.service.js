@@ -34,6 +34,7 @@ export const getMyNotificationsAPI = async ({ page = 1, limit = 20, isRead } = {
 
 /**
  * Show local notification for new notification from server
+ * Supports all notification types including system (contract renewal)
  * @param {Object} notification - The notification data from server
  */
 export const showLocalNotification = async (notification) => {
@@ -42,12 +43,21 @@ export const showLocalNotification = async (notification) => {
     const { status } = await Notifications.getPermissionsAsync();
     if (status !== 'granted') return;
 
+    // Determine notification type and icon
+    const notifType = notification?.type || 'notification';
+    let iconName = 'bell-outline';
+    if (notifType === 'system') {
+      iconName = 'file-document-outline'; // For contract renewal
+    } else if (notifType === 'staff') {
+      iconName = 'account-tie-outline';
+    }
+
     // Schedule immediate local notification
     await Notifications.scheduleNotificationAsync({
       content: {
         title: notification.title || 'Thông báo mới',
         body: notification.content || '',
-        data: { ...notification, type: 'notification' },
+        data: { ...notification, type: notifType },
         sound: true,
         priority: Notifications.AndroidNotificationPriority.HIGH,
       },
@@ -61,6 +71,7 @@ export const showLocalNotification = async (notification) => {
 /**
  * Check and show local notification for new notifications
  * Call this after fetching notifications to detect new ones
+ * Supports all types: staff, system, tenant
  * @param {Array} newNotifications - New notifications from server
  * @param {string} lastViewedAt - ISO timestamp of last viewed
  */
@@ -69,17 +80,26 @@ export const checkAndShowNotifications = async (newNotifications, lastViewedAt) 
 
   const lastViewed = lastViewedAt ? new Date(lastViewedAt) : new Date(0);
 
-  // Find notifications created after last viewed time
+  // Find notifications created after last viewed time (all types)
   const newOnes = newNotifications.filter((n) => {
     const createdAt = n?.createdAt ? new Date(n.createdAt) : null;
     return createdAt && createdAt > lastViewed;
   });
 
   // Show local notification for the most recent new notification
+  // This includes system type notifications (contract renewal)
   if (newOnes.length > 0) {
     const latest = newOnes[0]; // Already sorted by createdAt desc
     await showLocalNotification(latest);
   }
+};
+
+/**
+ * Show local notification immediately (for testing or manual trigger)
+ * @param {Object} notification - Notification data with title, content, type
+ */
+export const showImmediateNotification = async (notification) => {
+  await showLocalNotification(notification);
 };
 
 /**
