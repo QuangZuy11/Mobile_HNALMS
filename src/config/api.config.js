@@ -39,10 +39,11 @@ export const API_CONFIG = {
         INVOICE: {
             LIST: '/invoices',
             TENANT_LIST: '/invoices/tenant',
+            PERIODIC_DETAIL: '/invoices/periodic/my',  // GET /invoices/periodic/my/:id
+            INCURRED_DETAIL: '/invoices/incurred/my',  // GET /invoices/incurred/my/:id
             DETAIL: '/invoices/:id',
-            INCURRED_DETAIL: '/invoices/:id/incurred',
             PAY: '/invoices/pay',
-            PAYMENT_INITIATE: '/invoices/:id/payment/initiate',
+            PAYMENT_INITIATE: '/invoices/payment/:id/initiate',  // POST with body { type: "periodic" | "incurred" }
             PAYMENT_STATUS: '/invoices/payment/status',
             PAYMENT_CANCEL: '/invoices/payment/cancel',
         },
@@ -89,7 +90,7 @@ export const API_CONFIG = {
         // Notification
         NOTIFICATION: {
             LIST: '/notifications',
-            MY_NOTIFICATIONS: '/notifications/my-notifications',
+            MY_NOTIFICATIONS: '/notifications/my-notifications', // Get all notifications including renew type
             DETAIL: '/notifications/:id',
             MARK_READ: '/notifications/:id/read',
             MARK_ALL_READ: '/notifications/mark-all-read',

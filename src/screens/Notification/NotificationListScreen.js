@@ -56,8 +56,8 @@ export default function NotificationListScreen({ navigation }) {
     try {
       setError(null);
       const res = await getMyNotificationsAPI({ page, limit: PAGE_LIMIT });
-      const nextItems = res?.data?.notifications || [];
-      const nextPagination = res?.data?.pagination;
+      const nextItems = res?.notifications || res?.data?.notifications || [];
+      const nextPagination = res?.pagination || res?.data?.pagination;
 
       if (nextPagination) setPagination((prev) => ({ ...prev, ...nextPagination }));
       setItems((prev) => {
@@ -83,7 +83,7 @@ export default function NotificationListScreen({ navigation }) {
 
       // Check for new notifications and show local notification
       const currentItems = await getMyNotificationsAPI({ page: 1, limit: 5 });
-      const notifications = currentItems?.data?.notifications || [];
+      const notifications = currentItems?.notifications || currentItems?.data?.notifications || [];
       await checkAndShowNotifications(notifications, lastViewedAt);
 
       // Mark "seen" timestamp to support Home badge for "new" notifications
@@ -117,7 +117,7 @@ export default function NotificationListScreen({ navigation }) {
 
       // Get notifications and update badge count
       const currentItems = await getMyNotificationsAPI({ page: 1, limit: 20 });
-      const notifications = currentItems?.data?.notifications || [];
+      const notifications = currentItems?.notifications || currentItems?.data?.notifications || [];
       const unreadCount = notifications.filter((n) => n?._id && !readIds.has(n._id)).length;
       await updateBadgeCount(unreadCount);
     } finally {

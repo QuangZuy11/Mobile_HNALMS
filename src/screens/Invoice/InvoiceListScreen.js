@@ -46,6 +46,12 @@ const STATUS_OPTIONS = [
   { key: 'Paid', label: 'Đã thanh toán' },
 ];
 
+const TYPE_OPTIONS = [
+  { key: 'all', label: 'Tất cả loại' },
+  { key: 'Periodic', label: 'Định kỳ' },
+  { key: 'Incurred', label: 'Phát sinh' },
+];
+
 const formatCurrency = (amount) =>
   new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount ?? 0);
 
@@ -145,6 +151,7 @@ export default function InvoiceListScreen({ navigation, route }) {
   const [dueDate, setDueDate] = useState(null);
   const [showFilters, setShowFilters] = useState(false);
   const [showStatusModal, setShowStatusModal] = useState(false);
+  const [showTypeModal, setShowTypeModal] = useState(false);
   const [showSentModal, setShowSentModal] = useState(false);
   const [showDueModal, setShowDueModal] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
@@ -161,7 +168,8 @@ export default function InvoiceListScreen({ navigation, route }) {
     try {
       setError(null);
       const res = await getTenantInvoicesAPI(tenantId, 1, 200);
-      setAllInvoices(res?.data || []);
+      // API returns { success, data: [...], pagination }, so access res.data.data
+      setAllInvoices(res?.data?.data || res?.data || []);
     } catch (err) {
       setError(err.message || 'Đã xảy ra lỗi khi tải dữ liệu');
     } finally {
@@ -186,13 +194,13 @@ export default function InvoiceListScreen({ navigation, route }) {
 
   const stats = useMemo(() => ({
     all: allInvoices.length,
-    Periodic: allInvoices.filter((i) => i.type === 'Periodic').length,
-    Incurred: allInvoices.filter((i) => i.type === 'Incurred').length,
+    Periodic: allInvoices.filter((i) => i.invoiceType === 'Periodic').length,
+    Incurred: allInvoices.filter((i) => i.invoiceType === 'Incurred').length,
   }), [allInvoices]);
 
   const filtered = useMemo(() => {
     let list = allInvoices;
-    if (typeFilter !== 'all') list = list.filter((i) => i.type === typeFilter);
+    if (typeFilter !== 'all') list = list.filter((i) => i.invoiceType === typeFilter);
     if (searchText.trim()) list = list.filter((i) =>
       i.title?.toLowerCase().includes(searchText.toLowerCase()) ||
       i.invoiceCode?.toLowerCase().includes(searchText.toLowerCase()));
@@ -214,10 +222,10 @@ export default function InvoiceListScreen({ navigation, route }) {
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const pageData = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
-  const activeFilterCount = [statusFilter !== 'all', !!sentDate, !!dueDate].filter(Boolean).length;
+  const activeFilterCount = [typeFilter !== 'all', statusFilter !== 'all', !!sentDate, !!dueDate].filter(Boolean).length;
 
   const resetFilters = () => {
-    setStatusFilter('all'); setSentDate(null); setDueDate(null); setSearchText('');
+    setTypeFilter('all'); setStatusFilter('all'); setSentDate(null); setDueDate(null); setSearchText('');
   };
 
   const renderItem = ({ item }) => {
@@ -229,7 +237,7 @@ export default function InvoiceListScreen({ navigation, route }) {
       <TouchableOpacity
         style={styles.card}
         activeOpacity={0.85}
-        onPress={() => navigation.navigate('InvoiceDetail', { invoiceId: item._id, invoiceType: item.type })}
+        onPress={() => navigation.navigate('InvoiceDetail', { invoiceId: item._id, invoiceType: item.invoiceType })}
       >
         <View style={styles.cardHeader}>
           <View style={[styles.cardIconBox, { backgroundColor: cfg.bg }]}>
@@ -265,7 +273,7 @@ export default function InvoiceListScreen({ navigation, route }) {
           <View style={styles.metaItem}>
             <MaterialCommunityIcons name="tag-outline" size={13} color="#6B7280" />
             <Text style={styles.metaLabel}>Loại</Text>
-            <Text style={styles.metaValue}>{TYPE_LABEL[item.type] || item.type}</Text>
+            <Text style={styles.metaValue}>{TYPE_LABEL[item.invoiceType] || item.invoiceType}</Text>
           </View>
         </View>
 
@@ -354,6 +362,15 @@ export default function InvoiceListScreen({ navigation, route }) {
 
       {showFilters && (
         <View style={styles.filterPanel}>
+          <View style={styles.filterRow}>
+            <Text style={styles.filterRowLabel}>Loại</Text>
+            <TouchableOpacity style={styles.filterSelect} onPress={() => setShowTypeModal(true)}>
+              <Text style={[styles.filterSelectText, typeFilter !== 'all' && { color: '#3B82F6' }]}>
+                {TYPE_OPTIONS.find((o) => o.key === typeFilter)?.label}
+              </Text>
+              <MaterialCommunityIcons name="chevron-down" size={16} color="#6B7280" />
+            </TouchableOpacity>
+          </View>
           <View style={styles.filterRow}>
             <Text style={styles.filterRowLabel}>Trạng thái</Text>
             <TouchableOpacity style={styles.filterSelect} onPress={() => setShowStatusModal(true)}>
@@ -453,6 +470,26 @@ export default function InvoiceListScreen({ navigation, route }) {
                   {opt.label}
                 </Text>
                 {statusFilter === opt.key && <MaterialCommunityIcons name="check" size={16} color="#3B82F6" />}
+              </TouchableOpacity>
+            ))}
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      <Modal visible={showTypeModal} transparent animationType="fade" onRequestClose={() => setShowTypeModal(false)}>
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowTypeModal(false)}>
+          <View style={styles.modalBox}>
+            <Text style={styles.modalTitle}>Lọc theo loại</Text>
+            {TYPE_OPTIONS.map((opt) => (
+              <TouchableOpacity
+                key={opt.key}
+                style={[styles.monthOption, typeFilter === opt.key && styles.monthOptionActive]}
+                onPress={() => { setTypeFilter(opt.key); setShowTypeModal(false); }}
+              >
+                <Text style={[styles.monthOptionText, typeFilter === opt.key && styles.monthOptionTextActive]}>
+                  {opt.label}
+                </Text>
+                {typeFilter === opt.key && <MaterialCommunityIcons name="check" size={16} color="#3B82F6" />}
               </TouchableOpacity>
             ))}
           </View>

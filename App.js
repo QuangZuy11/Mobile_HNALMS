@@ -1,8 +1,11 @@
 import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import * as Notifications from 'expo-notifications';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AuthContextProvider } from './src/contexts/AuthContext';
 import { AppNavigator } from './src/navigation/AppNavigator';
+import apiClient from './src/services/api.service';
+import { getMyNotificationsAPI, checkAndShowNotifications } from './src/services/notification.service';
 
 // Configure notification for lock screen
 Notifications.setNotificationHandler({
@@ -15,27 +18,75 @@ Notifications.setNotificationHandler({
   }),
 });
 
+// Handle notification when app is in foreground
+Notifications.addNotificationReceivedListener((notification) => {
+  console.log('Notification received in foreground:', notification.request.content.title);
+});
+
 export default function App() {
+  const notificationListener = useRef();
+  const responseListener = useRef();
+
   useEffect(() => {
-    // Request notification permissions on app start
-    const requestPermissions = async () => {
-      const { status } = await Notifications.getPermissionsAsync();
-      if (status !== 'granted') {
-        await Notifications.requestPermissionsAsync();
+    // Request notification permissions and register push token
+    const setupNotifications = async () => {
+      const { status: existingStatus } = await Notifications.getPermissionsAsync();
+      let finalStatus = existingStatus;
+
+      if (existingStatus !== 'granted') {
+        const { status } = await Notifications.requestPermissionsAsync();
+        finalStatus = status;
+      }
+
+      if (finalStatus !== 'granted') {
+        console.log('Notification permission not granted');
+        return;
+      }
+
+      // Get push token for remote notifications
+      try {
+        const pushToken = await Notifications.getExpoPushTokenAsync();
+        console.log('Push token:', pushToken.data);
+
+        // Send push token to backend
+        const authToken = await AsyncStorage.getItem('authToken');
+        if (authToken) {
+          await apiClient.post('/notifications/register-device', {
+            pushToken: pushToken.data,
+            deviceId: pushToken.deviceId,
+          }).catch(err => console.log('Register device error:', err.message));
+        }
+      } catch (error) {
+        console.log('Error getting push token:', error.message);
+      }
+
+      // Check for new notifications and show local notification (including system type)
+      try {
+        const authToken = await AsyncStorage.getItem('authToken');
+        if (authToken) {
+          const lastViewedAt = await AsyncStorage.getItem('notification_last_viewed_at');
+          const res = await getMyNotificationsAPI({ page: 1, limit: 5 });
+          const notifications = res?.notifications || res?.data?.notifications || [];
+          await checkAndShowNotifications(notifications, lastViewedAt);
+          await AsyncStorage.setItem('notification_last_viewed_at', new Date().toISOString());
+        }
+      } catch (error) {
+        console.log('Error checking notifications:', error.message);
       }
     };
-    requestPermissions();
 
-    // Listen for notification responses
-    const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
-      // Handle notification tap - navigate to notification screen
+    setupNotifications();
+
+    // Listen for notification responses (when user taps notification)
+    responseListener.current = Notifications.addNotificationResponseReceivedListener((response) => {
       const data = response.notification.request.content.data;
-      // You can handle navigation here if needed
       console.log('Notification tapped:', data);
     });
 
     return () => {
-      subscription.remove();
+      if (responseListener.current) {
+        responseListener.current.remove();
+      }
     };
   }, []);
 

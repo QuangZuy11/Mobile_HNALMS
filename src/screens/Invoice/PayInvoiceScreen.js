@@ -83,7 +83,7 @@ function CopyRow({ label, value, icon }) {
 
 /* ══════════════════════════ MAIN SCREEN ══════════════════════════ */
 export default function PayInvoiceScreen({ navigation, route }) {
-    const { invoiceId } = route.params ?? {};
+    const { invoiceId, invoiceType } = route.params ?? {};
 
     const [phase, setPhase] = useState('loading'); // loading | pending | success | expired | error
     const [paymentData, setPaymentData] = useState(null);
@@ -100,7 +100,7 @@ export default function PayInvoiceScreen({ navigation, route }) {
         let cancelled = false;
         (async () => {
             try {
-                const res = await initiatePaymentAPI(invoiceId);
+                const res = await initiatePaymentAPI(invoiceId, invoiceType);
                 if (cancelled) return;
                 if (res?.success && res?.data) {
                     setPaymentData(res.data);
