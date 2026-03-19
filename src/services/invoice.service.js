@@ -63,6 +63,30 @@ export const getIncurredInvoiceDetailAPI = async (invoiceId) => {
 };
 
 /**
+ * Get invoice status by type (for polling payment confirmation)
+ * @param {string} invoiceId - Invoice ID
+ * @param {string} invoiceType - 'periodic' or 'incurred'
+ * @returns {Promise} { success, data: { status } }
+ */
+export const getInvoiceStatusAPI = async (invoiceId, invoiceType) => {
+    try {
+        const token = await AsyncStorage.getItem('authToken');
+        let endpoint;
+        if (invoiceType === 'periodic') {
+            endpoint = `${API_CONFIG.ENDPOINTS.INVOICE.PERIODIC_DETAIL}/${invoiceId}`;
+        } else {
+            endpoint = `${API_CONFIG.ENDPOINTS.INVOICE.INCURRED_DETAIL}/${invoiceId}`;
+        }
+        const response = await apiClient.get(endpoint, {
+            headers: { Authorization: `Bearer ${token}` },
+        });
+        return response.data;
+    } catch (error) {
+        throw error;
+    }
+};
+
+/**
  * Initiate payment for an invoice
  * @param {string} invoiceId - Invoice ID
  * @param {string} invoiceType - 'periodic' or 'incurred'
@@ -71,18 +95,14 @@ export const getIncurredInvoiceDetailAPI = async (invoiceId) => {
 export const initiatePaymentAPI = async (invoiceId, invoiceType = 'incurred') => {
     try {
         const token = await AsyncStorage.getItem('authToken');
-        console.log('initiatePaymentAPI - invoiceId:', invoiceId, 'invoiceType:', invoiceType);
         const endpoint = API_CONFIG.ENDPOINTS.INVOICE.PAYMENT_INITIATE.replace(':id', invoiceId);
-        console.log('initiatePaymentAPI - endpoint:', endpoint);
         const response = await apiClient.post(
             endpoint,
-            { type: invoiceType },  // Send type in body: 'periodic' or 'incurred'
+            { type: invoiceType },
             { headers: { Authorization: `Bearer ${token}` } }
         );
-        console.log('initiatePaymentAPI - response:', response.data);
         return response.data;
     } catch (error) {
-        console.log('initiatePaymentAPI - error:', error.message);
         throw error;
     }
 };

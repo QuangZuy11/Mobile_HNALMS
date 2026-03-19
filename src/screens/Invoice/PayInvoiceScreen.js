@@ -10,6 +10,7 @@ import * as MediaLibrary from 'expo-media-library';
 import * as FileSystem from 'expo-file-system/legacy';
 import {
     initiatePaymentAPI,
+    getInvoiceStatusAPI,
     getPaymentStatusAPI,
     cancelPaymentAPI,
 } from '../../services/invoice.service';
@@ -18,14 +19,14 @@ const POLL_INTERVAL = 3000; // 3 giây
 const fmtMoney = (v) => new Intl.NumberFormat('vi-VN').format(Math.round(v ?? 0)) + ' đ';
 
 /* ────────────────────────── CountdownTimer ────────────────────────── */
-function CountdownTimer({ expireAt, onExpire }) {
-    const [remaining, setRemaining] = useState(() => {
-        const diff = Math.max(0, Math.floor((new Date(expireAt).getTime() - Date.now()) / 1000));
-        return diff;
-    });
-
+function CountdownTimer({ initialSeconds, onExpire }) {
+    const [remaining, setRemaining] = useState(initialSeconds);
     const onExpireRef = useRef(onExpire);
     onExpireRef.current = onExpire;
+
+    useEffect(() => {
+        setRemaining(initialSeconds);
+    }, [initialSeconds]);
 
     useEffect(() => {
         if (remaining <= 0) {
@@ -98,6 +99,10 @@ export default function PayInvoiceScreen({ navigation, route }) {
     const [phase, setPhase] = useState('loading'); // loading | pending | success | expired | error
     const [paymentData, setPaymentData] = useState(null);
     const [errorMsg, setErrorMsg] = useState('');
+    const [qrError, setQrError] = useState(false);
+    const [pollError, setPollError] = useState(false);
+    const [hasPolledOnce, setHasPolledOnce] = useState(false);
+    const [expireInSeconds, setExpireInSeconds] = useState(300);
 
     const pollingRef = useRef(null);
     const failsafeRef = useRef(null);
@@ -114,6 +119,10 @@ export default function PayInvoiceScreen({ navigation, route }) {
                 if (cancelled) return;
                 if (res?.success && res?.data) {
                     setPaymentData(res.data);
+                    setExpireInSeconds(res.data.expireInSeconds ?? 300);
+                    setPollError(false);
+                    setHasPolledOnce(false);
+                    setQrError(false);
                     setPhase('pending');
                 } else {
                     setErrorMsg(res?.message || 'Không thể khởi tạo thanh toán');
@@ -137,61 +146,90 @@ export default function PayInvoiceScreen({ navigation, route }) {
 
     useEffect(() => () => stopTimers(), [stopTimers]);
 
+    /* ── Auto-navigate on success ── */
+    useEffect(() => {
+        if (phase !== 'success') return;
+        const t = setTimeout(() => {
+            navigation.navigate('InvoiceList', { refresh: Date.now() });
+        }, 1200);
+        return () => clearTimeout(t);
+    }, [phase, navigation]);
+
     /* ── Polling ── */
     useEffect(() => {
         if (phase !== 'pending' || !paymentData?.transactionCode) return;
 
         const poll = async () => {
             try {
-                const res = await getPaymentStatusAPI(paymentData.transactionCode);
-                console.log('PayInvoiceScreen - Payment status response:', JSON.stringify(res?.data));
+                // Poll invoice status thay vì payment status
+                // BE webhook đã cập nhật Invoice.status → 'Paid' khi thanh toán thành công
+                const res = await getInvoiceStatusAPI(invoiceId, invoiceType);
                 const st = res?.data?.status;
-                console.log('PayInvoiceScreen - Status:', st);
-                if (st === 'Success') { stopTimers(); setPhase('success'); }
-                else if (st === 'Expired') { stopTimers(); setPhase('expired'); }
-                else if (st === 'Failed') { stopTimers(); setErrorMsg('Giao dịch thất bại'); setPhase('error'); }
+                setPollError(false);
+                setHasPolledOnce(true);
+
+                if (st === 'Paid') {
+                    stopTimers(); setPhase('success');
+                }
+                // status === 'Unpaid' hoặc 'Draft' → tiếp tục polling
             } catch (err) {
-                // 404 = expired/deleted
-                stopTimers(); setPhase('expired');
+                const status = err?.response?.status;
+                // 404 → invoice không tìm thấy
+                if (status === 404) {
+                    // Thử polling payment status thay thế
+                    try {
+                        const paymentRes = await getPaymentStatusAPI(paymentData.transactionCode);
+                        setPollError(false);
+                        setHasPolledOnce(true);
+                        const pSt = paymentRes?.data?.status;
+                        if (pSt === 'Success') { stopTimers(); setPhase('success'); }
+                        else if (pSt === 'Expired') { stopTimers(); setPhase('expired'); }
+                    } catch {
+                        // Nếu cả 2 đều lỗi → tạm thời bỏ qua, tiếp tục polling
+                        setPollError(true);
+                    }
+                    return;
+                }
+                // Network error hoặc lỗi khác → hiển thị banner, vẫn tiếp tục polling
+                setPollError(true);
             }
         };
 
         pollingRef.current = setInterval(poll, POLL_INTERVAL);
 
-        // failsafe — tự dừng sau 6 phút
+        // failsafe — tự dừng sau expireInSeconds + 30s buffer
         failsafeRef.current = setTimeout(() => {
             stopTimers();
             setPhase('expired');
-        }, 6 * 60 * 1000);
+        }, (expireInSeconds + 30) * 1000);
 
         return stopTimers;
-    }, [phase, paymentData, stopTimers]);
+    }, [phase, paymentData, invoiceId, invoiceType, stopTimers, expireInSeconds]);
 
     /* ── Pause polling khi app background ── */
     useEffect(() => {
         const sub = AppState.addEventListener('change', (nextState) => {
             if (appStateRef.current === 'active' && nextState.match(/inactive|background/)) {
-                // app going background → clear polling to save resources
                 if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
             } else if (nextState === 'active' && phase === 'pending' && paymentData?.transactionCode) {
-                // returning → restart polling
                 if (!pollingRef.current) {
                     pollingRef.current = setInterval(async () => {
                         try {
-                            const res = await getPaymentStatusAPI(paymentData.transactionCode);
-                            console.log('PayInvoiceScreen (bg) - Payment status:', JSON.stringify(res?.data));
+                            const res = await getInvoiceStatusAPI(invoiceId, invoiceType);
                             const st = res?.data?.status;
-                            if (st === 'Success') { stopTimers(); setPhase('success'); }
-                            else if (st === 'Expired') { stopTimers(); setPhase('expired'); }
-                            else if (st === 'Failed') { stopTimers(); setErrorMsg('Giao dịch thất bại'); setPhase('error'); }
-                        } catch { stopTimers(); setPhase('expired'); }
+                            setPollError(false);
+                            setHasPolledOnce(true);
+                            if (st === 'Paid') { stopTimers(); setPhase('success'); }
+                        } catch {
+                            setPollError(true);
+                        }
                     }, POLL_INTERVAL);
                 }
             }
             appStateRef.current = nextState;
         });
         return () => sub.remove();
-    }, [phase, paymentData, stopTimers]);
+    }, [phase, paymentData, invoiceId, invoiceType, stopTimers, hasPolledOnce]);
 
     /* ── Hủy giao dịch ── */
     const handleCancel = () => {
@@ -218,7 +256,6 @@ export default function PayInvoiceScreen({ navigation, route }) {
     /* ── Back handler for success/expired ── */
     const handleDone = (isSuccess = false) => {
         if (isSuccess) {
-            // Thanh toán thành công → về danh sách hóa đơn và refresh
             navigation.navigate('InvoiceList', { refresh: Date.now() });
         } else {
             navigation.goBack();
@@ -231,21 +268,18 @@ export default function PayInvoiceScreen({ navigation, route }) {
         if (!paymentData?.qrUrl || downloading) return;
         setDownloading(true);
         try {
-            // Xin quyền truy cập thư viện
             const { status } = await MediaLibrary.requestPermissionsAsync();
             if (status !== 'granted') {
                 Alert.alert('Quyền bị từ chối', 'Vui lòng cấp quyền truy cập thư viện ảnh để tải mã QR.');
                 setDownloading(false);
                 return;
             }
-            // Tải ảnh về cache
             const fileName = `QR_${paymentData.transactionCode || 'payment'}_${Date.now()}.png`;
             const fileUri = FileSystem.cacheDirectory + fileName;
             const downloadResult = await FileSystem.downloadAsync(paymentData.qrUrl, fileUri);
             if (downloadResult.status !== 200) {
                 throw new Error('Không thể tải ảnh');
             }
-            // Lưu vào thư viện
             const asset = await MediaLibrary.createAssetAsync(downloadResult.uri);
             await MediaLibrary.createAlbumAsync('HNALMS', asset, false);
             Alert.alert('Thành công', 'Đã lưu mã QR vào thư viện ảnh.');
@@ -332,19 +366,35 @@ export default function PayInvoiceScreen({ navigation, route }) {
 
                         {/* Countdown */}
                         <CountdownTimer
-                            expireAt={paymentData.expireAt}
+                            initialSeconds={expireInSeconds}
                             onExpire={() => { stopTimers(); setPhase('expired'); }}
                         />
+
+                        {/* Polling error notice — chỉ hiện sau khi đã poll thành công ít nhất 1 lần */}
+                        {pollError && hasPolledOnce && (
+                            <View style={styles.pollErrorBanner}>
+                                <MaterialCommunityIcons name="wifi-off" size={16} color="#DC2626" />
+                                <Text style={styles.pollErrorText}>Đang thử kết nối lại...</Text>
+                            </View>
+                        )}
 
                         {/* QR Card */}
                         <View style={styles.qrCard}>
                             <Text style={styles.qrCardTitle}>Quét mã QR để thanh toán</Text>
                             <View style={styles.qrImageWrap}>
-                                <Image
-                                    source={{ uri: paymentData.qrUrl }}
-                                    style={styles.qrImage}
-                                    resizeMode="contain"
-                                />
+                                {!qrError ? (
+                                    <Image
+                                        source={{ uri: paymentData.qrUrl }}
+                                        style={styles.qrImage}
+                                        resizeMode="contain"
+                                        onError={() => setQrError(true)}
+                                    />
+                                ) : (
+                                    <View style={styles.qrErrorWrap}>
+                                        <MaterialCommunityIcons name="image-off-outline" size={40} color="#9CA3AF" />
+                                        <Text style={styles.qrErrorText}>Không tải được mã QR</Text>
+                                    </View>
+                                )}
                             </View>
                             <Text style={styles.qrAmount}>{fmtMoney(paymentData.invoiceAmount)}</Text>
                             <Text style={styles.qrInvoiceCode}>{paymentData.invoiceCode}</Text>
@@ -380,7 +430,7 @@ export default function PayInvoiceScreen({ navigation, route }) {
                             <CopyRow icon="account-outline" label="Chủ tài khoản" value={paymentData.bankInfo?.bankAccountName} />
                             <CopyRow icon="cash" label="Số tiền" value={fmtMoney(paymentData.invoiceAmount)} />
                             <View style={styles.bankRowHighlight}>
-                                <CopyRow icon="text-box-outline" label="Nội dung CK" value={paymentData.transactionCode} />
+                                <CopyRow icon="text-box-outline" label="Nội dung CK" value={paymentData.bankInfo?.content || paymentData.transactionCode} />
                             </View>
                         </View>
 
@@ -441,6 +491,14 @@ const styles = StyleSheet.create({
     timerTextWarning: { color: '#DC2626' },
     timerWarningLabel: { fontSize: 12, fontWeight: '600', color: '#DC2626' },
 
+    /* poll error */
+    pollErrorBanner: {
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+        backgroundColor: '#FEF2F2', borderRadius: 8, paddingVertical: 8, paddingHorizontal: 14, marginBottom: 12,
+        borderWidth: 1, borderColor: '#FECACA',
+    },
+    pollErrorText: { fontSize: 13, color: '#DC2626', fontWeight: '600' },
+
     /* QR card */
     qrCard: {
         backgroundColor: '#FFF', borderRadius: 16, padding: 20, alignItems: 'center',
@@ -454,6 +512,8 @@ const styles = StyleSheet.create({
         justifyContent: 'center', alignItems: 'center',
     },
     qrImage: { width: 200, height: 200 },
+    qrErrorWrap: { alignItems: 'center', justifyContent: 'center', gap: 8 },
+    qrErrorText: { fontSize: 13, color: '#9CA3AF', fontWeight: '500' },
     qrAmount: { fontSize: 24, fontWeight: '800', color: '#DC2626', marginTop: 14 },
     qrInvoiceCode: { fontSize: 13, color: '#6B7280', marginTop: 4 },
     qrRoom: { fontSize: 13, color: '#9CA3AF', marginTop: 2 },
