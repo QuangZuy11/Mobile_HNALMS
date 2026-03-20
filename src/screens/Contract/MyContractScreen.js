@@ -240,7 +240,7 @@ export default function MyContractScreen({ navigation }) {
         {remainingDays !== null && remainingDays > 0 && remainingDays <= 30 && (
           <View style={styles.alertBanner}>
             <MaterialCommunityIcons name="clock-alert" size={18} color="#92400E" />
-            <Text style={styles.alertText}>Hết hạn trong {remainingDays} ngày</Text>
+            <Text style={styles.alertText}>Hết hạn sau {remainingDays} ngày</Text>
           </View>
         )}
 
