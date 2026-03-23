@@ -5,7 +5,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AuthContextProvider } from './src/contexts/AuthContext';
 import { AppNavigator } from './src/navigation/AppNavigator';
 import apiClient from './src/services/api.service';
-import { getMyNotificationsAPI, checkAndShowNotifications } from './src/services/notification.service';
 
 // Configure notification for lock screen
 Notifications.setNotificationHandler({
@@ -61,17 +60,17 @@ export default function App() {
       }
 
       // Check for new notifications and show local notification (including system type)
+      // Note: OS will automatically show notifications when app is in foreground due to
+      // shouldShowAlert: true in notification handler config, so we skip manual showing here
+      // to avoid duplicate notifications
       try {
         const authToken = await AsyncStorage.getItem('authToken');
         if (authToken) {
-          const lastViewedAt = await AsyncStorage.getItem('notification_last_viewed_at');
-          const res = await getMyNotificationsAPI({ page: 1, limit: 5 });
-          const notifications = res?.notifications || res?.data?.notifications || [];
-          await checkAndShowNotifications(notifications, lastViewedAt);
+          // Just update the last viewed timestamp to sync notification read state
           await AsyncStorage.setItem('notification_last_viewed_at', new Date().toISOString());
         }
       } catch (error) {
-        console.log('Error checking notifications:', error.message);
+        console.log('Error updating notification timestamp:', error.message);
       }
     };
 
