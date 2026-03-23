@@ -13,6 +13,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import { Calendar, LocaleConfig } from 'react-native-calendars';
 
 LocaleConfig.locales['vi'] = {
@@ -189,6 +190,15 @@ export default function InvoiceListScreen({ navigation, route }) {
       fetchAll();
     }
   }, [route.params?.refresh, tenantId, fetchAll]);
+
+  // Auto-refetch invoices when screen is focused (e.g., after creating repair request)
+  useFocusEffect(
+    useCallback(() => {
+      if (tenantId) {
+        fetchAll();
+      }
+    }, [tenantId, fetchAll])
+  );
 
   const onRefresh = () => { setRefreshing(true); fetchAll(); };
 
