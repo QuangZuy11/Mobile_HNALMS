@@ -26,7 +26,20 @@ export const getMyNotificationsAPI = async ({ page = 1, limit = 20, isRead } = {
         Pragma: 'no-cache',
       },
     });
-    return response.data;
+
+    // Deduplicate notifications to remove duplicates (server side issue fallback)
+    const data = response.data;
+    if (data?.notifications && Array.isArray(data.notifications)) {
+      const seen = new Set();
+      data.notifications = data.notifications.filter((notif) => {
+        const key = notif?._id || `${notif?.title}-${notif?.content}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+    }
+    
+    return data;
   } catch (error) {
     throw error;
   }
@@ -90,7 +103,23 @@ export const checkAndShowNotifications = async (newNotifications, lastViewedAt) 
   // This includes system type notifications (contract renewal)
   if (newOnes.length > 0) {
     const latest = newOnes[0]; // Already sorted by createdAt desc
-    await showLocalNotification(latest);
+    
+    // Check if this notification was already shown recently
+    try {
+      const shownKey = 'last_shown_notification_id';
+      const lastShown = await AsyncStorage.getItem(shownKey);
+      const currentId = latest?._id || `${latest?.title}-${latest?.content}`;
+      
+      // Only show if it's a different notification or was shown more than 3 minutes ago
+      if (lastShown !== currentId) {
+        await showLocalNotification(latest);
+        await AsyncStorage.setItem(shownKey, currentId);
+      }
+    } catch (error) {
+      console.error('Error tracking shown notification:', error);
+      // Fallback: show anyway if tracking fails
+      await showLocalNotification(latest);
+    }
   }
 };
 
