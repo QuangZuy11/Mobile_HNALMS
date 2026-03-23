@@ -12,7 +12,7 @@ import {
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getMyNotificationsAPI, checkAndShowNotifications, updateBadgeCount } from '../../services/notification.service';
+import { getMyNotificationsAPI } from '../../services/notification.service';
 import NotificationDetailModal from './NotificationDetailScreen';
 
 export default function NotificationListScreen({ navigation }) {
@@ -81,11 +81,6 @@ export default function NotificationListScreen({ navigation }) {
 
       await loadPage({ page: 1, replace: true });
 
-      // Check for new notifications and show local notification
-      const currentItems = await getMyNotificationsAPI({ page: 1, limit: 5 });
-      const notifications = currentItems?.notifications || currentItems?.data?.notifications || [];
-      await checkAndShowNotifications(notifications, lastViewedAt);
-
       // Mark "seen" timestamp to support Home badge for "new" notifications
       await AsyncStorage.setItem(LAST_VIEWED_KEY, new Date().toISOString());
     } finally {
@@ -114,12 +109,6 @@ export default function NotificationListScreen({ navigation }) {
     setItems([]);
     try {
       await loadPage({ page: 1, replace: true });
-
-      // Get notifications and update badge count
-      const currentItems = await getMyNotificationsAPI({ page: 1, limit: 20 });
-      const notifications = currentItems?.notifications || currentItems?.data?.notifications || [];
-      const unreadCount = notifications.filter((n) => n?._id && !readIds.has(n._id)).length;
-      await updateBadgeCount(unreadCount);
     } finally {
       setIsRefreshing(false);
     }
