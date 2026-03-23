@@ -96,5 +96,17 @@ export const API_CONFIG = {
             MARK_ALL_READ: '/notifications/mark-all-read',
             UNREAD_COUNT: '/notifications/unread-count',
         },
+
+        // Move-Out / Move-Out Request
+        MOVE_OUT: {
+            CONTRACT_INFO: '/move-outs/contract/:contractId/info',
+            CREATE: '/move-outs',
+            MY_REQUEST: '/move-outs/my/:contractId',
+            LIST: '/move-outs/list',
+            DETAIL: '/move-outs/:moveOutRequestId',
+            APPROVE: '/move-outs/:moveOutRequestId/approve',
+            COMPLETE: '/move-outs/:moveOutRequestId/complete',
+            CANCEL: '/move-outs/:moveOutRequestId',
+        },
     },
 };
