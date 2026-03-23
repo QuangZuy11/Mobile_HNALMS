@@ -17,6 +17,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import apiClient from '../../services/api.service';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { handleCallManager } from '../../utils/phoneHelper';
+import CreateMoveOutRequestModal from './CreateMoveOutRequestModal';
 
 const { width, height } = Dimensions.get('window');
 
@@ -84,6 +85,8 @@ export default function MyContractScreen({ navigation }) {
   const [selectedImage, setSelectedImage] = useState(null);
   const [imageModalVisible, setImageModalVisible] = useState(false);
   const [imageLoading, setImageLoading] = useState(false);
+  const [moveOutModalVisible, setMoveOutModalVisible] = useState(false);
+  const [selectedContractForMoveOut, setSelectedContractForMoveOut] = useState(null);
 
   const fetchContracts = useCallback(async () => {
     try {
@@ -136,6 +139,23 @@ export default function MyContractScreen({ navigation }) {
     setImageModalVisible(false);
     setImageLoading(false);
     setTimeout(() => setSelectedImage(null), 300);
+  };
+
+  // ── Move-Out Request Modal ──
+
+  const openMoveOutModal = (contractId) => {
+    setSelectedContractForMoveOut(contractId);
+    setMoveOutModalVisible(true);
+  };
+
+  const closeMoveOutModal = () => {
+    setMoveOutModalVisible(false);
+    setTimeout(() => setSelectedContractForMoveOut(null), 300);
+  };
+
+  const handleMoveOutSuccess = (moveOutData) => {
+    // Refetch contracts to update status
+    fetchContracts();
   };
 
   // ── Header ──
@@ -376,10 +396,10 @@ export default function MyContractScreen({ navigation }) {
 
                   <TouchableOpacity
                     style={[styles.actionButton, styles.actionButtonDanger]}
-                    onPress={() => alert('Chức năng thanh lý hợp đồng đang được phát triển')}
+                    onPress={() => openMoveOutModal(contract._id)}
                   >
-                    <MaterialCommunityIcons name="close-circle" size={18} color="#EF4444" />
-                    <Text style={styles.actionButtonTextDanger}>Thanh lý hợp đồng</Text>
+                    <MaterialCommunityIcons name="door-open" size={18} color="#EF4444" />
+                    <Text style={styles.actionButtonTextDanger}>Trả phòng thanh lý</Text>
                   </TouchableOpacity>
                 </>
               )}
@@ -453,6 +473,14 @@ export default function MyContractScreen({ navigation }) {
           </TouchableOpacity>
         </View>
       </Modal>
+
+      {/* Move-Out Request Modal */}
+      <CreateMoveOutRequestModal
+        visible={moveOutModalVisible}
+        contractId={selectedContractForMoveOut}
+        onClose={closeMoveOutModal}
+        onSuccess={handleMoveOutSuccess}
+      />
     </SafeAreaView>
   );
 }
