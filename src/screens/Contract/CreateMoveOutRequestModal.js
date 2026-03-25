@@ -133,20 +133,28 @@ export default function CreateMoveOutRequestModal({
       const response = await createMoveOutRequestAPI(moveOutData);
       const data = response?.moveOutRequest || response?.data || response;
       const warnings = response?.warnings || [];
+      const successMessage = response?.message || 'Yêu cầu trả phòng đã được gửi thành công.';
 
       // Check for warnings
       if (warnings && warnings.length > 0) {
         setWarnings(warnings);
         setShowWarningConfirm(true);
       } else {
-        // No warnings, success
+        // No warnings, hiển thị message từ backend
         Alert.alert(
           'Thành công',
-          'Yêu cầu trả phòng đã được gửi. Quản lý sẽ xem xét và liên hệ với bạn.'
+          successMessage,
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                resetForm();
+                onClose();
+                if (onSuccess) onSuccess(data);
+              },
+            },
+          ]
         );
-        resetForm();
-        onClose();
-        if (onSuccess) onSuccess(data);
       }
     } catch (err) {
       console.error('Create move-out error:', err);
@@ -173,10 +181,11 @@ export default function CreateMoveOutRequestModal({
 
       const response = await createMoveOutRequestAPI(moveOutData);
       const data = response?.moveOutRequest || response?.data || response;
+      const successMessage = response?.message || 'Yêu cầu trả phòng đã được gửi thành công.';
 
       Alert.alert(
         'Thành công',
-        'Yêu cầu trả phòng đã được gửi. Quản lý sẽ xem xét và liên hệ với bạn.',
+        successMessage,
         [
           {
             text: 'OK',
