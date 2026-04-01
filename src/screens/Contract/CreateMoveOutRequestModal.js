@@ -16,7 +16,6 @@ import {
   SafeAreaView,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import DateTimePicker from '@react-native-community/datetimepicker';
 import {
   getContractMoveOutInfoAPI,
   createMoveOutRequestAPI,
@@ -65,6 +64,42 @@ const getStatusInfo = (status) =>
     step: 0,
   };
 
+const DAY_IN_MS = 1000 * 60 * 60 * 24;
+const NOTICE_DAYS_REQUIRED = 30;
+const MIN_STAY_MONTHS_REQUIRED = 3;
+const MONTH_NAMES = [
+  'Tháng 1', 'Tháng 2', 'Tháng 3', 'Tháng 4', 'Tháng 5', 'Tháng 6',
+  'Tháng 7', 'Tháng 8', 'Tháng 9', 'Tháng 10', 'Tháng 11', 'Tháng 12',
+];
+const DAY_NAMES = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
+
+const normalizeDateOnly = (value) => {
+  const d = new Date(value);
+  d.setHours(0, 0, 0, 0);
+  return d;
+};
+
+const getMinMoveOutDate = () => {
+  const minDate = normalizeDateOnly(new Date());
+  minDate.setDate(minDate.getDate() + 1);
+  return minDate;
+};
+
+const calculateFullMonthsBetween = (startDate, endDate) => {
+  const start = normalizeDateOnly(startDate);
+  const end = normalizeDateOnly(endDate);
+
+  let months =
+    (end.getFullYear() - start.getFullYear()) * 12 +
+    (end.getMonth() - start.getMonth());
+
+  if (end.getDate() < start.getDate()) {
+    months -= 1;
+  }
+
+  return Math.max(0, months);
+};
+
 // ─── Main Component ──────────────────────────────────────────────────────────
 
 export default function CreateMoveOutRequestModal({
@@ -73,26 +108,33 @@ export default function CreateMoveOutRequestModal({
   onClose,
   onSuccess,
 }) {
+  const initialMinExpectedDate = getMinMoveOutDate();
   const [loading, setLoading] = useState(false);
   const [fetchingInfo, setFetchingInfo] = useState(false);
   const [contractInfo, setContractInfo] = useState(null);
   const [existingRequest, setExistingRequest] = useState(null);
-  const [expectedDate, setExpectedDate] = useState(new Date());
-  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [expectedDate, setExpectedDate] = useState(() => initialMinExpectedDate);
+  const [showDateModal, setShowDateModal] = useState(false);
   const [reason, setReason] = useState('');
   const [error, setError] = useState(null);
   // deposit-forfeiture preview (client-side estimate shown before submit)
   const [depositWarning, setDepositWarning] = useState(null);
+  const [calYear, setCalYear] = useState(initialMinExpectedDate.getFullYear());
+  const [calMonth, setCalMonth] = useState(initialMinExpectedDate.getMonth());
 
   // ── Fetch on open ──
   useEffect(() => {
     if (visible) {
       fetchContractInfo();
       fetchExistingRequest();
-      setExpectedDate(new Date());
+      const minDate = getMinMoveOutDate();
+      setExpectedDate(minDate);
+      setCalYear(minDate.getFullYear());
+      setCalMonth(minDate.getMonth());
       setReason('');
       setError(null);
       setDepositWarning(null);
+      setShowDateModal(false);
     }
   }, [visible, contractId]);
 
@@ -118,35 +160,172 @@ export default function CreateMoveOutRequestModal({
     }
   };
 
-  // ── Date picker ──
-  const handleDateChange = (event, selectedDate) => {
-    if (Platform.OS === 'android') setShowDatePicker(false);
-    if (event.type === 'set' && selectedDate) {
-      setExpectedDate(selectedDate);
-      computeDepositWarning(selectedDate);
+  useEffect(() => {
+    if (visible && contractInfo?.startDate) {
+      computeDepositWarning(expectedDate);
     }
-    if (event.type === 'dismissed') setShowDatePicker(false);
+  }, [visible, contractInfo, expectedDate]);
+
+  const evaluateDepositRisk = (date) => {
+    if (!contractInfo?.startDate) return null;
+
+    const todayDateOnly = normalizeDateOnly(new Date());
+    const moveOutDateOnly = normalizeDateOnly(date);
+    const startDateOnly = normalizeDateOnly(contractInfo.startDate);
+
+    const stayMonths = calculateFullMonthsBetween(startDateOnly, todayDateOnly);
+    const stayDays = Math.floor(
+      (todayDateOnly - startDateOnly) / DAY_IN_MS
+    );
+
+    const isUnderMinStayByMonth = stayMonths < MIN_STAY_MONTHS_REQUIRED;
+    const isUnderMinStayByDay = stayDays < MIN_STAY_MONTHS_REQUIRED * 30;
+    const isUnderMinStay = isUnderMinStayByMonth && isUnderMinStayByDay;
+
+    let daysBeforeContractEnd = null;
+    let isEarlyNotice = false;
+
+    if (contractInfo?.endDate) {
+      const endDateOnly = normalizeDateOnly(contractInfo.endDate);
+      daysBeforeContractEnd = Math.floor((endDateOnly - moveOutDateOnly) / DAY_IN_MS);
+      isEarlyNotice = daysBeforeContractEnd < NOTICE_DAYS_REQUIRED;
+    }
+
+    return {
+      daysBeforeContractEnd,
+      stayMonths,
+      stayDays,
+      isEarlyNotice,
+      isUnderMinStay,
+    };
   };
 
   // Client-side preview: tính trước cảnh báo mất cọc để hiện inline
   const computeDepositWarning = (date) => {
-    if (!contractInfo) return;
-    const now = new Date();
-    const daysNotice = Math.floor((date - now) / (1000 * 60 * 60 * 24));
-    const stayMonths = Math.floor(
-      (date - new Date(contractInfo.startDate)) / (1000 * 60 * 60 * 24 * 30)
-    );
+    const risk = evaluateDepositRisk(date);
+    if (!risk) {
+      setDepositWarning(null);
+      return {
+        warnings: [],
+        isEarlyNotice: false,
+        isUnderMinStay: false,
+      };
+    }
+
     const warnings = [];
-    if (daysNotice < 30)
-      warnings.push(`Thông báo trước ${daysNotice} ngày (cần ≥ 30 ngày)`);
-    if (stayMonths < 6)
-      warnings.push(`Mới thuê ${stayMonths} tháng (cần ≥ 6 tháng)`);
+    if (risk.isEarlyNotice) {
+      warnings.push(
+        `Ngày trả phòng của bạn chưa trước ngày kết thúc hợp đồng ít nhất ${NOTICE_DAYS_REQUIRED} ngày (hiện tại: ${risk.daysBeforeContractEnd ?? 0} ngày). Bạn có thể bị mất cọc.`
+      );
+    }
+    if (risk.isUnderMinStay) {
+      warnings.push(
+        `Bạn sẽ không được hoàn cọc vì thời gian ở đến hiện tại mới ${risk.stayMonths} tháng (${risk.stayDays} ngày), chưa đủ ${MIN_STAY_MONTHS_REQUIRED} tháng.`
+      );
+    }
 
     setDepositWarning(warnings.length > 0 ? warnings : null);
+    return {
+      warnings,
+      isEarlyNotice: risk.isEarlyNotice,
+      isUnderMinStay: risk.isUnderMinStay,
+    };
   };
+
+  const getResponseCandidates = (response) => {
+    const candidates = [response, response?.data, response?.data?.data].filter(
+      (item) => item && typeof item === 'object'
+    );
+
+    return candidates.filter((item, index) => candidates.indexOf(item) === index);
+  };
+
+  const getMaxExpectedDate = () => {
+    if (!contractInfo?.endDate) return null;
+    const maxDate = normalizeDateOnly(contractInfo.endDate);
+    maxDate.setDate(maxDate.getDate() - 1);
+    return maxDate;
+  };
+
+  const minExpectedDate = getMinMoveOutDate();
+  const maxExpectedDate = getMaxExpectedDate();
+  const safeMaximumDate = maxExpectedDate || undefined;
+
+  const buildCalendarDays = (year, month) => {
+    const firstDay = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const cells = [];
+    for (let i = 0; i < firstDay; i += 1) cells.push(null);
+    for (let d = 1; d <= daysInMonth; d += 1) cells.push(d);
+    return cells;
+  };
+
+  const isSelectableDate = (date) => {
+    const normalized = normalizeDateOnly(date);
+    if (normalized < minExpectedDate) return false;
+    if (safeMaximumDate && normalized > safeMaximumDate) return false;
+    return true;
+  };
+
+  const openDateModal = () => {
+    const baseDate = normalizeDateOnly(expectedDate);
+    setCalYear(baseDate.getFullYear());
+    setCalMonth(baseDate.getMonth());
+    setShowDateModal((prev) => !prev);
+  };
+
+  const onCalendarDayPress = (day) => {
+    if (!day) return;
+    const pickedDate = new Date(calYear, calMonth, day);
+    pickedDate.setHours(0, 0, 0, 0);
+    if (!isSelectableDate(pickedDate)) return;
+    setExpectedDate(pickedDate);
+    setShowDateModal(false);
+  };
+
+  const prevMonth = () => {
+    const prev = new Date(calYear, calMonth - 1, 1);
+    const minMonth = new Date(minExpectedDate.getFullYear(), minExpectedDate.getMonth(), 1);
+    if (prev < minMonth) return;
+    setCalYear(prev.getFullYear());
+    setCalMonth(prev.getMonth());
+  };
+
+  const nextMonth = () => {
+    const next = new Date(calYear, calMonth + 1, 1);
+    if (safeMaximumDate) {
+      const maxMonth = new Date(safeMaximumDate.getFullYear(), safeMaximumDate.getMonth(), 1);
+      if (next > maxMonth) return;
+    }
+    setCalYear(next.getFullYear());
+    setCalMonth(next.getMonth());
+  };
+
+  const currentMonthDate = new Date(calYear, calMonth, 1);
+  const minMonthDate = new Date(minExpectedDate.getFullYear(), minExpectedDate.getMonth(), 1);
+  const maxMonthDate = safeMaximumDate
+    ? new Date(safeMaximumDate.getFullYear(), safeMaximumDate.getMonth(), 1)
+    : null;
+  const disablePrevMonth = currentMonthDate <= minMonthDate;
+  const disableNextMonth = maxMonthDate ? currentMonthDate >= maxMonthDate : false;
 
   // ── Validation ──
   const validateForm = () => {
+    if (!contractInfo) {
+      Alert.alert('Lỗi', 'Không có thông tin hợp đồng để tạo yêu cầu trả phòng');
+      return false;
+    }
+
+    if (contractInfo.status && contractInfo.status.toLowerCase() !== 'active') {
+      Alert.alert('Lỗi', `Hợp đồng không ở trạng thái hoạt động (hiện tại: ${contractInfo.status})`);
+      return false;
+    }
+
+    if (existingRequest?._id || existingRequest?.id) {
+      Alert.alert('Lỗi', 'Hợp đồng này đã có yêu cầu trả phòng. Mỗi hợp đồng chỉ tạo được một yêu cầu.');
+      return false;
+    }
+
     if (!reason.trim()) {
       Alert.alert('Lỗi', 'Vui lòng nhập lý do trả phòng');
       return false;
@@ -155,12 +334,24 @@ export default function CreateMoveOutRequestModal({
       Alert.alert('Lỗi', 'Lý do phải có ít nhất 10 ký tự');
       return false;
     }
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    if (expectedDate < today) {
-      Alert.alert('Lỗi', 'Ngày trả phòng phải trong tương lai');
+    const moveOutDateOnly = normalizeDateOnly(expectedDate);
+    if (moveOutDateOnly < minExpectedDate) {
+      Alert.alert('Lỗi', 'Ngày trả phòng phải từ ngày mai trở đi');
       return false;
     }
+
+    if (contractInfo.endDate) {
+      const endDateOnly = normalizeDateOnly(contractInfo.endDate);
+
+      if (moveOutDateOnly >= endDateOnly) {
+        Alert.alert(
+          'Lỗi',
+          `Ngày trả phòng (${formatDate(moveOutDateOnly)}) phải nhỏ hơn ngày kết thúc hợp đồng (${formatDate(endDateOnly)})`
+        );
+        return false;
+      }
+    }
+
     return true;
   };
 
@@ -168,26 +359,10 @@ export default function CreateMoveOutRequestModal({
   const handleSubmit = async () => {
     if (!validateForm()) return;
 
-    // Nếu có cảnh báo mất cọc → confirm trước (chỉ 1 lần, không re-submit)
-    if (depositWarning && depositWarning.length > 0) {
-      Alert.alert(
-        '⚠️ Cảnh báo mất cọc',
-        `Điều kiện sau sẽ khiến bạn mất tiền cọc:\n• ${depositWarning.join('\n• ')}\n\nBạn có chắc chắn muốn tiếp tục?`,
-        [
-          { text: 'Quay lại', style: 'cancel' },
-          {
-            text: 'Xác nhận gửi',
-            style: 'destructive',
-            onPress: () => submitRequest(),
-          },
-        ]
-      );
-    } else {
-      submitRequest();
-    }
+    submitRequest(false);
   };
 
-  const submitRequest = async () => {
+  const submitRequest = async (confirmContinue = false) => {
     setLoading(true);
     setError(null);
     try {
@@ -195,9 +370,47 @@ export default function CreateMoveOutRequestModal({
         contractId,
         expectedMoveOutDate: expectedDate.toISOString(),
         reason: reason.trim(),
+        confirmContinue,
       });
-      const data = response?.moveOutRequest || response?.data || response;
-      const successMessage = response?.message || 'Yêu cầu trả phòng đã được gửi thành công.';
+
+      const responseCandidates = getResponseCandidates(response);
+      const confirmationPayload = responseCandidates.find(
+        (item) => item?.requiresConfirmation === true
+      );
+
+      if (confirmationPayload) {
+        const warningMessages = (confirmationPayload.warnings || [])
+          .map((warning) => (typeof warning === 'string' ? warning : warning?.message))
+          .filter(Boolean);
+
+        const confirmationText = warningMessages.length > 0
+          ? warningMessages.join('\n\n')
+          : 'Yêu cầu của bạn có thể bị mất cọc. Bạn có chắc chắn muốn tiếp tục?';
+
+        Alert.alert(
+          '⚠️ Cảnh báo hoàn cọc',
+          `${confirmationText}\n\nNếu đồng ý tiếp tục, hệ thống sẽ tính "Tiền cọc hoàn = 0" vào hóa đơn thanh lý.`,
+          [
+            { text: 'Quay lại', style: 'cancel' },
+            {
+              text: 'Đồng ý tiếp tục',
+              style: 'destructive',
+              onPress: () => submitRequest(true),
+            },
+          ]
+        );
+        return;
+      }
+
+      const data =
+        responseCandidates
+          .map((item) => item?.moveOutRequest)
+          .find((item) => item && typeof item === 'object') ||
+        responseCandidates.find((item) => item?._id || item?.id) ||
+        response;
+
+      const successMessage =
+        response?.message || response?.data?.message || 'Yêu cầu trả phòng đã được gửi thành công.';
 
       Alert.alert('Thành công ✅', successMessage, [
         {
@@ -210,6 +423,35 @@ export default function CreateMoveOutRequestModal({
         },
       ]);
     } catch (err) {
+      const errorCandidates = getResponseCandidates(err?.response?.data || err?.data || err);
+      const confirmationFromError = errorCandidates.find(
+        (item) => item?.requiresConfirmation === true
+      );
+
+      if (confirmationFromError) {
+        const warningMessages = (confirmationFromError.warnings || [])
+          .map((warning) => (typeof warning === 'string' ? warning : warning?.message))
+          .filter(Boolean);
+
+        const confirmationText = warningMessages.length > 0
+          ? warningMessages.join('\n\n')
+          : 'Yêu cầu của bạn có thể bị mất cọc. Bạn có chắc chắn muốn tiếp tục?';
+
+        Alert.alert(
+          '⚠️ Cảnh báo hoàn cọc',
+          `${confirmationText}\n\nNếu đồng ý tiếp tục, hệ thống sẽ tính "Tiền cọc hoàn = 0" vào hóa đơn thanh lý.`,
+          [
+            { text: 'Quay lại', style: 'cancel' },
+            {
+              text: 'Đồng ý tiếp tục',
+              style: 'destructive',
+              onPress: () => submitRequest(true),
+            },
+          ]
+        );
+        return;
+      }
+
       const msg = err?.response?.data?.message || err?.message || 'Không thể tạo yêu cầu trả phòng';
       setError(msg);
     } finally {
@@ -218,10 +460,14 @@ export default function CreateMoveOutRequestModal({
   };
 
   const resetForm = () => {
+    const minDate = getMinMoveOutDate();
     setReason('');
-    setExpectedDate(new Date());
+    setExpectedDate(minDate);
+    setCalYear(minDate.getFullYear());
+    setCalMonth(minDate.getMonth());
     setError(null);
     setDepositWarning(null);
+    setShowDateModal(false);
   };
 
   // ── Formatters ──
@@ -313,13 +559,13 @@ export default function CreateMoveOutRequestModal({
                   {req.isEarlyNotice && (
                     <View style={styles.warningFlag}>
                       <MaterialCommunityIcons name="alert-outline" size={15} color="#F59E0B" />
-                      <Text style={styles.warningFlagText}>Thông báo gấp (dưới 30 ngày)</Text>
+                      <Text style={styles.warningFlagText}>Ngày trả phòng chưa trước ngày kết thúc 30 ngày</Text>
                     </View>
                   )}
                   {req.isUnderMinStay && (
                     <View style={styles.warningFlag}>
                       <MaterialCommunityIcons name="alert-outline" size={15} color="#F59E0B" />
-                      <Text style={styles.warningFlagText}>Chưa đủ 6 tháng thuê</Text>
+                      <Text style={styles.warningFlagText}>Chưa đủ 3 tháng thuê</Text>
                     </View>
                   )}
                   {req.isDepositForfeited && (
@@ -463,26 +709,124 @@ export default function CreateMoveOutRequestModal({
       <View style={styles.formSection}>
         <Text style={styles.sectionTitle}>Thông tin trả phòng</Text>
 
+        {contractInfo?.endDate && (
+          <View style={styles.ruleHintBox}>
+            <MaterialCommunityIcons name="information-outline" size={16} color="#1D4ED8" />
+            <Text style={styles.ruleHintText}>
+              Ngày trả phòng dự kiến phải nhỏ hơn ngày hết hạn hợp đồng ({formatDate(contractInfo.endDate)}).
+            </Text>
+          </View>
+        )}
+
         {/* Expected date */}
         <View style={styles.formGroup}>
           <Text style={styles.label}>
             Ngày trả phòng dự kiến <Text style={styles.required}>*</Text>
           </Text>
-          <TouchableOpacity style={styles.dateInput} onPress={() => setShowDatePicker(true)}>
-            <MaterialCommunityIcons name="calendar-outline" size={20} color="#3B82F6" />
-            <Text style={styles.dateText}>{formatDate(expectedDate)}</Text>
+          <TouchableOpacity
+            style={[styles.datePickerBtn, showDateModal && styles.datePickerBtnSelected]}
+            onPress={openDateModal}
+            activeOpacity={0.8}
+          >
+            <MaterialCommunityIcons name="calendar" size={20} color="#F59E0B" />
+            <Text style={[styles.datePickerText, styles.datePickerTextSelected]}>
+              {formatDate(expectedDate)}
+            </Text>
+            <MaterialCommunityIcons
+              name={showDateModal ? 'chevron-up' : 'chevron-down'}
+              size={20}
+              color="#F59E0B"
+            />
           </TouchableOpacity>
-        </View>
+          <Text style={styles.helperText}>Chọn ngày từ ngày mai và trước ngày kết thúc hợp đồng</Text>
 
-        {showDatePicker && (
-          <DateTimePicker
-            value={expectedDate}
-            mode="date"
-            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-            onChange={handleDateChange}
-            minimumDate={new Date()}
-          />
-        )}
+          {showDateModal && (
+            <View style={styles.calendarContainerInline}>
+              <View style={styles.calMonthRow}>
+                <TouchableOpacity
+                  onPress={prevMonth}
+                  style={[styles.calNavBtn, disablePrevMonth && styles.calNavBtnDisabled]}
+                  disabled={disablePrevMonth}
+                >
+                  <MaterialCommunityIcons
+                    name="chevron-left"
+                    size={28}
+                    color={disablePrevMonth ? '#D1D5DB' : '#1F2937'}
+                  />
+                </TouchableOpacity>
+
+                <Text style={styles.calMonthText}>{MONTH_NAMES[calMonth]} {calYear}</Text>
+
+                <TouchableOpacity
+                  onPress={nextMonth}
+                  style={[styles.calNavBtn, disableNextMonth && styles.calNavBtnDisabled]}
+                  disabled={disableNextMonth}
+                >
+                  <MaterialCommunityIcons
+                    name="chevron-right"
+                    size={28}
+                    color={disableNextMonth ? '#D1D5DB' : '#1F2937'}
+                  />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.calDayHeaderRow}>
+                {DAY_NAMES.map((d) => (
+                  <Text key={d} style={[styles.calDayHeader, d === 'CN' && { color: '#EF4444' }]}>{d}</Text>
+                ))}
+              </View>
+
+              <View style={styles.calGrid}>
+                {buildCalendarDays(calYear, calMonth).map((day, index) => {
+                  if (!day) {
+                    return <View key={`empty-${index}`} style={styles.calCell} />;
+                  }
+
+                  const cellDate = new Date(calYear, calMonth, day);
+                  cellDate.setHours(0, 0, 0, 0);
+
+                  const isDisabled = !isSelectableDate(cellDate);
+                  const isFirstSelectableDay = cellDate.getTime() === minExpectedDate.getTime();
+                  const isSelected =
+                    cellDate.getTime() === normalizeDateOnly(expectedDate).getTime();
+                  const isSunday = cellDate.getDay() === 0;
+
+                  return (
+                    <TouchableOpacity
+                      key={`day-${calYear}-${calMonth}-${day}`}
+                      style={[
+                        styles.calCell,
+                        isFirstSelectableDay && styles.calCellToday,
+                        isSelected && styles.calCellSelected,
+                        isDisabled && styles.calCellDisabled,
+                      ]}
+                      onPress={() => onCalendarDayPress(day)}
+                      disabled={isDisabled}
+                      activeOpacity={0.7}
+                    >
+                      <Text
+                        style={[
+                          styles.calDayText,
+                          isSunday && styles.calDaySunday,
+                          isFirstSelectableDay && styles.calDayTextToday,
+                          isSelected && styles.calDayTextSelected,
+                          isDisabled && styles.calDayTextDisabled,
+                        ]}
+                      >
+                        {day}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              <View style={styles.calSelectedInfo}>
+                <MaterialCommunityIcons name="calendar-check" size={16} color="#F59E0B" />
+                <Text style={styles.calSelectedText}>Đã chọn: {formatDate(expectedDate)}</Text>
+              </View>
+            </View>
+          )}
+        </View>
 
         {/* Deposit warning preview */}
         {depositWarning && depositWarning.length > 0 && (
@@ -829,6 +1173,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     marginBottom: 12,
   },
+  ruleHintBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 12,
+  },
+  ruleHintText: {
+    flex: 1,
+    fontSize: 12,
+    color: '#1D4ED8',
+    lineHeight: 18,
+  },
   formGroup: { marginBottom: 20 },
   label: {
     fontSize: 14,
@@ -837,18 +1198,30 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   required: { color: '#EF4444' },
-  dateInput: {
+  datePickerBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    backgroundColor: '#FFF',
+    gap: 10,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#D1D5DB',
-    borderRadius: 8,
-    gap: 8,
+    borderColor: '#E5E7EB',
+    paddingVertical: 13,
+    paddingHorizontal: 12,
   },
-  dateText: { fontSize: 14, color: '#1F2937', flex: 1 },
+  datePickerBtnSelected: {
+    borderColor: '#F59E0B',
+    backgroundColor: '#FFFBEB',
+  },
+  datePickerText: {
+    flex: 1,
+    fontSize: 14,
+    color: '#9CA3AF',
+  },
+  datePickerTextSelected: {
+    color: '#1F2937',
+    fontWeight: '500',
+  },
   textInput: {
     paddingHorizontal: 12,
     paddingVertical: 10,
@@ -861,6 +1234,124 @@ const styles = StyleSheet.create({
   },
   textArea: { textAlignVertical: 'top', minHeight: 100 },
   helperText: { marginTop: 4, fontSize: 12, color: '#9CA3AF' },
+
+  // ── Date modal and calendar ──
+  calendarContainer: {
+    margin: 16,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    overflow: 'hidden',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+  },
+  calendarContainerInline: {
+    marginTop: 12,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    overflow: 'hidden',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+  },
+  calMonthRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  calNavBtn: {
+    padding: 6,
+    borderRadius: 8,
+    backgroundColor: '#F9FAFB',
+  },
+  calNavBtnDisabled: {
+    backgroundColor: '#F3F4F6',
+  },
+  calMonthText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1F2937',
+  },
+  calDayHeaderRow: {
+    flexDirection: 'row',
+    backgroundColor: '#F9FAFB',
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+  },
+  calDayHeader: {
+    flex: 1,
+    textAlign: 'center',
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#6B7280',
+  },
+  calGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: 4,
+    paddingTop: 4,
+    paddingBottom: 8,
+  },
+  calCell: {
+    width: `${100 / 7}%`,
+    aspectRatio: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 8,
+  },
+  calCellToday: {
+    borderWidth: 1.5,
+    borderColor: '#F59E0B',
+  },
+  calCellSelected: {
+    backgroundColor: '#F59E0B',
+    borderRadius: 8,
+  },
+  calCellDisabled: {
+    opacity: 0.35,
+  },
+  calDayText: {
+    fontSize: 14,
+    color: '#1F2937',
+  },
+  calDaySunday: {
+    color: '#EF4444',
+  },
+  calDayTextToday: {
+    fontWeight: '700',
+    color: '#D97706',
+  },
+  calDayTextSelected: {
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  calDayTextDisabled: {
+    color: '#D1D5DB',
+  },
+  calSelectedInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#FFFBEB',
+    borderTopWidth: 1,
+    borderTopColor: '#FDE68A',
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+  },
+  calSelectedText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#92400E',
+  },
+
   errorBox: {
     flexDirection: 'row',
     alignItems: 'center',
