@@ -20,6 +20,7 @@ import {
   getContractMoveOutInfoAPI,
   createMoveOutRequestAPI,
   getMyMoveOutRequestAPI,
+  getMoveOutDepositVsInvoiceAPI,
 } from '../../services/move-out.service';
 
 // ─── Status helpers ──────────────────────────────────────────────────────────
@@ -64,9 +65,53 @@ const getStatusInfo = (status) =>
     step: 0,
   };
 
+const getRefundTicketStatusLabel = (status) => {
+  const normalized = String(status || '').toLowerCase();
+
+  if (['paid', 'completed', 'success', 'done'].includes(normalized)) {
+    return 'Đã chi';
+  }
+  if (['pending', 'waiting', 'processing'].includes(normalized)) {
+    return 'Đang xử lý';
+  }
+  if (['cancelled', 'canceled', 'rejected', 'failed'].includes(normalized)) {
+    return 'Đã hủy';
+  }
+
+  return status || 'Chưa cập nhật';
+};
+
+const getRefundTicketStatusColor = (status) => {
+  const normalized = String(status || '').toLowerCase();
+
+  if (['paid', 'completed', 'success', 'done'].includes(normalized)) return '#10B981';
+  if (['pending', 'waiting', 'processing'].includes(normalized)) return '#F59E0B';
+  if (['cancelled', 'canceled', 'rejected', 'failed'].includes(normalized)) return '#DC2626';
+
+  return '#6B7280';
+};
+
+const getPaymentVoucherDisplay = (paymentVoucher) => {
+  if (!paymentVoucher) return null;
+  if (typeof paymentVoucher === 'string') return paymentVoucher;
+
+  if (typeof paymentVoucher === 'object') {
+    return (
+      paymentVoucher.voucherCode ||
+      paymentVoucher.code ||
+      paymentVoucher.referenceCode ||
+      paymentVoucher.transactionCode ||
+      paymentVoucher._id ||
+      'Đã tạo'
+    );
+  }
+
+  return String(paymentVoucher);
+};
+
 const DAY_IN_MS = 1000 * 60 * 60 * 24;
 const NOTICE_DAYS_REQUIRED = 30;
-const MIN_STAY_MONTHS_REQUIRED = 3;
+const MIN_STAY_MONTHS_REQUIRED = 6;
 const MONTH_NAMES = [
   'Tháng 1', 'Tháng 2', 'Tháng 3', 'Tháng 4', 'Tháng 5', 'Tháng 6',
   'Tháng 7', 'Tháng 8', 'Tháng 9', 'Tháng 10', 'Tháng 11', 'Tháng 12',
@@ -113,6 +158,8 @@ export default function CreateMoveOutRequestModal({
   const [fetchingInfo, setFetchingInfo] = useState(false);
   const [contractInfo, setContractInfo] = useState(null);
   const [existingRequest, setExistingRequest] = useState(null);
+  const [depositVsInvoice, setDepositVsInvoice] = useState(null);
+  const [fetchingDepositVsInvoice, setFetchingDepositVsInvoice] = useState(false);
   const [expectedDate, setExpectedDate] = useState(() => initialMinExpectedDate);
   const [showDateModal, setShowDateModal] = useState(false);
   const [reason, setReason] = useState('');
@@ -134,6 +181,8 @@ export default function CreateMoveOutRequestModal({
       setReason('');
       setError(null);
       setDepositWarning(null);
+      setDepositVsInvoice(null);
+      setFetchingDepositVsInvoice(false);
       setShowDateModal(false);
     }
   }, [visible, contractId]);
@@ -154,9 +203,42 @@ export default function CreateMoveOutRequestModal({
   const fetchExistingRequest = async () => {
     try {
       const res = await getMyMoveOutRequestAPI(contractId);
-      setExistingRequest(res && (res._id || res.id) ? res : null);
+      const requestData = res && (res._id || res.id) ? res : null;
+
+      setExistingRequest(requestData);
+
+      if (requestData?._id || requestData?.id) {
+        const moveOutRequestId = requestData._id || requestData.id;
+        await fetchDepositVsInvoice(moveOutRequestId);
+      } else {
+        setDepositVsInvoice(null);
+      }
     } catch {
       setExistingRequest(null);
+      setDepositVsInvoice(null);
+      setFetchingDepositVsInvoice(false);
+    }
+  };
+
+  const fetchDepositVsInvoice = async (moveOutRequestId) => {
+    if (!moveOutRequestId) {
+      setDepositVsInvoice(null);
+      return;
+    }
+
+    setFetchingDepositVsInvoice(true);
+    try {
+      const res = await getMoveOutDepositVsInvoiceAPI(moveOutRequestId);
+      setDepositVsInvoice(res || null);
+    } catch (err) {
+      // Endpoint may not be available at early move-out stages; hide section silently.
+      if (err?.status === 404 || err?.response?.status === 404) {
+        setDepositVsInvoice(null);
+        return;
+      }
+      setDepositVsInvoice(null);
+    } finally {
+      setFetchingDepositVsInvoice(false);
     }
   };
 
@@ -485,6 +567,10 @@ export default function CreateMoveOutRequestModal({
   const renderExistingRequest = () => {
     const req = existingRequest;
     const statusInfo = getStatusInfo(req.status);
+    const hasRefundToTenant = typeof depositVsInvoice?.refundToTenant === 'number';
+    const refundTicket = depositVsInvoice?.refundTicket;
+    const hasRefundTicket = Boolean(refundTicket);
+    const paymentVoucherDisplay = getPaymentVoucherDisplay(refundTicket?.paymentVoucher);
 
     return (
       <>
@@ -565,7 +651,7 @@ export default function CreateMoveOutRequestModal({
                   {req.isUnderMinStay && (
                     <View style={styles.warningFlag}>
                       <MaterialCommunityIcons name="alert-outline" size={15} color="#F59E0B" />
-                      <Text style={styles.warningFlagText}>Chưa đủ 3 tháng thuê</Text>
+                      <Text style={styles.warningFlagText}>Chưa đủ 6 tháng thuê</Text>
                     </View>
                   )}
                   {req.isDepositForfeited && (
@@ -619,6 +705,70 @@ export default function CreateMoveOutRequestModal({
               )}
             </View>
           )}
+
+        {/* Deposit vs invoice result */}
+        {(fetchingDepositVsInvoice || hasRefundToTenant || hasRefundTicket) && (
+          <View style={styles.infoSection}>
+            <Text style={styles.sectionTitle}>💰 Hoàn cọc cho tenant</Text>
+            <View style={styles.infoBox}>
+              {fetchingDepositVsInvoice ? (
+                <View style={styles.loadingRow}>
+                  <ActivityIndicator size="small" color="#3B82F6" />
+                  <Text style={styles.loadingText}>Đang tính số tiền hoàn cọc...</Text>
+                </View>
+              ) : (
+                <>
+                  <InfoRow
+                    label="Số tiền được hoàn"
+                    value={
+                      hasRefundToTenant
+                        ? formatCurrency(depositVsInvoice.refundToTenant)
+                        : 'Đang cập nhật'
+                    }
+                    valueStyle={{
+                      color: hasRefundToTenant
+                        ? depositVsInvoice.refundToTenant > 0
+                          ? '#10B981'
+                          : '#6B7280'
+                        : '#6B7280',
+                      fontWeight: '700',
+                    }}
+                    isLast={!hasRefundTicket}
+                  />
+
+                  {hasRefundTicket && (
+                    <>
+                      <InfoRow
+                        label="Số tiền phiếu chi"
+                        value={
+                          refundTicket?.amount != null
+                            ? formatCurrency(refundTicket.amount)
+                            : '—'
+                        }
+                      />
+                      <InfoRow
+                        label="Trạng thái phiếu chi"
+                        value={getRefundTicketStatusLabel(refundTicket?.status)}
+                        valueStyle={{
+                          color: getRefundTicketStatusColor(refundTicket?.status),
+                          fontWeight: '700',
+                        }}
+                        isLast={!paymentVoucherDisplay}
+                      />
+                      {paymentVoucherDisplay && (
+                        <InfoRow
+                          label="Chứng từ chi"
+                          value={paymentVoucherDisplay}
+                          isLast
+                        />
+                      )}
+                    </>
+                  )}
+                </>
+              )}
+            </View>
+          </View>
+        )}
 
         {/* Paid / Completed – show payment info */}
         {(req.status?.toLowerCase() === 'paid' || req.status?.toLowerCase() === 'completed') && (
@@ -1086,6 +1236,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 12,
     gap: 12,
+  },
+  loadingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  loadingText: {
+    fontSize: 13,
+    color: '#6B7280',
+    fontWeight: '500',
   },
   infoLabel: {
     fontSize: 13,
