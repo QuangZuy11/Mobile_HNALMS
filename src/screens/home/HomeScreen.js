@@ -11,7 +11,7 @@ import {
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getMyNotificationsAPI } from '../../services/notification.service';
+import { getMyNotificationsAPI, checkAndShowNotifications } from '../../services/notification.service';
 import logoImage from '../../../assets/images/z7463676981543_494642986e53789b49de728b4f4a3a1e.jpg';
 
 export default function HomeScreen({ navigation }) {
@@ -23,14 +23,16 @@ export default function HomeScreen({ navigation }) {
       const lastViewedRaw = await AsyncStorage.getItem(LAST_VIEWED_KEY);
       const lastViewed = lastViewedRaw ? new Date(lastViewedRaw).getTime() : 0;
 
-      // Only fetch first page for badge to keep it light
       const res = await getMyNotificationsAPI({ page: 1, limit: 50 });
-      const list = res?.data?.notifications || [];
+      const list = res?.data?.notifications || res?.notifications || [];
       const count = list.filter((n) => {
         const t = new Date(n?.createdAt || 0).getTime();
         return t > lastViewed;
       }).length;
       setNewCount(count);
+
+      // Hiện notification lên lock screen cho notification mới (nếu có)
+      await checkAndShowNotifications(list, lastViewedRaw);
     } catch {
       setNewCount(0);
     }
