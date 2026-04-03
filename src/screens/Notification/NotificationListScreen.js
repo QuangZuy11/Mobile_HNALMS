@@ -12,7 +12,7 @@ import {
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getMyNotificationsAPI } from '../../services/notification.service';
+import { getMyNotificationsAPI, checkAndShowNotifications } from '../../services/notification.service';
 import NotificationDetailModal from './NotificationDetailScreen';
 
 export default function NotificationListScreen({ navigation }) {
@@ -76,21 +76,28 @@ export default function NotificationListScreen({ navigation }) {
     setIsLoading(true);
     setItems([]);
     try {
-      // Get last viewed timestamp before loading
+      // Lấy timestamp TRƯỚC KHI fetch để so sánh notification mới
       const lastViewedAt = await AsyncStorage.getItem(LAST_VIEWED_KEY);
 
-      await loadPage({ page: 1, replace: true });
+      const res = await getMyNotificationsAPI({ page: 1, limit: PAGE_LIMIT });
+      const nextItems = res?.notifications || res?.data?.notifications || [];
+      const nextPagination = res?.pagination || res?.data?.pagination;
 
-      // Mark "seen" timestamp to support Home badge for "new" notifications
+      if (nextPagination) setPagination((prev) => ({ ...prev, ...nextPagination }));
+      setItems(nextItems.slice().sort((a, b) => new Date(b?.createdAt || 0) - new Date(a?.createdAt || 0)));
+
+      // Hiện lock screen notification cho notification mới (trước khi cập nhật timestamp)
+      await checkAndShowNotifications(nextItems, lastViewedAt);
+
+      // Cập nhật timestamp SAU KHI check để lần sau biết notification nào là mới
       await AsyncStorage.setItem(LAST_VIEWED_KEY, new Date().toISOString());
     } finally {
       setIsLoading(false);
     }
-  }, [loadPage]);
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
-      // In dev, focus effects can fire multiple times; only load once per focus.
       if (!didLoadOnFocusRef.current) {
         didLoadOnFocusRef.current = true;
         hydrateReadState();
@@ -108,7 +115,18 @@ export default function NotificationListScreen({ navigation }) {
     setIsRefreshing(true);
     setItems([]);
     try {
-      await loadPage({ page: 1, replace: true });
+      const lastViewedAt = await AsyncStorage.getItem(LAST_VIEWED_KEY);
+      const res = await getMyNotificationsAPI({ page: 1, limit: PAGE_LIMIT });
+      const nextItems = res?.notifications || res?.data?.notifications || [];
+      const nextPagination = res?.pagination || res?.data?.pagination;
+
+      if (nextPagination) setPagination((prev) => ({ ...prev, ...nextPagination }));
+      setItems(nextItems.slice().sort((a, b) => new Date(b?.createdAt || 0) - new Date(a?.createdAt || 0)));
+
+      // Hiện lock screen notification cho notification mới
+      await checkAndShowNotifications(nextItems, lastViewedAt);
+
+      await AsyncStorage.setItem(LAST_VIEWED_KEY, new Date().toISOString());
     } finally {
       setIsRefreshing(false);
     }

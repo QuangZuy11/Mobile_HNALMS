@@ -12,6 +12,7 @@ import ChangePasswordScreen from '../screens/Profile/ChangePasswordScreen';
 import MyRoomScreen from '../screens/Profile/MyRoomScreen';
 import UpdateProfileScreen from '../screens/Profile/UpdateProfileScreen';
 import MyContractScreen from '../screens/Contract/MyContractScreen';
+import RenewContractScreen from '../screens/Contract/RenewContractScreen';
 
 // Request Screens
 import RequestListScreen from '../screens/Request/RequestListScreen';
@@ -81,6 +82,13 @@ function HomeStack() {
         component={MyContractScreen}
         options={{
           title: 'Hợp đồng của tôi',
+        }}
+      />
+      <Stack.Screen
+        name="RenewContract"
+        component={RenewContractScreen}
+        options={{
+          title: 'Gia hạn hợp đồng',
         }}
       />
       <Stack.Screen
@@ -196,6 +204,7 @@ function ProfileStack() {
       <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} options={{ title: 'Đổi mật khẩu' }} />
       <Stack.Screen name="MyRoom" component={MyRoomScreen} options={{ title: 'Phòng của tôi' }} />
       <Stack.Screen name="ContractList" component={MyContractScreen} options={{ title: 'Hợp đồng của tôi' }} />
+      <Stack.Screen name="RenewContract" component={RenewContractScreen} options={{ title: 'Gia hạn hợp đồng' }} />
     </Stack.Navigator>
   );
 }
