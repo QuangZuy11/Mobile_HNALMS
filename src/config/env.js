@@ -3,7 +3,7 @@
 // Cấu hình trong file .env ở thư mục gốc
 
 // Đọc từ .env
-const API_HOST = process.env.API_HOST || '192.168.26.100';
+const API_HOST = process.env.API_HOST || '192.168.26.102';
 const API_PORT = process.env.API_PORT || '9999';
 const API_TIMEOUT = process.env.API_TIMEOUT || '30000';
 

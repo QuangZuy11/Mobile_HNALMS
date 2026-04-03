@@ -13,7 +13,6 @@ import {
   ScrollView,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useFocusEffect } from '@react-navigation/native';
 import { Calendar, LocaleConfig } from 'react-native-calendars';
 
 LocaleConfig.locales['vi'] = {
@@ -137,6 +136,114 @@ function DatePickerModal({ visible, title, selected, onSelect, onClose }) {
   );
 }
 
+const ListHeader = React.memo(({
+  stats, typeFilter, searchText,
+  onSetTypeFilter, onSetSearchText,
+  showFilters, onToggleShowFilters, activeFilterCount,
+  statusFilter, sentDate, dueDate,
+  onSetStatusFilter, onSetSentDate, onSetDueDate,
+  onClearSearch,
+  onToggleTypeModal, onToggleStatusModal,
+  onToggleSentModal, onToggleDueModal,
+  resetFilters
+}) => {
+  return (
+    <View style={styles.listHeaderContainer}>
+      <View style={styles.statsRow}>
+        <StatCard icon="receipt-text-outline" label="Tổng hóa đơn" count={stats.all}
+          active={typeFilter === 'all'} color="#3B82F6" onPress={() => onSetTypeFilter('all')} />
+        <StatCard icon="calendar-sync-outline" label="Định kỳ" count={stats.Periodic}
+          active={typeFilter === 'Periodic'} color="#F59E0B" onPress={() => onSetTypeFilter('Periodic')} />
+        <StatCard icon="sim-alert-outline" label="Phát sinh" count={stats.Incurred}
+          active={typeFilter === 'Incurred'} color="#c52222" onPress={() => onSetTypeFilter('Incurred')} />
+      </View>
+
+      <View style={styles.searchRow}>
+        <View style={styles.searchBox}>
+          <MaterialCommunityIcons name="magnify" size={18} color="#9CA3AF" />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Tìm theo tiêu đề, mã hóa đơn..."
+            placeholderTextColor="#9CA3AF"
+            value={searchText}
+            onChangeText={onSetSearchText}
+            returnKeyType="search"
+            autoCorrect={false}
+            autoCapitalize="none"
+            blurOnSubmit={false}
+          />
+          {!!searchText && (
+            <TouchableOpacity onPress={onClearSearch}>
+              <MaterialCommunityIcons name="close-circle" size={16} color="#9CA3AF" />
+            </TouchableOpacity>
+          )}
+        </View>
+        <TouchableOpacity
+          style={[styles.filterToggleBtn, activeFilterCount > 0 && styles.filterToggleBtnActive]}
+          onPress={onToggleShowFilters}
+        >
+          <MaterialCommunityIcons name="tune-variant" size={20}
+            color={activeFilterCount > 0 ? '#3B82F6' : '#6B7280'} />
+          {activeFilterCount > 0 && (
+            <View style={styles.filterBadge}>
+              <Text style={styles.filterBadgeText}>{activeFilterCount}</Text>
+            </View>
+          )}
+        </TouchableOpacity>
+      </View>
+
+      {showFilters && (
+        <View style={styles.filterPanel}>
+          <View style={styles.filterRow}>
+            <Text style={styles.filterRowLabel}>Loại</Text>
+            <TouchableOpacity style={styles.filterSelect} onPress={onToggleTypeModal}>
+              <Text style={[styles.filterSelectText, typeFilter !== 'all' && { color: '#3B82F6' }]}>
+                {TYPE_OPTIONS.find((o) => o.key === typeFilter)?.label}
+              </Text>
+              <MaterialCommunityIcons name="chevron-down" size={16} color="#6B7280" />
+            </TouchableOpacity>
+          </View>
+          <View style={styles.filterRow}>
+            <Text style={styles.filterRowLabel}>Trạng thái</Text>
+            <TouchableOpacity style={styles.filterSelect} onPress={onToggleStatusModal}>
+              <Text style={[styles.filterSelectText, statusFilter !== 'all' && { color: '#3B82F6' }]}>
+                {STATUS_OPTIONS.find((o) => o.key === statusFilter)?.label}
+              </Text>
+              <MaterialCommunityIcons name="chevron-down" size={16} color="#6B7280" />
+            </TouchableOpacity>
+          </View>
+          <View style={styles.filterRow}>
+            <Text style={styles.filterRowLabel}>Ngày gửi</Text>
+            <TouchableOpacity style={styles.filterSelect} onPress={onToggleSentModal}>
+              <MaterialCommunityIcons name="calendar-range" size={14} color={sentDate ? '#3B82F6' : '#6B7280'} />
+              <Text style={[styles.filterSelectText, sentDate && { color: '#3B82F6' }]}>
+                {sentDate ? new Date(sentDate).toLocaleDateString('vi-VN') : 'Chọn ngày'}
+              </Text>
+              <MaterialCommunityIcons name="chevron-down" size={16} color="#6B7280" />
+            </TouchableOpacity>
+          </View>
+          <View style={styles.filterRow}>
+            <Text style={styles.filterRowLabel}>Ngày đến hạn</Text>
+            <TouchableOpacity style={styles.filterSelect} onPress={onToggleDueModal}>
+              <MaterialCommunityIcons name="calendar-range" size={14} color={dueDate ? '#3B82F6' : '#6B7280'} />
+              <Text style={[styles.filterSelectText, dueDate && { color: '#3B82F6' }]}>
+                {dueDate ? new Date(dueDate).toLocaleDateString('vi-VN') : 'Chọn ngày'}
+              </Text>
+              <MaterialCommunityIcons name="chevron-down" size={16} color="#6B7280" />
+            </TouchableOpacity>
+          </View>
+          {activeFilterCount > 0 && (
+            <TouchableOpacity style={styles.resetBtn} onPress={resetFilters}>
+              <MaterialCommunityIcons name="refresh" size={14} color="#DC2626" />
+              <Text style={styles.resetBtnText}>Xóa bộ lọc</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
+    </View>
+  );
+});
+
 export default function InvoiceListScreen({ navigation, route }) {
   const [allInvoices, setAllInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -165,11 +272,9 @@ export default function InvoiceListScreen({ navigation, route }) {
   }, []);
 
   const fetchAll = useCallback(async () => {
-    if (!tenantId) return;
     try {
       setError(null);
       const res = await getTenantInvoicesAPI(tenantId, 1, 200);
-      // API returns { success, data: [...], pagination }, so access res.data.data
       setAllInvoices(res?.data?.data || res?.data || []);
     } catch (err) {
       setError(err.message || 'Đã xảy ra lỗi khi tải dữ liệu');
@@ -179,7 +284,7 @@ export default function InvoiceListScreen({ navigation, route }) {
     }
   }, [tenantId]);
 
-  useEffect(() => { if (tenantId) fetchAll(); }, [tenantId, fetchAll]);
+  useEffect(() => { if (tenantId) fetchAll(); }, [tenantId]);
 
   // Reload khi navigate từ PayInvoice về với refresh param
   useEffect(() => {
@@ -191,16 +296,30 @@ export default function InvoiceListScreen({ navigation, route }) {
     }
   }, [route.params?.refresh, tenantId, fetchAll]);
 
-  // Auto-refetch invoices when screen is focused (e.g., after creating repair request)
-  useFocusEffect(
-    useCallback(() => {
-      if (tenantId) {
+  // Auto-refresh when screen comes into focus
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      if (tenantId && !lastRefreshRef.current) {
         fetchAll();
       }
-    }, [tenantId, fetchAll])
-  );
+      lastRefreshRef.current = null;
+    });
+    return unsubscribe;
+  }, [navigation, tenantId, fetchAll]);
 
-  const onRefresh = () => { setRefreshing(true); fetchAll(); };
+  const onRefresh = useCallback(() => { setRefreshing(true); fetchAll(); }, [fetchAll]);
+
+  const handleSetSearchText = useCallback((text) => setSearchText(text), []);
+  const handleSetTypeFilter = useCallback((val) => setTypeFilter(val), []);
+  const handleSetShowFilters = useCallback((v) => setShowFilters(v), []);
+  const handleSetStatusFilter = useCallback((val) => { setStatusFilter(val); setShowStatusModal(false); }, []);
+  const handleSetSentDate = useCallback((val) => { setSentDate(val); setShowSentModal(false); }, []);
+  const handleSetDueDate = useCallback((val) => { setDueDate(val); setShowDueModal(false); }, []);
+  const handleClearSearch = useCallback(() => setSearchText(''), []);
+  const handleToggleTypeModal = useCallback(() => setShowTypeModal(true), []);
+  const handleToggleStatusModal = useCallback(() => setShowStatusModal(true), []);
+  const handleToggleSentModal = useCallback(() => setShowSentModal(true), []);
+  const handleToggleDueModal = useCallback(() => setShowDueModal(true), []);
 
   const stats = useMemo(() => ({
     all: allInvoices.length,
@@ -234,9 +353,9 @@ export default function InvoiceListScreen({ navigation, route }) {
 
   const activeFilterCount = [typeFilter !== 'all', statusFilter !== 'all', !!sentDate, !!dueDate].filter(Boolean).length;
 
-  const resetFilters = () => {
+  const resetFilters = useCallback(() => {
     setTypeFilter('all'); setStatusFilter('all'); setSentDate(null); setDueDate(null); setSearchText('');
-  };
+  }, []);
 
   const renderItem = ({ item }) => {
     // Hỗ trợ cả status và paymentStatus, chuẩn hóa thành PascalCase
@@ -329,98 +448,6 @@ export default function InvoiceListScreen({ navigation, route }) {
     );
   };
 
-  const ListHeader = () => (
-    <View style={styles.listHeaderContainer}>
-      <View style={styles.statsRow}>
-        <StatCard icon="receipt-text-outline" label="Tổng hóa đơn" count={stats.all}
-          active={typeFilter === 'all'} color="#3B82F6" onPress={() => setTypeFilter('all')} />
-        <StatCard icon="calendar-sync-outline" label="Định kỳ" count={stats.Periodic}
-          active={typeFilter === 'Periodic'} color="#F59E0B" onPress={() => setTypeFilter('Periodic')} />
-        <StatCard icon="sim-alert-outline" label="Phát sinh" count={stats.Incurred}
-          active={typeFilter === 'Incurred'} color="#c52222" onPress={() => setTypeFilter('Incurred')} />
-      </View>
-
-      <View style={styles.searchRow}>
-        <View style={styles.searchBox}>
-          <MaterialCommunityIcons name="magnify" size={18} color="#9CA3AF" />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Tìm theo tiêu đề, mã hóa đơn..."
-            placeholderTextColor="#9CA3AF"
-            value={searchText}
-            onChangeText={setSearchText}
-          />
-          {!!searchText && (
-            <TouchableOpacity onPress={() => setSearchText('')}>
-              <MaterialCommunityIcons name="close-circle" size={16} color="#9CA3AF" />
-            </TouchableOpacity>
-          )}
-        </View>
-        <TouchableOpacity
-          style={[styles.filterToggleBtn, activeFilterCount > 0 && styles.filterToggleBtnActive]}
-          onPress={() => setShowFilters((v) => !v)}
-        >
-          <MaterialCommunityIcons name="tune-variant" size={20}
-            color={activeFilterCount > 0 ? '#3B82F6' : '#6B7280'} />
-          {activeFilterCount > 0 && (
-            <View style={styles.filterBadge}>
-              <Text style={styles.filterBadgeText}>{activeFilterCount}</Text>
-            </View>
-          )}
-        </TouchableOpacity>
-      </View>
-
-      {showFilters && (
-        <View style={styles.filterPanel}>
-          <View style={styles.filterRow}>
-            <Text style={styles.filterRowLabel}>Loại</Text>
-            <TouchableOpacity style={styles.filterSelect} onPress={() => setShowTypeModal(true)}>
-              <Text style={[styles.filterSelectText, typeFilter !== 'all' && { color: '#3B82F6' }]}>
-                {TYPE_OPTIONS.find((o) => o.key === typeFilter)?.label}
-              </Text>
-              <MaterialCommunityIcons name="chevron-down" size={16} color="#6B7280" />
-            </TouchableOpacity>
-          </View>
-          <View style={styles.filterRow}>
-            <Text style={styles.filterRowLabel}>Trạng thái</Text>
-            <TouchableOpacity style={styles.filterSelect} onPress={() => setShowStatusModal(true)}>
-              <Text style={[styles.filterSelectText, statusFilter !== 'all' && { color: '#3B82F6' }]}>
-                {STATUS_OPTIONS.find((o) => o.key === statusFilter)?.label}
-              </Text>
-              <MaterialCommunityIcons name="chevron-down" size={16} color="#6B7280" />
-            </TouchableOpacity>
-          </View>
-          <View style={styles.filterRow}>
-            <Text style={styles.filterRowLabel}>Ngày gửi</Text>
-            <TouchableOpacity style={styles.filterSelect} onPress={() => setShowSentModal(true)}>
-              <MaterialCommunityIcons name="calendar-range" size={14} color={sentDate ? '#3B82F6' : '#6B7280'} />
-              <Text style={[styles.filterSelectText, sentDate && { color: '#3B82F6' }]}>
-                {sentDate ? new Date(sentDate).toLocaleDateString('vi-VN') : 'Chọn ngày'}
-              </Text>
-              <MaterialCommunityIcons name="chevron-down" size={16} color="#6B7280" />
-            </TouchableOpacity>
-          </View>
-          <View style={styles.filterRow}>
-            <Text style={styles.filterRowLabel}>Ngày đến hạn</Text>
-            <TouchableOpacity style={styles.filterSelect} onPress={() => setShowDueModal(true)}>
-              <MaterialCommunityIcons name="calendar-range" size={14} color={dueDate ? '#3B82F6' : '#6B7280'} />
-              <Text style={[styles.filterSelectText, dueDate && { color: '#3B82F6' }]}>
-                {dueDate ? new Date(dueDate).toLocaleDateString('vi-VN') : 'Chọn ngày'}
-              </Text>
-              <MaterialCommunityIcons name="chevron-down" size={16} color="#6B7280" />
-            </TouchableOpacity>
-          </View>
-          {activeFilterCount > 0 && (
-            <TouchableOpacity style={styles.resetBtn} onPress={resetFilters}>
-              <MaterialCommunityIcons name="refresh" size={14} color="#DC2626" />
-              <Text style={styles.resetBtnText}>Xóa bộ lọc</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      )}
-    </View>
-  );
-
   return (
     <SafeAreaView style={styles.safeContainer}>
       <View style={styles.header}>
@@ -450,9 +477,33 @@ export default function InvoiceListScreen({ navigation, route }) {
             data={pageData}
             keyExtractor={(item) => item._id}
             renderItem={renderItem}
-            ListHeaderComponent={<ListHeader />}
+            ListHeaderComponent={
+              <ListHeader
+                stats={stats}
+                typeFilter={typeFilter}
+                searchText={searchText}
+                onSetTypeFilter={handleSetTypeFilter}
+                onSetSearchText={handleSetSearchText}
+                showFilters={showFilters}
+                onToggleShowFilters={handleSetShowFilters}
+                activeFilterCount={activeFilterCount}
+                statusFilter={statusFilter}
+                sentDate={sentDate}
+                dueDate={dueDate}
+                onSetStatusFilter={handleSetStatusFilter}
+                onSetSentDate={handleSetSentDate}
+                onSetDueDate={handleSetDueDate}
+                onClearSearch={handleClearSearch}
+                onToggleTypeModal={handleToggleTypeModal}
+                onToggleStatusModal={handleToggleStatusModal}
+                onToggleSentModal={handleToggleSentModal}
+                onToggleDueModal={handleToggleDueModal}
+                resetFilters={resetFilters}
+              />
+            }
             contentContainerStyle={styles.listContent}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#3B82F6']} />}
+            keyboardShouldPersistTaps="handled"
             ListEmptyComponent={
               <View style={styles.emptyState}>
                 <MaterialCommunityIcons name="receipt-outline" size={72} color="#D1D5DB" />
