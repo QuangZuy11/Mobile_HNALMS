@@ -33,6 +33,10 @@ export const API_CONFIG = {
             DETAIL: '/contracts/:id',
             RENEW: '/contracts/renew',
             TERMINATE: '/contracts/terminate',
+            RENEWAL_PREVIEW: '/contracts/renewal/preview/:contractId',
+            RENEWAL_CONFIRM: '/contracts/renewal/confirm',
+            RENEWAL_DECLINE: '/contracts/renewal/decline',
+            MY_CONTRACTS: '/contracts/my-contracts',
         },
 
         // Invoice
