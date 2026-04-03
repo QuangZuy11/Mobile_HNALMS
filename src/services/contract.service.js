@@ -38,13 +38,13 @@ export const getContractDetailAPI = async (contractId) => {
 
 /**
  * Get renewal preview for a contract
- * GET /api/contracts/renewal/preview/:contractId
+ * GET /api/renewals/preview/:contractId
  */
 export const getRenewalPreviewAPI = async (contractId) => {
   try {
     const token = await AsyncStorage.getItem('authToken');
     const response = await apiClient.get(
-      `/contracts/renewal/preview/${contractId}`,
+      `/renewals/preview/${contractId}`,
       { headers: { Authorization: `Bearer ${token}` } }
     );
     return response.data?.data || response.data;
@@ -56,14 +56,14 @@ export const getRenewalPreviewAPI = async (contractId) => {
 
 /**
  * Confirm contract renewal
- * POST /api/contracts/renewal/confirm
+ * POST /api/renewals/confirm
  * Body: { contractId: string, extensionMonths: number }
  */
 export const confirmRenewalAPI = async ({ contractId, extensionMonths }) => {
   try {
     const token = await AsyncStorage.getItem('authToken');
     const response = await apiClient.post(
-      '/contracts/renewal/confirm',
+      '/renewals/confirm',
       { contractId, extensionMonths },
       { headers: { Authorization: `Bearer ${token}` } }
     );
@@ -76,14 +76,14 @@ export const confirmRenewalAPI = async ({ contractId, extensionMonths }) => {
 
 /**
  * Decline contract renewal
- * POST /api/contracts/renewal/decline
+ * POST /api/renewals/decline
  * Body: { contractId: string }
  */
 export const declineRenewalAPI = async (contractId) => {
   try {
     const token = await AsyncStorage.getItem('authToken');
     const response = await apiClient.post(
-      '/contracts/renewal/decline',
+      '/renewals/decline',
       { contractId },
       { headers: { Authorization: `Bearer ${token}` } }
     );
