@@ -11,12 +11,14 @@ import {
   Image,
   Dimensions,
   Modal,
+  Alert,
   FlatList,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import apiClient from '../../services/api.service';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { handleCallManager } from '../../utils/phoneHelper';
+import { declineRenewalAPI, getRenewalPreviewAPI } from '../../services/contract.service';
 import CreateMoveOutRequestModal from './CreateMoveOutRequestModal';
 
 const { width, height } = Dimensions.get('window');
@@ -88,6 +90,92 @@ export default function MyContractScreen({ navigation }) {
   const [moveOutModalVisible, setMoveOutModalVisible] = useState(false);
   const [selectedContractForMoveOut, setSelectedContractForMoveOut] = useState(null);
 
+  // ── Renewal Preview state (keyed by contractId) ──
+  const [renewalPreviews, setRenewalPreviews] = useState({}); // { [contractId]: previewData }
+
+  // ── Renewal helpers ──
+  const getPreview = (contractId) => renewalPreviews[contractId];
+
+  const getRenewalBadge = (contract, preview) => {
+    const daysLeftToEnd = calculateRemainingDays(contract.endDate);
+    const contractExpired =
+      contract.status?.toLowerCase() === 'expired' ||
+      (daysLeftToEnd !== null && daysLeftToEnd <= 0);
+
+    const windowDays = preview?.renewalWindowDaysRemaining ?? contract.renewalWindowDaysRemaining;
+    const hasDeclined = preview?.renewalDeclined ?? contract.renewalDeclined ?? false; // true = đã từ chối
+
+    if (contractExpired) {
+      return { bg: '#FEE2E2', text: '#991B1B', label: 'Đã hết hạn', icon: 'clock-alert' };
+    }
+
+    if (hasDeclined) {
+      return { bg: '#FEE2E2', text: '#991B1B', label: 'Đã từ chối gia hạn', icon: 'close-circle' };
+    }
+
+    if ((windowDays ?? 0) <= 0) {
+      return null;
+    }
+    if ((windowDays ?? 0) <= 7) {
+      return { bg: '#FEF3C7', text: '#92400E', label: `Còn ${windowDays} ngày`, icon: 'clock-outline' };
+    }
+    if ((windowDays ?? 0) <= 30) {
+      return { bg: '#DBEAFE', text: '#1D4ED8', label: `Còn ${windowDays} ngày gia hạn`, icon: 'clock-outline' };
+    }
+    return null;
+  };
+
+  // Nút "Gia hạn" — hiện khi CHƯA từ chối (renewalDeclined !== true)
+  const canRenewContract = (contract, preview) => {
+    if (contract.status !== 'active') return false;
+    if (preview?.renewalDeclined === true) return false; // đã từ chối rồi
+    return true;
+  };
+
+  // Nút "Từ chối" — hiện khi CHƯA từ chối (renewalDeclined !== true)
+  const canDeclineContract = (contract, preview) => {
+    if (contract.status !== 'active') return false;
+    if (preview?.renewalDeclined === true) return false; // đã từ chối rồi
+    return true;
+  };
+
+  const fetchRenewalPreview = useCallback(async (contractId) => {
+    try {
+      const data = await getRenewalPreviewAPI(contractId);
+      setRenewalPreviews((prev) => ({ ...prev, [contractId]: data }));
+    } catch (err) {
+      // Silent fail - preview not available
+    }
+  }, []);
+
+  const openRenewalScreen = (contract) => {
+    navigation.navigate('RenewContract', { contractId: contract._id });
+  };
+
+  const handleDeclineRenewal = async (contract) => {
+    Alert.alert(
+      'Xác nhận từ chối',
+      `Bạn chắc chắn từ chối gia hạn?\n\nBạn vẫn ở đến hết ngày ${formatDate(contract.endDate)}. Phòng sẽ mở cho khách đặt cọc sớm.`,
+      [
+        { text: 'Hủy', style: 'cancel' },
+        {
+          text: 'Từ chối',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await declineRenewalAPI(contract._id);
+              Alert.alert('Thành công', 'Bạn đã từ chối gia hạn. Phòng mở cho khách đặt cọc sớm.');
+              fetchContracts();
+              fetchRenewalPreview(contract._id);
+            } catch (err) {
+              Alert.alert('Lỗi', err.message || 'Từ chối gia hạn thất bại. Vui lòng thử lại.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const fetchContracts = useCallback(async () => {
     try {
       setError(null);
@@ -124,7 +212,11 @@ export default function MyContractScreen({ navigation }) {
   };
 
   const toggleExpand = (id) => {
+    const willExpand = expandedId !== id;
     setExpandedId((prev) => (prev === id ? null : id));
+    if (willExpand) {
+      fetchRenewalPreview(id);
+    }
   };
 
   // ── Image modal ──
@@ -220,6 +312,10 @@ export default function MyContractScreen({ navigation }) {
     const badge = getStatusBadge(contract.status);
     const isExpanded = expandedId === contract._id;
     const remainingDays = calculateRemainingDays(contract.endDate);
+    const preview = getPreview(contract._id);
+    const renewalBadge = getRenewalBadge(contract, preview);
+    const canRenew = canRenewContract(contract, preview);
+    const canDecline = canDeclineContract(contract, preview);
     const room = contract.roomId;
     const roomType = room?.roomTypeId;
     const floor = room?.floorId;
@@ -256,12 +352,23 @@ export default function MyContractScreen({ navigation }) {
           </View>
         </TouchableOpacity>
 
-        {/* ── Remaining‑days alert ── */}
-        {remainingDays !== null && remainingDays > 0 && remainingDays <= 30 && (
-          <View style={styles.alertBanner}>
-            <MaterialCommunityIcons name="clock-alert" size={18} color="#92400E" />
-            <Text style={styles.alertText}>Hết hạn sau {remainingDays} ngày</Text>
-          </View>
+        {/* ── Renewal badge(s) ── */}
+        {renewalBadge && (
+          Array.isArray(renewalBadge) ? (
+            renewalBadge.map((b, idx) => (
+              <View key={idx} style={[styles.renewalBadgeContainer, { backgroundColor: b.bg }]}>
+                <MaterialCommunityIcons name={b.icon} size={16} color={b.text} />
+                <Text style={[styles.renewalBadgeText, { color: b.text }]}>{b.label}</Text>
+              </View>
+            ))
+          ) : (
+            <View style={[styles.renewalBadgeContainer, { backgroundColor: renewalBadge.bg }]}>
+              <MaterialCommunityIcons name={renewalBadge.icon} size={16} color={renewalBadge.text} />
+              <Text style={[styles.renewalBadgeText, { color: renewalBadge.text }]}>
+                {renewalBadge.label}
+              </Text>
+            </View>
+          )
         )}
 
         {/* ── Summary row (always visible) ── */}
@@ -386,13 +493,27 @@ export default function MyContractScreen({ navigation }) {
             <View style={styles.actionSection}>
               {contract.status === 'active' && (
                 <>
-                  <TouchableOpacity
-                    style={styles.actionButton}
-                    onPress={() => alert('Chức năng gia hạn hợp đồng đang được phát triển')}
-                  >
-                    <MaterialCommunityIcons name="refresh" size={18} color="#FFF" />
-                    <Text style={styles.actionButtonText}>Gia hạn hợp đồng</Text>
-                  </TouchableOpacity>
+                  {/* Gia hạn button - hiện khi trong cửa sổ 30 ngày & chưa gia hạn */}
+                  {canRenew && (
+                    <TouchableOpacity
+                      style={styles.actionButton}
+                      onPress={() => openRenewalScreen(contract)}
+                    >
+                      <MaterialCommunityIcons name="refresh" size={18} color="#FFF" />
+                      <Text style={styles.actionButtonText}>Gia hạn hợp đồng</Text>
+                    </TouchableOpacity>
+                  )}
+
+                  {/* Từ chối gia hạn button - chỉ hiện khi declineRenewalAvailable & trong cửa sổ 30 ngày */}
+                  {canDecline && (
+                    <TouchableOpacity
+                      style={[styles.actionButton, styles.declineRenewButton]}
+                      onPress={() => handleDeclineRenewal(contract)}
+                    >
+                      <MaterialCommunityIcons name="close" size={18} color="#EF4444" />
+                      <Text style={styles.declineRenewButtonText}>Từ chối gia hạn</Text>
+                    </TouchableOpacity>
+                  )}
 
                   <TouchableOpacity
                     style={[styles.actionButton, styles.actionButtonDanger]}
@@ -672,6 +793,23 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 
+  // ── Renewal badge ──
+  renewalBadgeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    marginHorizontal: 12,
+    marginBottom: 8,
+    borderRadius: 8,
+    gap: 6,
+  },
+  renewalBadgeText: {
+    fontSize: 13,
+    fontWeight: '600',
+    flex: 1,
+  },
+
   // ── Expanded content ──
   expandedContent: {
     paddingHorizontal: 16,
@@ -822,6 +960,16 @@ const styles = StyleSheet.create({
     backgroundColor: '#FEE2E2',
   },
   actionButtonTextDanger: {
+    color: '#EF4444',
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  declineRenewButton: {
+    backgroundColor: '#FEE2E2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+  },
+  declineRenewButtonText: {
     color: '#EF4444',
     fontWeight: '600',
     fontSize: 14,
