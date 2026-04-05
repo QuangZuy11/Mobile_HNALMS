@@ -98,6 +98,8 @@ export default function InvoiceDetailScreen({ navigation, route }) {
     const isIncurred = invoiceType === 'Incurred' || invoice?.invoiceType === 'Incurred';
     const isViolation = invoice?.type === 'violation';
     const isRepair = invoice?.type === 'repair';
+    const isPrepaidRent = invoice?.invoiceCode?.toUpperCase().startsWith('HD-PREPAID');
+    const isPrepaidType = isPrepaidRent || invoice?.type === 'prepaid';
 
     useEffect(() => {
         if (!invoiceId) { setError('Không tìm thấy mã hóa đơn'); setLoading(false); return; }
@@ -119,7 +121,8 @@ export default function InvoiceDetailScreen({ navigation, route }) {
     const rawStatus = invoice?.status || invoice?.paymentStatus || '';
     const normalizedStatus = rawStatus.charAt(0).toUpperCase() + rawStatus.slice(1).toLowerCase();
     const cfg = STATUS_CONFIG[normalizedStatus] ?? STATUS_CONFIG.Unpaid;
-    const room = invoice?.roomId;
+    // Periodic (Invoice): roomId is direct. Incurred (InvoiceIncurred): roomId is inside contractId.
+    const room = invoice?.roomId ?? invoice?.contractId?.roomId;
     // Chỉ hiện nút thanh toán khi status là Unpaid hoặc Overdue
     const isUnpaid = normalizedStatus === 'Unpaid' || normalizedStatus === 'Overdue';
 
@@ -187,10 +190,17 @@ export default function InvoiceDetailScreen({ navigation, route }) {
                                 <Text style={styles.amountBannerLabel}>Tổng tiền phải trả</Text>
                                 <Text style={styles.amountBannerValue}>{formatCurrency(invoice.totalAmount)}</Text>
                             </View>
-                            <View style={styles.amountBannerMeta}>
-                                <Text style={styles.amountBannerMetaLabel}>Đến hạn</Text>
-                                <Text style={styles.amountBannerMetaValue}>{formatDate(invoice.dueDate)}</Text>
-                            </View>
+                            {!isPrepaidType && (
+                                <View style={styles.amountBannerMeta}>
+                                    <Text style={styles.amountBannerMetaLabel}>Đến hạn</Text>
+                                    <Text style={styles.amountBannerMetaValue}>{formatDate(invoice.dueDate)}</Text>
+                                </View>
+                            )}
+                            {isPrepaidType && (
+                                <View style={styles.amountBannerMeta}>
+                                    <Text style={styles.amountBannerMetaLabel}>Đóng trước tiền phòng</Text>
+                                </View>
+                            )}
                         </View>
 
                         {/* ── Basic info ── */}
@@ -199,19 +209,37 @@ export default function InvoiceDetailScreen({ navigation, route }) {
                             {/* Hiển thị Loại Hóa Đơn theo từng loại */}
                             {isViolation && <InfoRow icon="tag-outline" label="Loại Hóa Đơn" value="Vi phạm" />}
                             {isRepair && <InfoRow icon="tag-outline" label="Loại Hóa Đơn" value="Sửa chữa" />}
-                            {!isIncurred && <InfoRow icon="tag-outline" label="Loại Hóa Đơn" value="Định kỳ" />}
+                            {!isIncurred && !isPrepaidType && <InfoRow icon="tag-outline" label="Loại Hóa Đơn" value="Định kỳ" />}
+                            {isPrepaidType && <InfoRow icon="tag-outline" label="Loại Hóa Đơn" value="Đóng trước tiền phòng" />}
                             {/* Periodic: room from roomId object */}
-                            {!isIncurred && room && <InfoRow icon="home-outline" label="Phòng" value={`${room.name} `} />}
-                            {!isIncurred && room?.roomTypeId?.currentPrice != null && (
+                            {!isIncurred && !isPrepaidType && room && <InfoRow icon="home-outline" label="Phòng" value={`${room.name} `} />}
+                            {!isIncurred && !isPrepaidType && room?.roomTypeId?.currentPrice != null && (
                                 <InfoRow icon="currency-usd" label="Giá phòng" value={formatCurrency(room.roomTypeId.currentPrice)} />
                             )}
                             {/* Incurred: roomName is a string */}
                             {isIncurred && invoice.roomName && (
                                 <InfoRow icon="home-outline" label="Phòng" value={invoice.roomName} />
                             )}
-                            <InfoRow icon="calendar-plus" label="Ngày gửi" value={formatDate(invoice.createdAt)} />
-                            <InfoRow icon="calendar-clock" label="Đến hạn" value={formatDate(invoice.dueDate)}
-                                valueStyle={invoice.status === 'Overdue' ? { color: '#F59E0B', fontWeight: '700' } : {}} />
+                            {/* HD-PREPAID: hiển thị tên phòng, loại phòng, giá phòng */}
+                            {isPrepaidType && room && (
+                                <>
+                                    <InfoRow icon="home-outline" label="Tên phòng" value={room.name} />
+                                    {room.roomTypeId?.typeName && (
+                                        <InfoRow icon="door-open" label="Loại phòng" value={room.roomTypeId.typeName} />
+                                    )}
+                                    {room.roomTypeId?.currentPrice != null && (
+                                        <InfoRow icon="currency-usd" label="Giá phòng" value={formatCurrency(room.roomTypeId.currentPrice)} />
+                                    )}
+                                    {invoice.prepaidMonths > 0 && (
+                                        <InfoRow icon="calendar-month" label="Số tháng đóng trước" value={`${invoice.prepaidMonths} tháng`} />
+                                    )}
+                                </>
+                            )}
+                            <InfoRow icon="calendar-check" label="Ngày thanh toán" value={formatDate(invoice.createdAt)} />
+                            {!isPrepaidType && (
+                                <InfoRow icon="calendar-clock" label="Đến hạn" value={formatDate(invoice.dueDate)}
+                                    valueStyle={invoice.status === 'Overdue' ? { color: '#F59E0B', fontWeight: '700' } : {}} />
+                            )}
                         </Section>
 
                         {/* ── Incurred: Violation - Hiển thị hình ảnh ── */}
@@ -270,8 +298,8 @@ export default function InvoiceDetailScreen({ navigation, route }) {
                             </Section>
                         )}
 
-                        {/* ── Periodic: Chi tiết khoản thu ── */}
-                        {!isIncurred && (
+                        {/* ── Periodic: Chi tiết khoản thu (không hiển thị với HD-PREPAID) ── */}
+                        {!isIncurred && !isPrepaidType && (
                             <Section icon="format-list-bulleted" title="Chi tiết khoản thu" color="#F59E0B">
                                 {completeItems.map((item, idx) => {
                                     const display = item._icon
