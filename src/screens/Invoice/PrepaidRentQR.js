@@ -7,7 +7,7 @@ import {
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import * as MediaLibrary from 'expo-media-library';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import {
     getPrepaidRentPaymentStatusAPI,
     cancelPrepaidRentAPI,
@@ -77,6 +77,7 @@ export default function PrepaidRentQR({ navigation, route }) {
 
     const [phase, setPhase] = useState('loading'); // loading | pending | success | expired | error
     const [expireSeconds, setExpireSeconds] = useState(paymentData?.expireInSeconds || 300);
+    const [savingQR, setSavingQR] = useState(false);
     const pollingRef = useRef(null);
 
     const stopTimers = () => {
@@ -104,7 +105,7 @@ export default function PrepaidRentQR({ navigation, route }) {
     const poll = async () => {
         try {
             const res = await getPrepaidRentPaymentStatusAPI(paymentData.transactionCode);
-            const { status, expireInSeconds } = res.data || {};
+            const { status, expireInSeconds: exp } = res.data || {};
 
             if (status === 'Success' || status === 'paid') {
                 stopTimers();
@@ -118,12 +119,11 @@ export default function PrepaidRentQR({ navigation, route }) {
                 return;
             }
 
-            if (exppireInSeconds !== undefined) {
-                setExpireSeconds(expireInSeconds);
+            if (exp !== undefined) {
+                setExpireSeconds(exp);
             }
         } catch (err) {
             // Lỗi polling bỏ qua, tiếp tục poll
-            console.log('Poll error:', err.message);
         }
     };
 
@@ -153,30 +153,30 @@ export default function PrepaidRentQR({ navigation, route }) {
         );
     };
 
-    const handleCopyCode = async () => {
-        await Clipboard.setStringAsync(paymentData.transactionCode);
-        Alert.alert('Đã sao chép', 'Mã giao dịch đã được sao chép.');
-    };
-
-    const handleDownloadQR = async () => {
+    const handleSaveQR = async () => {
+        if (!paymentData?.qrUrl || savingQR) return;
+        setSavingQR(true);
         try {
-            const perm = await MediaLibrary.requestPermissionsAsync();
-            if (!perm.granted) {
-                Alert.alert('Lỗi', 'Vui lòng cấp quyền truy cập thư viện ảnh.');
+            const { status: permStatus } = await MediaLibrary.requestPermissionsAsync();
+            if (permStatus !== 'granted') {
+                Alert.alert('Quyền bị từ chối', 'Vui lòng cấp quyền truy cập thư viện ảnh để tải mã QR.');
+                setSavingQR(false);
                 return;
             }
-            const uri = FileSystem.documentDirectory + 'qr_hnalms.png';
-            const { uri: downloaded } = await FileSystem.downloadAsync(paymentData.qrUrl, uri);
-            const asset = await MediaLibrary.createAssetAsync(downloaded);
-            const album = await MediaLibrary.getAlbumAsync('HNALMS');
-            if (album) {
-                await MediaLibrary.addAssetsToAlbumAsync([asset], album, false);
-            } else {
-                await MediaLibrary.createAlbumAsync('HNALMS', asset, false);
+            const fileName = `QR_${paymentData.transactionCode || 'prepaid'}_${Date.now()}.png`;
+            const fileUri = FileSystem.cacheDirectory + fileName;
+            const downloadResult = await FileSystem.downloadAsync(paymentData.qrUrl, fileUri);
+            if (downloadResult.status !== 200) {
+                throw new Error('Không thể tải ảnh');
             }
-            Alert.alert('Thành công', 'QR đã được lưu vào album HNALMS.');
+            const asset = await MediaLibrary.createAssetAsync(downloadResult.uri);
+            await MediaLibrary.createAlbumAsync('HNALMS', asset, false);
+            Alert.alert('Thành công', 'Đã lưu mã QR vào thư viện ảnh.');
         } catch (err) {
-            Alert.alert('Lỗi', 'Không thể tải QR. Vui lòng thử lại.');
+            console.log('Save QR error:', err.message);
+            Alert.alert('Lỗi', err.message || 'Không thể lưu mã QR. Vui lòng thử lại.');
+        } finally {
+            setSavingQR(false);
         }
     };
 
@@ -316,14 +316,10 @@ export default function PrepaidRentQR({ navigation, route }) {
                     <View style={styles.infoRowDivider} />
                     <View style={styles.infoRow}>
                         <Text style={styles.infoLabel}>Nội dung CK</Text>
-                        <View style={styles.copyRow}>
-                            <Text style={[styles.infoValue, { color: '#7C3AED', fontWeight: '700' }]}>
-                                {paymentData.transactionCode}
-                            </Text>
-                            <TouchableOpacity onPress={handleCopyCode} style={styles.copyBtn}>
-                                <MaterialCommunityIcons name="content-copy" size={16} color="#7C3AED" />
-                            </TouchableOpacity>
-                        </View>
+                        <Text style={[styles.infoValue, { color: '#7C3AED', fontWeight: '700', flex: 1, textAlign: 'right' }]}
+                            numberOfLines={2}>
+                            {paymentData.transactionCode}
+                        </Text>
                     </View>
                     <View style={styles.infoRowDivider} />
                     <View style={styles.infoRow}>
@@ -351,15 +347,26 @@ export default function PrepaidRentQR({ navigation, route }) {
                 <View style={{ height: 100 }} />
             </ScrollView>
 
-            {/* Nút hủy */}
+            {/* Nút hủy + Lưu QR */}
             <View style={styles.bottomBar}>
                 <TouchableOpacity style={styles.cancelBtn} onPress={handleCancel} activeOpacity={0.85}>
                     <MaterialCommunityIcons name="close-circle-outline" size={20} color="#DC2626" />
                     <Text style={styles.cancelBtnText}>Hủy giao dịch</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.downloadBtn} onPress={handleDownloadQR} activeOpacity={0.85}>
-                    <MaterialCommunityIcons name="download-outline" size={20} color="#FFF" />
-                    <Text style={styles.downloadBtnText}>Lưu mã QR</Text>
+                <TouchableOpacity
+                    style={[styles.downloadBtn, savingQR && styles.downloadBtnDisabled]}
+                    onPress={handleSaveQR}
+                    disabled={savingQR}
+                    activeOpacity={0.85}
+                >
+                    {savingQR ? (
+                        <ActivityIndicator size="small" color="#FFF" />
+                    ) : (
+                        <>
+                            <MaterialCommunityIcons name="download-outline" size={20} color="#FFF" />
+                            <Text style={styles.downloadBtnText}>Lưu mã QR</Text>
+                        </>
+                    )}
                 </TouchableOpacity>
             </View>
         </SafeAreaView>
@@ -423,9 +430,7 @@ const styles = StyleSheet.create({
     },
     infoRowDivider: { height: 1, backgroundColor: '#F3F4F6' },
     infoLabel: { fontSize: 13, color: '#6B7280' },
-    infoValue: { fontSize: 13, fontWeight: '600', color: '#1F2937', textAlign: 'right' },
-    copyRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-    copyBtn: { padding: 4 },
+    infoValue: { fontSize: 13, fontWeight: '600', color: '#1F2937' },
 
     /* warning */
     warningBox: {
@@ -457,6 +462,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
         paddingVertical: 14,
     },
+    downloadBtnDisabled: { backgroundColor: '#A78BFA' },
     downloadBtnText: { fontSize: 14, fontWeight: '700', color: '#FFFFFF' },
 
     /* success */

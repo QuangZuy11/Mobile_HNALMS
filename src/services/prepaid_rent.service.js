@@ -23,7 +23,7 @@ export const getMyContractForPrepaidAPI = async () => {
 /**
  * Tạo yêu cầu trả trước tiền phòng + khởi tạo thanh toán QR
  * @param {string} contractId - Mã hợp đồng
- * @param {number} prepaidMonths - Số tháng đóng trước
+ * @param {number} prepaidMonths - Số tháng đóng trước (đã tính từ startMonth + endMonth picker)
  * @returns {Promise} { requestId, transactionCode, qrUrl, bankInfo, expireAt, ... }
  */
 export const createPrepaidRentAPI = async (contractId, prepaidMonths) => {
