@@ -53,16 +53,34 @@ const hasPriceChange = (preview) => {
   );
 };
 
-const canShowRenewButton = (preview) => {
-  if (!preview) return false;
-  if (preview.renewalDeclined === true) return false; // đã từ chối → ẩn
-  return true;
+// Lấy trạng thái renewal từ response (backend trả về renewalStatus: "renewed" | "declined" | null)
+const getRenewalStatus = (preview) => {
+  if (!preview) return null;
+  return preview.renewalStatus || null;
 };
 
+// Nút gia hạn: chỉ hiện khi hợp đồng trong cửa sổ gia hạn
+const canShowRenewButton = (preview) => {
+  if (!preview) return false;
+  return preview.canRenew === true;
+};
+
+// Nút từ chối: chỉ hiện khi hợp đồng trong cửa sổ gia hạn
 const canShowDeclineButton = (preview) => {
   if (!preview) return false;
-  if (preview.renewalDeclined === true) return false; // đã từ chối → ẩn
-  return true;
+  return preview.declineRenewalAvailable === true;
+};
+
+// Kiểm tra đã từ chối
+const isDeclined = (preview) => {
+  if (!preview) return false;
+  return preview.renewalStatus === 'declined';
+};
+
+// Kiểm tra đã gia hạn
+const isRenewed = (preview) => {
+  if (!preview) return false;
+  return preview.renewalStatus === 'renewed';
 };
 
 // ── Main Component ──────────────────────────────────────────────────────────
@@ -112,6 +130,8 @@ export default function RenewContractScreen({ navigation, route }) {
   const priceChanged = preview ? hasPriceChange(preview) : false;
   const showRenew = preview ? canShowRenewButton(preview) : false;
   const showDecline = preview ? canShowDeclineButton(preview) : false;
+  const declined = preview ? isDeclined(preview) : false;
+  const renewed = preview ? isRenewed(preview) : false;
 
   // ── Actions ──
 
@@ -427,11 +447,17 @@ export default function RenewContractScreen({ navigation, route }) {
             </View>
           )}
 
-          {/* Đã từ chối gia hạn badge */}
-          {preview.renewalDeclined === true && (
-            <View style={styles.declinedBadge}>
-              <MaterialCommunityIcons name="close-circle" size={20} color="#EF4444" />
-              <Text style={styles.declinedText}>Đã từ chối gia hạn</Text>
+          {/* Trạng thái đã từ chối hoặc đã gia hạn */}
+          {(declined || renewed) && (
+            <View style={[styles.declinedBadge, renewed && styles.renewedBadge]}>
+              <MaterialCommunityIcons
+                name={renewed ? 'check-circle' : 'close-circle'}
+                size={20}
+                color={renewed ? '#10B981' : '#EF4444'}
+              />
+              <Text style={[styles.declinedText, renewed && styles.renewedText]}>
+                {renewed ? 'Đã gia hạn hợp đồng' : 'Đã từ chối gia hạn'}
+              </Text>
             </View>
           )}
         </ScrollView>
@@ -737,6 +763,12 @@ const styles = StyleSheet.create({
     color: '#991B1B',
     fontWeight: '600',
     flex: 1,
+  },
+  renewedBadge: {
+    backgroundColor: '#D1FAE5',
+  },
+  renewedText: {
+    color: '#065F46',
   },
 
   actionContainer: {

@@ -103,14 +103,18 @@ export default function MyContractScreen({ navigation }) {
       (daysLeftToEnd !== null && daysLeftToEnd <= 0);
 
     const windowDays = preview?.renewalWindowDaysRemaining ?? contract.renewalWindowDaysRemaining;
-    const hasDeclined = preview?.renewalDeclined ?? contract.renewalDeclined ?? false; // true = đã từ chối
+    const renewalStatus = preview?.renewalStatus ?? contract.renewalStatus ?? null;
 
     if (contractExpired) {
       return { bg: '#FEE2E2', text: '#991B1B', label: 'Đã hết hạn', icon: 'clock-alert' };
     }
 
-    if (hasDeclined) {
+    if (renewalStatus === 'declined') {
       return { bg: '#FEE2E2', text: '#991B1B', label: 'Đã từ chối gia hạn', icon: 'close-circle' };
+    }
+
+    if (renewalStatus === 'renewed') {
+      return { bg: '#D1FAE5', text: '#047857', label: 'Đã gia hạn', icon: 'check-circle' };
     }
 
     if ((windowDays ?? 0) <= 0) {
@@ -125,17 +129,16 @@ export default function MyContractScreen({ navigation }) {
     return null;
   };
 
-  // Nút "Gia hạn" — hiện khi CHƯA từ chối (renewalDeclined !== true)
+  // Nút "Gia hạn" — hiện khi contract active
   const canRenewContract = (contract, preview) => {
     if (contract.status !== 'active') return false;
-    if (preview?.renewalDeclined === true) return false; // đã từ chối rồi
     return true;
   };
 
-  // Nút "Từ chối" — hiện khi CHƯA từ chối (renewalDeclined !== true)
+  // Nút "Từ chối" — chỉ hiện khi CHƯA từ chối và trong cửa sổ gia hạn
   const canDeclineContract = (contract, preview) => {
     if (contract.status !== 'active') return false;
-    if (preview?.renewalDeclined === true) return false; // đã từ chối rồi
+    if (preview?.renewalStatus === 'declined') return false; // đã từ chối rồi
     return true;
   };
 
