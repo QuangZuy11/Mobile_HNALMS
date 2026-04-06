@@ -76,7 +76,7 @@ function StatCard({ icon, label, count, active, onPress, color }) {
       <View style={[styles.statIcon, { backgroundColor: color + '20' }]}>
         <MaterialCommunityIcons name={icon} size={20} color={color} />
       </View>
-      <Text style={[styles.statCount, { color }]}>{count}</Text>
+      {count !== undefined && <Text style={[styles.statCount, { color }]}>{count}</Text>}
       <Text style={styles.statLabel}>{label}</Text>
     </TouchableOpacity>
   );
@@ -145,7 +145,7 @@ const ListHeader = React.memo(({
   onClearSearch,
   onToggleTypeModal, onToggleStatusModal,
   onToggleSentModal, onToggleDueModal,
-  resetFilters
+  resetFilters, onNavigatePrepaid
 }) => {
   return (
     <View style={styles.listHeaderContainer}>
@@ -156,6 +156,8 @@ const ListHeader = React.memo(({
           active={typeFilter === 'Periodic'} color="#F59E0B" onPress={() => onSetTypeFilter('Periodic')} />
         <StatCard icon="sim-alert-outline" label="Phát sinh" count={stats.Incurred}
           active={typeFilter === 'Incurred'} color="#c52222" onPress={() => onSetTypeFilter('Incurred')} />
+        <StatCard icon="wallet-outline" label="Trả trước"
+          color="#7C3AED" onPress={onNavigatePrepaid} />
       </View>
 
       <View style={styles.searchRow}>
@@ -320,6 +322,10 @@ export default function InvoiceListScreen({ navigation, route }) {
   const handleToggleStatusModal = useCallback(() => setShowStatusModal(true), []);
   const handleToggleSentModal = useCallback(() => setShowSentModal(true), []);
   const handleToggleDueModal = useCallback(() => setShowDueModal(true), []);
+
+  const handleNavigatePrepaid = useCallback(() => {
+    navigation.navigate('PrepaidRent');
+  }, [navigation]);
 
   const stats = useMemo(() => ({
     all: allInvoices.length,
@@ -499,6 +505,7 @@ export default function InvoiceListScreen({ navigation, route }) {
                 onToggleSentModal={handleToggleSentModal}
                 onToggleDueModal={handleToggleDueModal}
                 resetFilters={resetFilters}
+                onNavigatePrepaid={handleNavigatePrepaid}
               />
             }
             contentContainerStyle={styles.listContent}
@@ -593,18 +600,18 @@ const styles = StyleSheet.create({
   listContent: { paddingBottom: 12 },
   listHeaderContainer: { backgroundColor: '#F3F4F6' },
   statsRow: {
-    flexDirection: 'row', gap: 8,
+    flexDirection: 'row', gap: 6,
     paddingHorizontal: 12, paddingTop: 12, paddingBottom: 8,
   },
   statCard: {
-    flex: 1, backgroundColor: '#FFFFFF', borderRadius: 12,
-    padding: 12, alignItems: 'center', gap: 4,
+    flex: 1, backgroundColor: '#FFFFFF', borderRadius: 10,
+    padding: 8, alignItems: 'center', gap: 3,
     elevation: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05, shadowRadius: 2, borderWidth: 2, borderColor: 'transparent',
   },
-  statIcon: { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
-  statCount: { fontSize: 20, fontWeight: '700' },
-  statLabel: { fontSize: 11, color: '#6B7280', textAlign: 'center' },
+  statIcon: { width: 30, height: 30, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
+  statCount: { fontSize: 16, fontWeight: '700' },
+  statLabel: { fontSize: 9, color: '#6B7280', textAlign: 'center' },
   searchRow: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
     paddingHorizontal: 12, paddingBottom: 8,

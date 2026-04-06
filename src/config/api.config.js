@@ -112,5 +112,14 @@ export const API_CONFIG = {
             COMPLETE: '/move-outs/:moveOutRequestId/complete',
             CANCEL: '/move-outs/:moveOutRequestId',
         },
+
+        // Prepaid Rent
+        PREPAID_RENT: {
+            MY_CONTRACT: '/prepaid-rent/contract',
+            CREATE: '/prepaid-rent/create',
+            PAYMENT_STATUS: '/prepaid-rent/payment-status',
+            CANCEL: '/prepaid-rent/cancel',
+            HISTORY: '/prepaid-rent/history',
+        },
     },
 };

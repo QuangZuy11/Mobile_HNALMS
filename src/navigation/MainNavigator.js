@@ -29,6 +29,8 @@ import NotificationListScreen from '../screens/Notification/NotificationListScre
 import InvoiceListScreen from '../screens/Invoice/InvoiceListScreen';
 import InvoiceDetailScreen from '../screens/Invoice/InvoiceDetailScreen';
 import PayInvoiceScreen from '../screens/Invoice/PayInvoiceScreen';
+import PrepaidRentScreen from '../screens/Invoice/PrepaidRentScreen';
+import PrepaidRentQR from '../screens/Invoice/PrepaidRentQR';
 import BookServiceScreen from '../screens/Service/BookServiceScreen';
 import ServiceListScreen from '../screens/Service/ServiceListScreen';
 
@@ -173,6 +175,22 @@ function HomeStack() {
         component={PayInvoiceScreen}
         options={{
           title: 'Thanh toán',
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
+        name="PrepaidRent"
+        component={PrepaidRentScreen}
+        options={{
+          title: 'Trả trước tiền phòng',
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
+        name="PrepaidRentQR"
+        component={PrepaidRentQR}
+        options={{
+          title: 'Thanh toán QR',
           headerShown: false,
         }}
       />
