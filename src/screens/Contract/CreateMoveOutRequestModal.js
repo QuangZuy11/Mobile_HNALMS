@@ -1,5 +1,6 @@
 // Create Move-Out Request Screen – Modal Dialog
 // Khớp với backend 5-bước: Requested → InvoiceReleased → Paid → Completed
+// Hỗ trợ Gap Contract: người thuê gap contract luôn được hoàn cọc
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -89,6 +90,16 @@ const getRefundTicketStatusColor = (status) => {
   if (['cancelled', 'canceled', 'rejected', 'failed'].includes(normalized)) return '#DC2626';
 
   return '#6B7280';
+};
+
+const getGapContractBadge = (isGapContract) => {
+  if (!isGapContract) return null;
+  return (
+    <View style={styles.gapContractBadge}>
+      <MaterialCommunityIcons name="shield-check" size={15} color="#059669" />
+      <Text style={styles.gapContractBadgeText}>Gap Contract – Được bảo vệ hoàn cọc</Text>
+    </View>
+  );
 };
 
 const getPaymentVoucherDisplay = (paymentVoucher) => {
@@ -246,7 +257,7 @@ export default function CreateMoveOutRequestModal({
     if (visible && contractInfo?.startDate) {
       computeDepositWarning(expectedDate);
     }
-  }, [visible, contractInfo, expectedDate]);
+  }, [visible, contractInfo, contractInfo?.isGapContract, expectedDate]);
 
   const evaluateDepositRisk = (date) => {
     if (!contractInfo?.startDate) return null;
@@ -283,15 +294,18 @@ export default function CreateMoveOutRequestModal({
   };
 
   // Client-side preview: tính trước cảnh báo mất cọc để hiện inline
+  // Gap contract: KHÔNG bao giờ hiện cảnh báo mất cọc
   const computeDepositWarning = (date) => {
+    // Nếu là gap contract → không bao giờ hiện warning mất cọc
+    if (contractInfo?.isGapContract) {
+      setDepositWarning(null);
+      return { warnings: [], isEarlyNotice: false, isUnderMinStay: false };
+    }
+
     const risk = evaluateDepositRisk(date);
     if (!risk) {
       setDepositWarning(null);
-      return {
-        warnings: [],
-        isEarlyNotice: false,
-        isUnderMinStay: false,
-      };
+      return { warnings: [], isEarlyNotice: false, isUnderMinStay: false };
     }
 
     const warnings = [];
@@ -461,7 +475,15 @@ export default function CreateMoveOutRequestModal({
       );
 
       if (confirmationPayload) {
-        const warningMessages = (confirmationPayload.warnings || [])
+        const warnings = confirmationPayload.warnings || [];
+
+        // Kiểm tra có gap contract warning không
+        const gapContractWarning = warnings.find(
+          (w) => w?.type === 'gap_contract_deposit_protection' || String(w?.message || '').toLowerCase().includes('gap contract')
+        );
+        const isGapContractWarning = Boolean(gapContractWarning);
+
+        const warningMessages = warnings
           .map((warning) => (typeof warning === 'string' ? warning : warning?.message))
           .filter(Boolean);
 
@@ -470,13 +492,15 @@ export default function CreateMoveOutRequestModal({
           : 'Yêu cầu của bạn có thể bị mất cọc. Bạn có chắc chắn muốn tiếp tục?';
 
         Alert.alert(
-          '⚠️ Cảnh báo hoàn cọc',
-          `${confirmationText}\n\nNếu đồng ý tiếp tục, hệ thống sẽ tính "Tiền cọc hoàn = 0" vào hóa đơn thanh lý.`,
+          isGapContractWarning ? '✅ Thông tin hoàn cọc' : '⚠️ Cảnh báo hoàn cọc',
+          isGapContractWarning
+            ? `${confirmationText}\n\nBạn có muốn tiếp tục tạo yêu cầu trả phòng không?`
+            : `${confirmationText}\n\nNếu đồng ý tiếp tục, hệ thống sẽ tính "Tiền cọc hoàn = 0" vào hóa đơn thanh lý.`,
           [
             { text: 'Quay lại', style: 'cancel' },
             {
               text: 'Đồng ý tiếp tục',
-              style: 'destructive',
+              style: isGapContractWarning ? 'default' : 'destructive',
               onPress: () => submitRequest(true),
             },
           ]
@@ -511,7 +535,15 @@ export default function CreateMoveOutRequestModal({
       );
 
       if (confirmationFromError) {
-        const warningMessages = (confirmationFromError.warnings || [])
+        const warnings = confirmationFromError.warnings || [];
+
+        // Kiểm tra có gap contract warning không
+        const gapContractWarning = warnings.find(
+          (w) => w?.type === 'gap_contract_deposit_protection' || String(w?.message || '').toLowerCase().includes('gap contract')
+        );
+        const isGapContractWarning = Boolean(gapContractWarning);
+
+        const warningMessages = warnings
           .map((warning) => (typeof warning === 'string' ? warning : warning?.message))
           .filter(Boolean);
 
@@ -520,13 +552,15 @@ export default function CreateMoveOutRequestModal({
           : 'Yêu cầu của bạn có thể bị mất cọc. Bạn có chắc chắn muốn tiếp tục?';
 
         Alert.alert(
-          '⚠️ Cảnh báo hoàn cọc',
-          `${confirmationText}\n\nNếu đồng ý tiếp tục, hệ thống sẽ tính "Tiền cọc hoàn = 0" vào hóa đơn thanh lý.`,
+          isGapContractWarning ? '✅ Thông tin hoàn cọc' : '⚠️ Cảnh báo hoàn cọc',
+          isGapContractWarning
+            ? `${confirmationText}\n\nBạn có muốn tiếp tục tạo yêu cầu trả phòng không?`
+            : `${confirmationText}\n\nNếu đồng ý tiếp tục, hệ thống sẽ tính "Tiền cọc hoàn = 0" vào hóa đơn thanh lý.`,
           [
             { text: 'Quay lại', style: 'cancel' },
             {
               text: 'Đồng ý tiếp tục',
-              style: 'destructive',
+              style: isGapContractWarning ? 'default' : 'destructive',
               onPress: () => submitRequest(true),
             },
           ]
@@ -631,6 +665,9 @@ export default function CreateMoveOutRequestModal({
             </Text>
           </View>
 
+          {/* Gap Contract protection badge */}
+          {getGapContractBadge(req.isGapContract)}
+
           {/* Basic info */}
           <View style={styles.infoBox}>
             <InfoRow label="Ngày yêu cầu" value={formatDate(req.requestDate)} />
@@ -638,10 +675,18 @@ export default function CreateMoveOutRequestModal({
             <InfoRow label="Lý do" value={req.reason} isLast={!req.isEarlyNotice && !req.isUnderMinStay && !req.isDepositForfeited} />
 
             {/* Deposit warning flags */}
-            {(req.isEarlyNotice || req.isUnderMinStay) && (
+            {(req.isEarlyNotice || req.isUnderMinStay || req.isGapContract) && (
               <>
                 <View style={styles.infoDivider} />
                 <View style={styles.warningFlags}>
+                  {req.isGapContract && (
+                    <View style={[styles.warningFlag, { backgroundColor: '#ECFDF5', borderRadius: 6, padding: 8 }]}>
+                      <MaterialCommunityIcons name="shield-check" size={15} color="#059669" />
+                      <Text style={[styles.warningFlagText, { color: '#059669' }]}>
+                        Bạn là người thuê Gap Contract – Luôn được hoàn cọc khi trả phòng
+                      </Text>
+                    </View>
+                  )}
                   {req.isEarlyNotice && (
                     <View style={styles.warningFlag}>
                       <MaterialCommunityIcons name="alert-outline" size={15} color="#F59E0B" />
@@ -853,6 +898,8 @@ export default function CreateMoveOutRequestModal({
           )}
           <InfoRow label="Ngày hết hạn" value={formatDate(contractInfo.endDate)} isLast />
         </View>
+        {/* Gap Contract badge */}
+        {getGapContractBadge(contractInfo?.isGapContract)}
       </View>
 
       {/* Form */}
@@ -1283,6 +1330,25 @@ const styles = StyleSheet.create({
     color: '#F59E0B',
     fontWeight: '500',
     flex: 1,
+  },
+
+  // ── Gap Contract Badge ──
+  gapContractBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#ECFDF5',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  gapContractBadgeText: {
+    fontSize: 13,
+    color: '#059669',
+    fontWeight: '700',
   },
 
   // ── Action hint ──
