@@ -19,6 +19,7 @@ import apiClient from '../../services/api.service';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { handleCallManager } from '../../utils/phoneHelper';
 import { declineRenewalAPI, getRenewalPreviewAPI } from '../../services/contract.service';
+import { getMyMoveOutRequestAPI } from '../../services/move-out.service';
 import CreateMoveOutRequestModal from './CreateMoveOutRequestModal';
 
 const { width, height } = Dimensions.get('window');
@@ -93,6 +94,9 @@ export default function MyContractScreen({ navigation }) {
   // ── Renewal Preview state (keyed by contractId) ──
   const [renewalPreviews, setRenewalPreviews] = useState({}); // { [contractId]: previewData }
 
+  // ── Move-out request state (keyed by contractId) ──
+  const [moveOutRequests, setMoveOutRequests] = useState({}); // { [contractId]: moveOutRequest }
+
   // ── Renewal helpers ──
   const getPreview = (contractId) => renewalPreviews[contractId];
 
@@ -129,16 +133,22 @@ export default function MyContractScreen({ navigation }) {
     return null;
   };
 
-  // Nút "Gia hạn" — hiện khi contract active
+  // Nút "Gia hạn" — hiện khi contract active và chưa có move-out request
   const canRenewContract = (contract, preview) => {
     if (contract.status !== 'active') return false;
+    // Ẩn nút gia hạn nếu đã có yêu cầu trả phòng
+    const existingRequest = moveOutRequests[contract._id];
+    if (existingRequest?._id || existingRequest?.id) return false;
     return true;
   };
 
-  // Nút "Từ chối" — chỉ hiện khi CHƯA từ chối và trong cửa sổ gia hạn
+  // Nút "Từ chối" — chỉ hiện khi CHƯA từ chối, trong cửa sổ gia hạn, VÀ chưa có move-out request
   const canDeclineContract = (contract, preview) => {
     if (contract.status !== 'active') return false;
     if (preview?.renewalStatus === 'declined') return false; // đã từ chối rồi
+    // Ẩn nút từ chối nếu đã có yêu cầu trả phòng
+    const existingRequest = moveOutRequests[contract._id];
+    if (existingRequest?._id || existingRequest?.id) return false;
     return true;
   };
 
@@ -148,6 +158,17 @@ export default function MyContractScreen({ navigation }) {
       setRenewalPreviews((prev) => ({ ...prev, [contractId]: data }));
     } catch (err) {
       // Silent fail - preview not available
+    }
+  }, []);
+
+  // Kiểm tra hợp đồng đã có yêu cầu trả phòng chưa
+  const fetchMoveOutRequest = useCallback(async (contractId) => {
+    try {
+      const data = await getMyMoveOutRequestAPI(contractId);
+      const request = data && (data._id || data.id) ? data : null;
+      setMoveOutRequests((prev) => ({ ...prev, [contractId]: request }));
+    } catch {
+      setMoveOutRequests((prev) => ({ ...prev, [contractId]: null }));
     }
   }, []);
 
@@ -219,6 +240,7 @@ export default function MyContractScreen({ navigation }) {
     setExpandedId((prev) => (prev === id ? null : id));
     if (willExpand) {
       fetchRenewalPreview(id);
+      fetchMoveOutRequest(id);
     }
   };
 
@@ -251,6 +273,10 @@ export default function MyContractScreen({ navigation }) {
   const handleMoveOutSuccess = (moveOutData) => {
     // Refetch contracts to update status
     fetchContracts();
+    // Refetch move-out request status for the selected contract
+    if (selectedContractForMoveOut) {
+      fetchMoveOutRequest(selectedContractForMoveOut);
+    }
   };
 
   // ── Header ──
@@ -319,6 +345,8 @@ export default function MyContractScreen({ navigation }) {
     const renewalBadge = getRenewalBadge(contract, preview);
     const canRenew = canRenewContract(contract, preview);
     const canDecline = canDeclineContract(contract, preview);
+    const existingMoveOutRequest = moveOutRequests[contract._id];
+    const hasExistingMoveOut = Boolean(existingMoveOutRequest?._id || existingMoveOutRequest?.id);
     const room = contract.roomId;
     const roomType = room?.roomTypeId;
     const floor = room?.floorId;
@@ -354,6 +382,16 @@ export default function MyContractScreen({ navigation }) {
             />
           </View>
         </TouchableOpacity>
+
+        {/* ── Move-out request badge ── */}
+        {hasExistingMoveOut && (
+          <View style={[styles.renewalBadgeContainer, { backgroundColor: '#EDE9FE' }]}>
+            <MaterialCommunityIcons name="door-open" size={16} color="#7C3AED" />
+            <Text style={[styles.renewalBadgeText, { color: '#7C3AED' }]}>
+              Đã gửi yêu cầu trả phòng
+            </Text>
+          </View>
+        )}
 
         {/* ── Renewal badge(s) ── */}
         {renewalBadge && (

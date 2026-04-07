@@ -266,6 +266,7 @@ export default function CreateMoveOutRequestModal({
     const moveOutDateOnly = normalizeDateOnly(date);
     const startDateOnly = normalizeDateOnly(contractInfo.startDate);
 
+    // Tính thời gian ở từ startDate → today (requestDate)
     const stayMonths = calculateFullMonthsBetween(startDateOnly, todayDateOnly);
     const stayDays = Math.floor(
       (todayDateOnly - startDateOnly) / DAY_IN_MS
@@ -275,12 +276,13 @@ export default function CreateMoveOutRequestModal({
     const isUnderMinStayByDay = stayDays < MIN_STAY_MONTHS_REQUIRED * 30;
     const isUnderMinStay = isUnderMinStayByMonth && isUnderMinStayByDay;
 
+    // Tính khoảng cách từ today (requestDate) → endDate (phải >= 30 ngày)
     let daysBeforeContractEnd = null;
     let isEarlyNotice = false;
 
     if (contractInfo?.endDate) {
       const endDateOnly = normalizeDateOnly(contractInfo.endDate);
-      daysBeforeContractEnd = Math.floor((endDateOnly - moveOutDateOnly) / DAY_IN_MS);
+      daysBeforeContractEnd = Math.floor((endDateOnly - todayDateOnly) / DAY_IN_MS);
       isEarlyNotice = daysBeforeContractEnd < NOTICE_DAYS_REQUIRED;
     }
 
@@ -311,12 +313,12 @@ export default function CreateMoveOutRequestModal({
     const warnings = [];
     if (risk.isEarlyNotice) {
       warnings.push(
-        `Ngày trả phòng của bạn chưa trước ngày kết thúc hợp đồng ít nhất ${NOTICE_DAYS_REQUIRED} ngày (hiện tại: ${risk.daysBeforeContractEnd ?? 0} ngày). Bạn có thể bị mất cọc.`
+        `Ngày yêu cầu trả phòng cách ngày kết thúc hợp đồng ${risk.daysBeforeContractEnd ?? 0} ngày, chưa đủ tối thiểu ${NOTICE_DAYS_REQUIRED} ngày báo trước. Bạn có thể bị mất cọc.`
       );
     }
     if (risk.isUnderMinStay) {
       warnings.push(
-        `Bạn sẽ không được hoàn cọc vì thời gian ở đến hiện tại mới ${risk.stayMonths} tháng (${risk.stayDays} ngày), chưa đủ ${MIN_STAY_MONTHS_REQUIRED} tháng.`
+        `Bạn sẽ không được hoàn cọc vì thời gian ở tính đến ngày yêu cầu là ${risk.stayMonths} tháng (${risk.stayDays} ngày), chưa đủ ${MIN_STAY_MONTHS_REQUIRED} tháng.`
       );
     }
 
@@ -338,9 +340,8 @@ export default function CreateMoveOutRequestModal({
 
   const getMaxExpectedDate = () => {
     if (!contractInfo?.endDate) return null;
-    const maxDate = normalizeDateOnly(contractInfo.endDate);
-    maxDate.setDate(maxDate.getDate() - 1);
-    return maxDate;
+    // Cho phép expectedMoveOutDate bằng endDate (không cần -1 ngày nữa)
+    return normalizeDateOnly(contractInfo.endDate);
   };
 
   const minExpectedDate = getMinMoveOutDate();
@@ -439,10 +440,10 @@ export default function CreateMoveOutRequestModal({
     if (contractInfo.endDate) {
       const endDateOnly = normalizeDateOnly(contractInfo.endDate);
 
-      if (moveOutDateOnly >= endDateOnly) {
+      if (moveOutDateOnly > endDateOnly) {
         Alert.alert(
           'Lỗi',
-          `Ngày trả phòng (${formatDate(moveOutDateOnly)}) phải nhỏ hơn ngày kết thúc hợp đồng (${formatDate(endDateOnly)})`
+          `Ngày trả phòng (${formatDate(moveOutDateOnly)}) không được muộn hơn ngày kết thúc hợp đồng (${formatDate(endDateOnly)})`
         );
         return false;
       }
