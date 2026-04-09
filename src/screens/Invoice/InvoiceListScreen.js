@@ -368,6 +368,14 @@ export default function InvoiceListScreen({ navigation, route }) {
     const rawStatus = item.status || item.paymentStatus || 'Unpaid';
     const normalizedStatus = rawStatus.charAt(0).toUpperCase() + rawStatus.slice(1).toLowerCase();
     const cfg = STATUS_CONFIG[normalizedStatus] || STATUS_CONFIG.Unpaid;
+
+    // Xác định tên phòng: Periodic lấy từ roomId.name / contractId.roomId.name,
+    // Incurred lấy từ roomName (string)
+    const roomName =
+      item.invoiceType === 'Incurred'
+        ? item.roomName
+        : item.roomId?.name ?? item.contractId?.roomId?.name ?? null;
+
     return (
       <TouchableOpacity
         style={styles.card}
@@ -409,6 +417,12 @@ export default function InvoiceListScreen({ navigation, route }) {
             <MaterialCommunityIcons name="tag-outline" size={13} color="#6B7280" />
             <Text style={styles.metaLabel}>Loại</Text>
             <Text style={styles.metaValue}>{TYPE_LABEL[item.invoiceType] || item.invoiceType}</Text>
+          </View>
+          <View style={styles.metaSep} />
+          <View style={styles.metaItem}>
+            <MaterialCommunityIcons name="home-outline" size={13} color="#6B7280" />
+            <Text style={styles.metaLabel}>Phòng</Text>
+            <Text style={styles.metaValue} numberOfLines={1}>{roomName || '—'}</Text>
           </View>
         </View>
 

@@ -17,42 +17,37 @@ const STATUS_CONFIG = {
 const TYPE_LABEL = { Periodic: 'Định kỳ', Incurred: 'Phát sinh', Other: 'Khác' };
 const VIOLATION_TYPE_LABEL = { violation: 'Vi phạm', repair: 'Sửa chữa' };
 
-const FIXED_SERVICES = [
-    { key: 'internet', label: 'Internet', icon: 'wifi', color: '#6366F1' },
-    { key: 'vesinh', label: 'Vệ sinh', icon: 'broom', color: '#14B8A6' },
-    { key: 'xemay', label: 'Gửi Xe Máy', icon: 'motorbike', color: '#F97316' },
-    { key: 'xedap', label: 'Gửi Xe Đạp', icon: 'bicycle', color: '#3B82F6' },
-    { key: 'xedapdien', label: 'Gửi Xe Đạp Điện', icon: 'bicycle-electric', color: '#10B981' },
-    { key: 'thangmay', label: 'Thang Máy', icon: 'elevator-passenger', color: '#8B5CF6' },
-    { key: 'phatsinh', label: 'Phát sinh', icon: 'plus-circle-outline', color: '#EF4444' },
-];
+/** Chuẩn hóa tiếng Việt để khớp tên dịch vụ dù thiếu dấu / sai dấu (vd: "may" vs "máy") */
+const normalizeVN = (s) =>
+    (s || '')
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/đ/g, 'd');
 
-const matchService = (itemName, key) => {
-    const n = (itemName || '').toLowerCase();
-    switch (key) {
-        case 'internet': return n.includes('internet');
-        case 'vesinh': return n.includes('vệ sinh');
-        case 'xemay': return n.includes('xe máy');
-        case 'xedapdien': return n.includes('xe đạp điện');
-        case 'xedap': return n.includes('xe đạp') && !n.includes('xe đạp điện');
-        case 'thangmay': return n.includes('thang máy');
-        case 'phatsinh': return n.includes('phát sinh');
-        default: return false;
-    }
+/** Bỏ tiền tố "Dịch vụ " khi hiển thị */
+const stripServicePrefix = (name) => {
+    if (!name) return '';
+    return name.replace(/^\s*dịch vụ\s+/i, '').trim();
 };
 
 const getItemIcon = (itemName) => {
     const n = (itemName || '').toLowerCase();
-    if (n.includes('thuê phòng') || n.includes('tiền phòng')) return { icon: 'home-city-outline', color: '#3B82F6' };
-    if (n.includes('điện')) return { icon: 'flash', color: '#F59E0B' };
-    if (n.includes('nước')) return { icon: 'water-outline', color: '#06B6D4' };
-    if (n.includes('internet')) return { icon: 'wifi', color: '#6366F1' };
-    if (n.includes('vệ sinh')) return { icon: 'broom', color: '#14B8A6' };
-    if (n.includes('xe đạp điện')) return { icon: 'bicycle-electric', color: '#10B981' };
-    if (n.includes('xe máy')) return { icon: 'motorbike', color: '#F97316' };
-    if (n.includes('xe đạp')) return { icon: 'bicycle', color: '#3B82F6' };
-    if (n.includes('thang máy')) return { icon: 'elevator-passenger', color: '#8B5CF6' };
-    if (n.includes('phát sinh')) return { icon: 'plus-circle-outline', color: '#EF4444' };
+    const t = normalizeVN(itemName);
+    if (n.includes('thuê phòng') || n.includes('tiền phòng') || t.includes('thue phong') || t.includes('tien phong')) {
+        return { icon: 'home-city-outline', color: '#3B82F6' };
+    }
+    if (n.includes('nước') || t.includes('nuoc')) return { icon: 'water-outline', color: '#06B6D4' };
+    if (n.includes('internet') || t.includes('internet')) return { icon: 'wifi', color: '#6366F1' };
+    if (n.includes('vệ sinh') || t.includes('ve sinh')) return { icon: 'broom', color: '#14B8A6' };
+    // Phải xử lý xe trước "tiền điện", vì "máy điện" cũng chứa chữ "điện"
+    if (t.includes('xe dap dien')) return { icon: 'bicycle-electric', color: '#10B981' };
+    if (t.includes('xe may dien')) return { icon: 'motorbike-electric', color: '#EA580C' };
+    if (t.includes('xe may') && !t.includes('xe dap')) return { icon: 'motorbike', color: '#F97316' };
+    if (t.includes('xe dap')) return { icon: 'bicycle', color: '#3B82F6' };
+    if (n.includes('thang máy') || t.includes('thang may')) return { icon: 'elevator-passenger', color: '#8B5CF6' };
+    if (n.includes('tiền điện') || t.includes('tien dien')) return { icon: 'flash', color: '#F59E0B' };
+    if (n.includes('điện') || t.includes('dien')) return { icon: 'flash', color: '#F59E0B' };
     return { icon: 'receipt-text-outline', color: '#6B7280' };
 };
 
@@ -126,17 +121,7 @@ export default function InvoiceDetailScreen({ navigation, route }) {
     // Chỉ hiện nút thanh toán khi status là Unpaid hoặc Overdue
     const isUnpaid = normalizedStatus === 'Unpaid' || normalizedStatus === 'Overdue';
 
-    const completeItems = useMemo(() => {
-        const apiItems = invoice?.items || [];
-        const result = [...apiItems];
-        FIXED_SERVICES.forEach(svc => {
-            const exists = apiItems.some(i => matchService(i.itemName, svc.key));
-            if (!exists) {
-                result.push({ itemName: svc.label, amount: null, _icon: svc.icon, _color: svc.color });
-            }
-        });
-        return result;
-    }, [invoice]);
+    const invoiceItems = useMemo(() => invoice?.items || [], [invoice]);
 
     return (
         <SafeAreaView style={styles.safeContainer}>
@@ -235,7 +220,7 @@ export default function InvoiceDetailScreen({ navigation, route }) {
                                     )}
                                 </>
                             )}
-                            <InfoRow icon="calendar-check" label="Ngày thanh toán" value={formatDate(invoice.createdAt)} />
+                            <InfoRow icon="calendar-check" label="Ngày gửi" value={formatDate(invoice.createdAt)} />
                             {!isPrepaidType && (
                                 <InfoRow icon="calendar-clock" label="Đến hạn" value={formatDate(invoice.dueDate)}
                                     valueStyle={invoice.status === 'Overdue' ? { color: '#F59E0B', fontWeight: '700' } : {}} />
@@ -301,29 +286,42 @@ export default function InvoiceDetailScreen({ navigation, route }) {
                         {/* ── Periodic: Chi tiết khoản thu (không hiển thị với HD-PREPAID) ── */}
                         {!isIncurred && !isPrepaidType && (
                             <Section icon="format-list-bulleted" title="Chi tiết khoản thu" color="#F59E0B">
-                                {completeItems.map((item, idx) => {
+                                {invoiceItems.map((item, idx) => {
                                     const display = item._icon
                                         ? { icon: item._icon, color: item._color }
                                         : getItemIcon(item.itemName);
                                     const hasAmount = item.amount != null && item.amount > 0;
                                     const hasUsage = item.usage != null && item.usage > 0 && item.unitPrice != null;
+                                    const tName = normalizeVN(item.itemName);
+                                    const showMeterReadings =
+                                        item.isIndex === true ||
+                                        ((tName.includes('tien dien') || tName.includes('tien nuoc')) &&
+                                            item.oldIndex != null &&
+                                            item.newIndex != null);
                                     return (
                                         <View key={item._id ?? `svc-${idx}`}
-                                            style={[styles.svcRow, idx < completeItems.length - 1 && styles.svcRowBorder]}>
+                                            style={[styles.svcRow, idx < invoiceItems.length - 1 && styles.svcRowBorder]}>
                                             <View style={styles.svcTop}>
                                                 <View style={[styles.svcIconWrap, { backgroundColor: display.color + '15' }]}>
                                                     <MaterialCommunityIcons name={display.icon} size={16} color={display.color} />
                                                 </View>
-                                                <Text style={styles.svcName} numberOfLines={2}>{item.itemName}</Text>
+                                                <Text style={styles.svcName} numberOfLines={2}>{stripServicePrefix(item.itemName)}</Text>
                                                 <Text style={[styles.svcAmount, !hasAmount && styles.svcAmountEmpty]}>
                                                     {hasAmount ? fmtNum(item.amount) : '—'}
                                                 </Text>
                                             </View>
-                                            {hasUsage && (
+                                            {(showMeterReadings || hasUsage) && (
                                                 <View style={styles.svcMeta}>
-                                                    <Text style={styles.svcMetaText}>
-                                                        SL: {item.usage} × {fmtNum(item.unitPrice)}
-                                                    </Text>
+                                                    {showMeterReadings && (
+                                                        <Text style={styles.svcMetaText}>
+                                                            Số cũ: {fmtNum(item.oldIndex)} → Số mới: {fmtNum(item.newIndex)}
+                                                        </Text>
+                                                    )}
+                                                    {hasUsage && (
+                                                        <Text style={[styles.svcMetaText, showMeterReadings && styles.svcMetaLine2]}>
+                                                            SL: {item.usage} × {fmtNum(item.unitPrice)}
+                                                        </Text>
+                                                    )}
                                                 </View>
                                             )}
                                         </View>
@@ -439,6 +437,7 @@ const styles = StyleSheet.create({
     svcAmountEmpty: { color: '#D1D5DB' },
     svcMeta: { marginLeft: 42, marginTop: 4 },
     svcMetaText: { fontSize: 11, color: '#9CA3AF' },
+    svcMetaLine2: { marginTop: 3 },
     svcTotalRow: {
         flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
         paddingHorizontal: 14, paddingVertical: 12,
