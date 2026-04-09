@@ -319,7 +319,7 @@ export default function InvoiceDetailScreen({ navigation, route }) {
                                                     )}
                                                     {hasUsage && (
                                                         <Text style={[styles.svcMetaText, showMeterReadings && styles.svcMetaLine2]}>
-                                                            SL: {item.usage} × {fmtNum(item.unitPrice)}
+                                                            Số Lượng: {item.usage} × {fmtNum(item.unitPrice)}
                                                         </Text>
                                                     )}
                                                 </View>

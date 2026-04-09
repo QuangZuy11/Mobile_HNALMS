@@ -435,12 +435,12 @@ export default function PayInvoiceScreen({ navigation, route }) {
                         </View>
 
                         {/* Hint */}
-                        <View style={styles.hintCard}>
+                        {/* <View style={styles.hintCard}>
                             <MaterialCommunityIcons name="information-outline" size={16} color="#3B82F6" />
                             <Text style={styles.hintText}>
                                 Vui lòng nhập <Text style={{ fontWeight: '700' }}>đúng nội dung chuyển khoản</Text> để hệ thống tự động xác nhận thanh toán.
                             </Text>
-                        </View>
+                        </View> */}
 
                         {/* Waiting indicator */}
                         <View style={styles.waitingRow}>
