@@ -34,6 +34,8 @@ const getStatusBadge = (status) => {
       return { bg: '#FEE2E2', text: '#991B1B', label: 'Đã hết hạn', icon: 'clock-alert' };
     case 'terminated':
       return { bg: '#FEE2E2', text: '#991B1B', label: 'Đã thanh lý', icon: 'close-circle' };
+    case 'inactive':
+      return { bg: '#FEF3C7', text: '#92400E', label: 'Chưa hiệu lực', icon: 'timer-sand' };
     case 'pending':
       return { bg: '#FEF3C7', text: '#92400E', label: 'Chờ xử lý', icon: 'timer-sand' };
     default:
@@ -58,9 +60,9 @@ export default function BookServiceScreen({ navigation }) {
       });
 
       if (response.data?.data) {
-        // Filter only active contracts
-        const activeContracts = response.data.data.filter((c) => c.status?.toLowerCase() === 'active');
-        setContracts(activeContracts || []);
+        // Lấy tất cả hợp đồng có phòng
+        const allContracts = response.data.data.filter((c) => c.roomId && c.roomId._id);
+        setContracts(allContracts || []);
       } else {
         setContracts([]);
       }
@@ -85,8 +87,15 @@ export default function BookServiceScreen({ navigation }) {
     fetchContracts();
   };
 
-  const navigateToServices = (contractId) => {
-    navigation.navigate('ServiceList', { contractId });
+  const navigateToServices = (contract) => {
+    if (contract.status?.toLowerCase() === 'inactive') {
+      Alert.alert(
+        'Chưa thể đặt dịch vụ',
+        `Phòng này thuộc hợp đồng chưa hiệu lực.\nBạn chỉ có thể đặt dịch vụ kể từ ngày ${formatDate(contract.startDate)}.`
+      );
+      return;
+    }
+    navigation.navigate('ServiceList', { contractId: contract._id });
   };
 
   // ── Render contract card ──
@@ -95,12 +104,14 @@ export default function BookServiceScreen({ navigation }) {
     const floor = room?.floorId;
     const roomType = room?.roomTypeId;
     const badge = getStatusBadge(item.status);
+    const isInactive = item.status?.toLowerCase() === 'inactive';
 
     return (
       <TouchableOpacity
-        style={styles.card}
-        onPress={() => navigateToServices(item._id)}
-        activeOpacity={0.7}
+        style={[styles.card, isInactive && styles.cardInactive]}
+        onPress={() => navigateToServices(item)}
+        activeOpacity={isInactive ? 1 : 0.7}
+        disabled={isInactive}
       >
         {/* Card header with room info */}
         <View style={styles.cardHeader}>
@@ -125,6 +136,16 @@ export default function BookServiceScreen({ navigation }) {
             {badge.label}
           </Text>
         </View>
+
+        {/* Thông báo chưa đến ngày cho inactive */}
+        {isInactive && (
+          <View style={styles.inactiveNotice}>
+            <MaterialCommunityIcons name="calendar-clock" size={14} color="#92400E" />
+            <Text style={styles.inactiveNoticeText}>
+              Đặt dịch vụ từ ngày {formatDate(item.startDate)}
+            </Text>
+          </View>
+        )}
 
         {/* Room details row */}
         {roomType && (
@@ -250,6 +271,27 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.06,
     shadowRadius: 4,
     elevation: 2,
+  },
+
+  cardInactive: {
+    opacity: 0.7,
+  },
+
+  inactiveNotice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    backgroundColor: '#FEF3C7',
+    borderRadius: 6,
+  },
+
+  inactiveNoticeText: {
+    fontSize: 12,
+    color: '#92400E',
+    fontWeight: '500',
   },
 
   cardHeader: {
