@@ -63,7 +63,7 @@ const getDepositStatusBadge = (status) => {
   switch (status?.toLowerCase()) {
     case 'held':
       return { bg: '#DBEAFE', text: '#0369A1', label: 'Đang giữ' };
-    case 'returned':
+    case 'refunded':
       return { bg: '#D1FAE5', text: '#047857', label: 'Đã hoàn trả' };
     case 'forfeited':
       return { bg: '#FEE2E2', text: '#991B1B', label: 'Đã tịch thu' };
