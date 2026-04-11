@@ -94,12 +94,7 @@ export default function ProfileScreen({ navigation }) {
     return (
       <SafeAreaView style={styles.safeContainer}>
         <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}
-          >
-            <MaterialCommunityIcons name="arrow-left" size={24} color="#1F2937" />
-          </TouchableOpacity>
+          <View style={{ width: 40 }} />
           <Text style={styles.headerTitle}>Thông tin cá nhân</Text>
           <View style={{ width: 40 }} />
         </View>
@@ -115,12 +110,7 @@ export default function ProfileScreen({ navigation }) {
     return (
       <SafeAreaView style={styles.safeContainer}>
         <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}
-          >
-            <MaterialCommunityIcons name="arrow-left" size={24} color="#1F2937" />
-          </TouchableOpacity>
+          <View style={{ width: 40 }} />
           <Text style={styles.headerTitle}>Thông tin cá nhân</Text>
           <View style={{ width: 40 }} />
         </View>
@@ -139,12 +129,7 @@ export default function ProfileScreen({ navigation }) {
     <SafeAreaView style={styles.safeContainer}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <MaterialCommunityIcons name="arrow-left" size={24} color="#1F2937" />
-        </TouchableOpacity>
+        <View style={{ width: 40 }} />
         <Text style={styles.headerTitle}>Thông tin cá nhân</Text>
         <TouchableOpacity
           style={styles.editButton}
