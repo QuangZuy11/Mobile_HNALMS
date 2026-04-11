@@ -1,16 +1,14 @@
-import React, { useState, useRef, useContext } from 'react';
+import { useState, useContext } from 'react';
 import {
   View,
   Text,
   TextInput,
   TouchableOpacity,
   ScrollView,
-  Alert,
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   SafeAreaView,
-  StyleSheet,
   Image,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -29,8 +27,6 @@ export default function LoginScreen({ navigation }) {
     message: '',
   });
 
-  const usernameRef = useRef(null);
-  const passwordRef = useRef(null);
   const { signIn } = useContext(AuthContext);
 
   const showValidationPopup = (message) => {
@@ -40,72 +36,32 @@ export default function LoginScreen({ navigation }) {
     }, 4000);
   };
 
-  const validateUsername = (usernameValue) => {
-    if (!usernameValue.trim()) {
-      showValidationPopup('Vui lòng nhập tên người dùng');
-      return false;
-    }
-    if (usernameValue.trim().length < 3) {
-      showValidationPopup('Tên người dùng phải có ít nhất 3 ký tự');
-      return false;
-    }
-    return true;
-  };
-
   const handleLogin = async () => {
     if (loading) return;
-
-    // Validation
-    if (!validateUsername(username)) {
-      usernameRef.current?.focus();
-      return;
-    }
-
-    if (!password.trim()) {
-      showValidationPopup('Vui lòng nhập mật khẩu');
-      passwordRef.current?.focus();
-      return;
-    }
 
     setLoading(true);
 
     try {
-      // Call login API
       const response = await loginAPI(username, password);
-      
+
       console.log('Login successful:', response);
-      
-      // Call signIn từ AuthContext (tự động cập nhật navigation)
+
       await signIn(response.token || response.data?.token);
-      
+
       setLoading(false);
     } catch (error) {
       let errorMessage = 'Đăng nhập thất bại';
-      
-      // Kiểm tra status code trước tiên (ưu tiên cho lỗi xác thực)
-      if (error.status === 401 || error.status === 400) {
-        errorMessage = 'Bạn đã nhập sai tài khoản hoặc mật khẩu';
-      } else if (error.status === 500 && error.message === 'Server error') {
-        // Nếu backend trả về Server error cho login sai, cũng xem như credential error
-        errorMessage = 'Bạn đã nhập sai tài khoản hoặc mật khẩu';
-      } else if (error.status === 404) {
-        errorMessage = 'Tài khoản không tồn tại';
-      } else if (error.status === 403) {
-        errorMessage = 'Tài khoản chưa được kích hoạt';
-      } else if (error.status === 500) {
-        errorMessage = 'Lỗi máy chủ. Vui lòng thử lại sau';
-      } else if (error.message && error.message !== 'Đăng nhập thất bại') {
-        // Chỉ dùng error message nếu không phải là tin nhắn mặc định
-        errorMessage = error.message;
-      } else if (error.data?.message) {
+
+      if (error.data?.message) {
         errorMessage = error.data.message;
+      } else if (error.message && error.message !== 'Đăng nhập thất bại') {
+        errorMessage = error.message;
       }
-      
+
       showValidationPopup(errorMessage);
       setLoading(false);
     }
   };
-
 
 
   return (
@@ -151,7 +107,6 @@ export default function LoginScreen({ navigation }) {
                     <MaterialCommunityIcons name="account" size={18} color="#9CA3AF" />
                   </View>
                   <TextInput
-                    ref={usernameRef}
                     style={styles.input}
                     placeholder="Nhập tên người dùng"
                     placeholderTextColor="#9CA3AF"
@@ -177,7 +132,6 @@ export default function LoginScreen({ navigation }) {
                     <MaterialCommunityIcons name="lock" size={18} color="#9CA3AF" />
                   </View>
                   <TextInput
-                    ref={passwordRef}
                     style={styles.input}
                     placeholder="Nhập mật khẩu"
                     placeholderTextColor="#9CA3AF"
