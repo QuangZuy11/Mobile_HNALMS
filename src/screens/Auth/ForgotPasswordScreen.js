@@ -33,27 +33,14 @@ export default function ForgotPasswordScreen({ navigation }) {
   const handleForgotPassword = async () => {
     if (loading) return;
 
-    if (!email.trim()) {
-      showValidationPopup('Vui lòng nhập địa chỉ email');
-      return;
-    }
-
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email.trim())) {
-      showValidationPopup('Địa chỉ email không hợp lệ');
-      return;
-    }
-
     setLoading(true);
 
     try {
       const response = await forgotPasswordAPI(email);
-      
+
       setLoading(false);
 
-      // Kiểm tra xem backend có trả về mật khẩu mới không
       if (response.newPassword) {
-        // Hiển thị mật khẩu mới
         Alert.alert(
           'Thành công',
           `Mật khẩu mới của bạn là:\n\n${response.newPassword}\n\nVui lòng ghi nhớ và đổi mật khẩu sau khi đăng nhập.`,
@@ -65,7 +52,6 @@ export default function ForgotPasswordScreen({ navigation }) {
           ]
         );
       } else {
-        // Trường hợp backend gửi email
         Alert.alert(
           'Thành công',
           'Mật khẩu mới đã được gửi đến email của bạn. Vui lòng kiểm tra hộp thư.',
@@ -80,13 +66,13 @@ export default function ForgotPasswordScreen({ navigation }) {
     } catch (error) {
       setLoading(false);
       let errorMessage = 'Đã xảy ra lỗi. Vui lòng thử lại sau.';
-      
-      if (error.message) {
-        errorMessage = error.message;
-      } else if (error.data?.message) {
+
+      if (error.data?.message) {
         errorMessage = error.data.message;
+      } else if (error.message) {
+        errorMessage = error.message;
       }
-      
+
       showValidationPopup(errorMessage);
     }
   };
