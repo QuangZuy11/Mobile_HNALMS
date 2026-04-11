@@ -129,14 +129,21 @@ export const getTenantRoomsAPI = async () => {
 
     if (response.data?.success && response.data.data?.length > 0) {
       const contracts = response.data.data;
-      // Filter only active contracts
-      const activeContracts = contracts.filter((c) => c.status?.toLowerCase() === 'active');
       
-      // Extract all unique rooms from active contracts only
+      // Extract all unique rooms from all contracts (active + inactive)
       const uniqueRooms = {};
-      activeContracts.forEach((contract) => {
+      contracts.forEach((contract) => {
         if (contract.roomId && contract.roomId._id) {
-          uniqueRooms[contract.roomId._id] = contract.roomId;
+          const room = contract.roomId;
+          const roomPrice = contract.price || room.roomTypeId?.currentPrice || null;
+          
+          if (!uniqueRooms[room._id]) {
+            uniqueRooms[room._id] = {
+              ...room,
+              contractPrice: roomPrice,
+              contractStatus: contract.status,
+            };
+          }
         }
       });
       
