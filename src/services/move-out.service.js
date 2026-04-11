@@ -73,3 +73,20 @@ export const getMoveOutDepositVsInvoiceAPI = async (moveOutRequestId) => {
     throw error;
   }
 };
+
+/**
+ * Delete a move-out request (only allowed when status = 'Requested' or 'InvoiceReleased')
+ * DELETE /api/move-outs/:id
+ */
+export const deleteMoveOutRequestAPI = async (moveOutRequestId) => {
+  try {
+    const token = await AsyncStorage.getItem('authToken');
+    const response = await apiClient.delete(`/move-outs/${moveOutRequestId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    return response.data;
+  } catch (error) {
+    console.error('deleteMoveOutRequestAPI error:', error);
+    throw error;
+  }
+};
