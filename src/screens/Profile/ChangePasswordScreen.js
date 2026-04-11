@@ -21,42 +21,15 @@ export default function ChangePasswordScreen({ navigation }) {
   });
 
   const [loading, setLoading] = useState(false);
-  const [errors, setErrors] = useState({});
   const [showPassword, setShowPassword] = useState({
     oldPassword: false,
     newPassword: false,
     confirmPassword: false,
   });
 
-  const validateForm = () => {
-    const newErrors = {};
-
-    if (!formData.oldPassword?.trim()) {
-      newErrors.oldPassword = 'Mật khẩu hiện tại không được để trống';
-    }
-
-    if (!formData.newPassword?.trim()) {
-      newErrors.newPassword = 'Mật khẩu mới không được để trống';
-    } else if (formData.newPassword.length < 6) {
-      newErrors.newPassword = 'Mật khẩu mới phải tối thiểu 6 ký tự';
-    }
-
-    if (!formData.confirmPassword?.trim()) {
-      newErrors.confirmPassword = 'Xác nhận mật khẩu không được để trống';
-    } else if (formData.newPassword !== formData.confirmPassword) {
-      newErrors.confirmPassword = 'Mật khẩu xác nhận không khớp';
-    }
-
-    if (formData.oldPassword === formData.newPassword) {
-      newErrors.newPassword = 'Mật khẩu mới phải khác mật khẩu hiện tại';
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
   const handleChangePassword = async () => {
-    if (!validateForm()) {
+    if (formData.newPassword !== formData.confirmPassword) {
+      Alert.alert('Lỗi', 'Mật khẩu xác nhận không khớp');
       return;
     }
 
@@ -72,7 +45,6 @@ export default function ChangePasswordScreen({ navigation }) {
           {
             text: 'OK',
             onPress: () => {
-              // Reset form
               setFormData({
                 oldPassword: '',
                 newPassword: '',
@@ -86,17 +58,7 @@ export default function ChangePasswordScreen({ navigation }) {
         Alert.alert('Lỗi', response?.message || 'Đổi mật khẩu thất bại');
       }
     } catch (error) {
-
-      // Handle specific error messages
-      let errorMessage = error.message || 'Đã xảy ra lỗi khi đổi mật khẩu';
-
-      if (error.message.includes('incorrect')) {
-        errorMessage = 'Mật khẩu hiện tại không chính xác';
-      } else if (error.message.includes('not found')) {
-        errorMessage = 'Không tìm thấy người dùng';
-      }
-
-      Alert.alert('Lỗi', errorMessage);
+      Alert.alert('Lỗi', error.data?.message || error.message || 'Đã xảy ra lỗi khi đổi mật khẩu');
     } finally {
       setLoading(false);
     }
@@ -107,13 +69,6 @@ export default function ChangePasswordScreen({ navigation }) {
       ...prev,
       [field]: value,
     }));
-    // Clear error for this field when user starts typing
-    if (errors[field]) {
-      setErrors((prev) => ({
-        ...prev,
-        [field]: null,
-      }));
-    }
   };
 
   const togglePasswordVisibility = (field) => {
@@ -149,13 +104,8 @@ export default function ChangePasswordScreen({ navigation }) {
 
           {/* Old Password */}
           <View style={styles.formGroup}>
-            <Text style={styles.label}>
-              Mật khẩu hiện tại <Text style={styles.required}>*</Text>
-            </Text>
-            <View style={[
-              styles.inputContainer,
-              errors.oldPassword && styles.inputError,
-            ]}>
+            <Text style={styles.label}>Mật khẩu hiện tại</Text>
+            <View style={styles.inputContainer}>
               <MaterialCommunityIcons
                 name="lock-outline"
                 size={20}
@@ -182,20 +132,12 @@ export default function ChangePasswordScreen({ navigation }) {
                 />
               </TouchableOpacity>
             </View>
-            {errors.oldPassword && (
-              <Text style={styles.errorText}>{errors.oldPassword}</Text>
-            )}
           </View>
 
           {/* New Password */}
           <View style={styles.formGroup}>
-            <Text style={styles.label}>
-              Mật khẩu mới <Text style={styles.required}>*</Text>
-            </Text>
-            <View style={[
-              styles.inputContainer,
-              errors.newPassword && styles.inputError,
-            ]}>
+            <Text style={styles.label}>Mật khẩu mới</Text>
+            <View style={styles.inputContainer}>
               <MaterialCommunityIcons
                 name="lock-outline"
                 size={20}
@@ -222,20 +164,12 @@ export default function ChangePasswordScreen({ navigation }) {
                 />
               </TouchableOpacity>
             </View>
-            {errors.newPassword && (
-              <Text style={styles.errorText}>{errors.newPassword}</Text>
-            )}
           </View>
 
           {/* Confirm Password */}
           <View style={styles.formGroup}>
-            <Text style={styles.label}>
-              Xác nhận mật khẩu <Text style={styles.required}>*</Text>
-            </Text>
-            <View style={[
-              styles.inputContainer,
-              errors.confirmPassword && styles.inputError,
-            ]}>
+            <Text style={styles.label}>Xác nhận mật khẩu</Text>
+            <View style={styles.inputContainer}>
               <MaterialCommunityIcons
                 name="lock-outline"
                 size={20}
@@ -261,55 +195,6 @@ export default function ChangePasswordScreen({ navigation }) {
                   color="#6B7280"
                 />
               </TouchableOpacity>
-            </View>
-            {errors.confirmPassword && (
-              <Text style={styles.errorText}>{errors.confirmPassword}</Text>
-            )}
-          </View>
-
-          {/* Password Requirements */}
-          <View style={styles.requirementsCard}>
-            <Text style={styles.requirementsTitle}>Yêu cầu mật khẩu:</Text>
-            <View style={styles.requirementItem}>
-              <MaterialCommunityIcons
-                name={formData.newPassword.length >= 6 ? 'check-circle' : 'circle-outline'}
-                size={16}
-                color={formData.newPassword.length >= 6 ? '#10B981' : '#D1D5DB'}
-              />
-              <Text style={styles.requirementText}>Tối thiểu 6 ký tự</Text>
-            </View>
-            <View style={styles.requirementItem}>
-              <MaterialCommunityIcons
-                name={
-                  formData.newPassword &&
-                  formData.newPassword === formData.confirmPassword
-                    ? 'check-circle'
-                    : 'circle-outline'
-                }
-                size={16}
-                color={
-                  formData.newPassword && formData.newPassword === formData.confirmPassword
-                    ? '#10B981'
-                    : '#D1D5DB'
-                }
-              />
-              <Text style={styles.requirementText}>Mật khẩu khớp nhau</Text>
-            </View>
-            <View style={styles.requirementItem}>
-              <MaterialCommunityIcons
-                name={
-                  formData.newPassword && formData.oldPassword !== formData.newPassword
-                    ? 'check-circle'
-                    : 'circle-outline'
-                }
-                size={16}
-                color={
-                  formData.newPassword && formData.oldPassword !== formData.newPassword
-                    ? '#10B981'
-                    : '#D1D5DB'
-                }
-              />
-              <Text style={styles.requirementText}>Khác với mật khẩu hiện tại</Text>
             </View>
           </View>
 
