@@ -319,30 +319,45 @@ export default function CreateMovingRoomRequestScreen({ navigation }) {
               showsHorizontalScrollIndicator={false}
               style={styles.currentRoomScroll}
             >
-              {currentRooms.map((room) => (
-                <TouchableOpacity
-                  key={room._id}
-                  style={[
-                    styles.currentRoomButton,
-                    selectedCurrentRoom === room._id && styles.currentRoomButtonSelected,
-                  ]}
-                  onPress={() => setSelectedCurrentRoom(room._id)}
-                >
-                  <MaterialCommunityIcons
-                    name="door"
-                    size={24}
-                    color={selectedCurrentRoom === room._id ? '#3B82F6' : '#9CA3AF'}
-                  />
-                  <Text
+              {currentRooms.map((room) => {
+                const price = room.contractPrice || room.roomTypeId?.currentPrice || null;
+                const isSelected = selectedCurrentRoom === room._id;
+                
+                return (
+                  <TouchableOpacity
+                    key={room._id}
                     style={[
-                      styles.currentRoomButtonText,
-                      selectedCurrentRoom === room._id && styles.currentRoomButtonTextSelected,
+                      styles.currentRoomButton,
+                      isSelected && styles.currentRoomButtonSelected,
                     ]}
+                    onPress={() => setSelectedCurrentRoom(room._id)}
                   >
-                    {room.name}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+                    <MaterialCommunityIcons
+                      name="door"
+                      size={24}
+                      color={isSelected ? '#3B82F6' : '#9CA3AF'}
+                    />
+                    <Text
+                      style={[
+                        styles.currentRoomButtonText,
+                        isSelected && styles.currentRoomButtonTextSelected,
+                      ]}
+                    >
+                      {room.name}
+                    </Text>
+                    {price !== null && (
+                      <Text
+                        style={[
+                          styles.currentRoomPrice,
+                          isSelected && styles.currentRoomPriceSelected,
+                        ]}
+                      >
+                        {formatCurrency(price)}
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
             </ScrollView>
           )}
 
@@ -707,11 +722,21 @@ const styles = StyleSheet.create({
   currentRoomButtonText: {
     fontSize: 13,
     color: '#6B7280',
-    marginTop: 8,
+    marginTop: 4,
     textAlign: 'center',
     fontWeight: '500',
   },
   currentRoomButtonTextSelected: {
+    color: '#3B82F6',
+    fontWeight: '600',
+  },
+  currentRoomPrice: {
+    fontSize: 11,
+    color: '#6B7280',
+    marginTop: 2,
+    textAlign: 'center',
+  },
+  currentRoomPriceSelected: {
     color: '#3B82F6',
     fontWeight: '600',
   },
