@@ -15,21 +15,34 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { updateRepairRequestAPI } from '../../services/request.service';
 import { getTenantRoomsAPI } from '../../services/profile.service';
-import { getDevicesAPI } from '../../services/device.service';
+import { getDevicesByRoomAPI } from '../../services/device.service';
 import { uploadMultipleImages } from '../../services/upload.service';
 
 const getDeviceIcon = (deviceName) => {
   const name = deviceName?.toLowerCase() || '';
-  if (name.includes('cửa') || name.includes('khóa')) return 'door';
-  if (name.includes('sổ')) return 'window-closed';
-  if (name.includes('điện') || name.includes('đèn')) return 'flash';
-  if (name.includes('nước') || name.includes('vòi')) return 'pipe';
-  if (name.includes('giường') || name.includes('bàn') || name.includes('ghế') || name.includes('tủ')) return 'bed';
-  if (name.includes('sàn')) return 'floor-plan';
-  if (name.includes('tường') || name.includes('trần')) return 'wall';
-  if (name.includes('máy') || name.includes('điều hòa') || name.includes('lạnh')) return 'air-conditioner';
-  if (name.includes('tủ lạnh')) return 'fridge';
-  return 'tools';
+  if (name.includes('tủ lạnh')) return 'fridge-outline';
+  if (name.includes('máy giặt')) return 'washing-machine';
+  if (name.includes('điều hòa') || name.includes('máy lạnh')) return 'snowflake';
+  if (name.includes('quạt trần') || name.includes('quạt')) return 'fan';
+  if (name.includes('tivi') || name.includes('tv') || name.includes('ti vi')) return 'television';
+  if (name.includes('wifi') || name.includes('router') || name.includes('mạng')) return 'wifi';
+  if (name.includes('toilet') || name.includes('bồn cầu') || name.includes('vệ sinh')) return 'toilet';
+  if (name.includes('vòi') || name.includes('bồn rửa') || name.includes('chậu')) return 'faucet';
+  if (name.includes('nước') || name.includes('bình nước')) return 'water-pump';
+  if (name.includes('khóa')) return 'lock';
+  if (name.includes('cửa sổ')) return 'window-closed-variant';
+  if (name.includes('cửa')) return 'door';
+  if (name.includes('đèn') || name.includes('bóng đèn')) return 'lightbulb-outline';
+  if (name.includes('ổ điện') || name.includes('ổ cắm')) return 'power-socket-eu';
+  if (name.includes('điện')) return 'lightning-bolt';
+  if (name.includes('giường')) return 'bed';
+  if (name.includes('ghế') || name.includes('sofa')) return 'sofa';
+  if (name.includes('bàn')) return 'table-furniture';
+  if (name.includes('tủ')) return 'wardrobe-outline';
+  if (name.includes('sàn')) return 'texture-box';
+  if (name.includes('tường') || name.includes('trần')) return 'bricks';
+  if (name.includes('máy')) return 'cog-outline';
+  return 'wrench';
 };
 
 export default function UpdateRepairRequestScreen({ navigation, route }) {
@@ -64,15 +77,26 @@ export default function UpdateRepairRequestScreen({ navigation, route }) {
       try {
         setFetchingDevices(true);
         setDevicesError(null);
-        const response = await getDevicesAPI();
+        const response = await getDevicesByRoomAPI();
+
         if (response.success && response.data) {
-          const mapped = response.data.map((device) => ({
-            id: device._id,
-            label: device.name,
-            icon: getDeviceIcon(device.name),
-            category: device.category,
-          }));
-          setDevices(mapped);
+          const roomDevices = response.data.devices || response.data || [];
+
+          const mappedDevices = roomDevices.map((item) => {
+            const info = item.deviceId || {};
+            const deviceId = info._id;
+            const deviceName = info.name;
+            const deviceCategory = info.category;
+
+            return {
+              id: deviceId,
+              label: deviceName || 'Thiết bị',
+              icon: getDeviceIcon(deviceName),
+              category: deviceCategory,
+            };
+          }).filter((d) => d.id);
+
+          setDevices(mappedDevices);
         }
       } catch (error) {
         setDevicesError(error.message);
@@ -88,6 +112,7 @@ export default function UpdateRepairRequestScreen({ navigation, route }) {
         setFetchingDevices(false);
       }
     };
+
     fetchDevices();
   }, []);
 
