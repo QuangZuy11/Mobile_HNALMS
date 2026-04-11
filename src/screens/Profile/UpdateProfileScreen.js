@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -9,132 +9,63 @@ import {
   ActivityIndicator,
   Alert,
   TextInput,
+  Platform,
+  Modal,
 } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { updateProfileAPI } from '../../services/profile.service';
-
-// Gender mapping - Backend expects: Male, Female, Other
-const GENDER_VALUES = {
-  male: 'Male',
-  female: 'Female',
-  other: 'Other',
-};
-
-const GENDER_LABELS = {
-  male: 'Nam',
-  female: 'Nữ',
-  other: 'Khác',
-  Male: 'Nam',
-  Female: 'Nữ',
-  Other: 'Khác',
-};
 
 // Normalize gender from backend response to internal format
 const normalizeGender = (value) => {
   if (!value) return '';
   const lowerValue = String(value).toLowerCase().trim();
-  
-  // Handle common variations - always return lowercase for internal use
+
   if (lowerValue === 'nam' || lowerValue === 'male' || lowerValue === 'm') return 'male';
   if (lowerValue === 'nữ' || lowerValue === 'female' || lowerValue === 'f') return 'female';
   if (lowerValue === 'khác' || lowerValue === 'other' || lowerValue === 'o') return 'other';
-  
-  return lowerValue; // Return original if no match
+
+  return lowerValue;
 };
 
-// Format date input - auto format dd-mm-yyyy with proper backspace handling
-const formatDateInput = (value) => {
-  if (!value) return '';
-  
-  // Remove all non-numeric characters
-  const cleaned = value.replace(/\D/g, '');
-  
-  // Limit to 8 digits (ddmmyyyy)
-  const limited = cleaned.slice(0, 8);
-  
-  // Format as dd-mm-yyyy
-  if (limited.length === 0) {
-    return '';
-  } else if (limited.length <= 2) {
-    return limited;
-  } else if (limited.length <= 4) {
-    return `${limited.slice(0, 2)}-${limited.slice(2)}`;
-  } else {
-    return `${limited.slice(0, 2)}-${limited.slice(2, 4)}-${limited.slice(4, 8)}`;
-  }
-};
-
-// Validate date format and values
-const isValidDate = (dateString) => {
-  if (!dateString) return false;
-  
-  // Check format dd-mm-yyyy
-  const regex = /^(\d{2})-(\d{2})-(\d{4})$/;
-  const match = dateString.match(regex);
-  
-  if (!match) return false;
-  
-  const dd = parseInt(match[1], 10);
-  const mm = parseInt(match[2], 10);
-  const yyyy = parseInt(match[3], 10);
-  
-  // Validate day
-  if (dd < 1 || dd > 31) return false;
-  
-  // Validate month
-  if (mm < 1 || mm > 12) return false;
-  
-  // Validate year (reasonable range)
-  if (yyyy < 1900 || yyyy > 2100) return false;
-  
-  return true;
-};
-
-// Convert dd-mm-yyyy to yyyy-mm-dd for backend
-const convertDateToBackendFormat = (dateString) => {
+// Parse date string to Date object (supports yyyy-mm-dd and dd-mm-yyyy)
+const parseDate = (dateString) => {
   if (!dateString) return null;
-  
-  // Validate format first
-  if (!isValidDate(dateString)) {
-    return dateString; // Return as-is if invalid, let backend handle error
+
+  if (dateString.length === 10) {
+    const parts = dateString.split('-');
+    if (parts.length === 3) {
+      let year, month, day;
+      if (parts[0].length === 4) {
+        [year, month, day] = parts;
+      } else if (parts[2].length === 4) {
+        [day, month, year] = parts;
+      } else {
+        return null;
+      }
+      const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+      if (!isNaN(date.getTime())) return date;
+    }
   }
-  
-  // Parse dd-mm-yyyy
-  const parts = dateString.split('-');
-  const dd = parts[0];
-  const mm = parts[1];
-  const yyyy = parts[2];
-  
-  // Convert to yyyy-mm-dd
-  return `${yyyy}-${mm}-${dd}`;
+  return null;
 };
 
-// Convert yyyy-mm-dd to dd-mm-yyyy for display
-const convertDateToDisplayFormat = (dateString) => {
-  if (!dateString) return '';
-  
-  // Check if already in dd-mm-yyyy format (length should be 10 and first part is 2 digits)
-  if (dateString.length === 10) {
-    const parts = dateString.split('-');
-    if (parts.length === 3 && parts[0].length === 2 && parts[1].length === 2 && parts[2].length === 4) {
-      // Already in dd-mm-yyyy format
-      return dateString;
-    }
-  }
-  
-  // Try to convert from yyyy-mm-dd to dd-mm-yyyy
-  if (dateString.length === 10) {
-    const parts = dateString.split('-');
-    if (parts.length === 3 && parts[0].length === 4 && parts[1].length === 2 && parts[2].length === 2) {
-      // yyyy-mm-dd format
-      const yyyy = parts[0];
-      const mm = parts[1];
-      const dd = parts[2];
-      return `${dd}-${mm}-${yyyy}`;
-    }
-  }
-  
-  return dateString;
+// Format Date to yyyy-mm-dd for backend
+const formatDateForBackend = (date) => {
+  if (!date) return null;
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+// Format Date to dd-mm-yyyy for display
+const formatDateForDisplay = (date) => {
+  if (!date) return '';
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const year = date.getFullYear();
+  return `${day}-${month}-${year}`;
 };
 
 export default function UpdateProfileScreen({ route, navigation }) {
@@ -145,60 +76,52 @@ export default function UpdateProfileScreen({ route, navigation }) {
     email: initialProfile?.email || '',
     phoneNumber: initialProfile?.phoneNumber || '',
     cccd: initialProfile?.cccd || '',
-    dob: convertDateToDisplayFormat(initialProfile?.dob),
+    dob: parseDate(initialProfile?.dob),
     gender: normalizeGender(initialProfile?.gender),
     address: initialProfile?.address || '',
   });
 
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   const validateEmail = (email) => {
-    if (!email) return true; // Allow empty email
+    if (!email) return true;
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return emailRegex.test(email);
   };
 
   const validatePhoneNumber = (phone) => {
-    if (!phone) return true; // Allow empty phone
-    // Allow phone with digits, spaces, dashes, +
-    const phoneRegex = /^[\d\s\-\+\(\)]+$/;
-    return phoneRegex.test(phone) && phone.replace(/\D/g, '').length >= 9;
+    if (!phone) return true;
+    const digitsOnly = phone.replace(/\D/g, '');
+    return digitsOnly.length >= 10 && digitsOnly.length <= 11;
   };
 
-  const validateForm = () => {
+  const handleUpdate = async () => {
     const newErrors = {};
 
-    // Validate email if provided
     if (formData.email && !validateEmail(formData.email)) {
       newErrors.email = 'Email không hợp lệ';
     }
 
-    // Validate phone if provided
     if (formData.phoneNumber && !validatePhoneNumber(formData.phoneNumber)) {
-      newErrors.phoneNumber = 'Số điện thoại không hợp lệ (tối thiểu 9 chữ số)';
+      newErrors.phoneNumber = 'Số điện thoại phải từ 10-11 số';
     }
 
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  const handleUpdate = async () => {
-    if (!validateForm()) {
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
       return;
     }
 
     setLoading(true);
     try {
-      // Convert dob from dd-mm-yyyy to yyyy-mm-dd before sending
       const dataToSend = {
         ...formData,
-        dob: convertDateToBackendFormat(formData.dob),
+        dob: formatDateForBackend(formData.dob),
       };
-      
+
       const response = await updateProfileAPI(dataToSend);
 
-      // Backend returns { success: true, message, data: updatedProfile }
       if (response && response.success) {
         Alert.alert('Thành công', response.message || 'Cập nhật thông tin cá nhân thành công', [
           {
@@ -210,58 +133,36 @@ export default function UpdateProfileScreen({ route, navigation }) {
         Alert.alert('Lỗi', response?.message || 'Cập nhật thất bại');
       }
     } catch (error) {
-      Alert.alert('Lỗi', error.message || 'Đã xảy ra lỗi khi cập nhật');
+      Alert.alert('Lỗi', error.data?.message || error.message || 'Đã xảy ra lỗi khi cập nhật');
     } finally {
       setLoading(false);
     }
   };
 
   const handleInputChange = (field, value) => {
-    // Auto-format date of birth input
-    let finalValue = value;
     let newErrors = { ...errors };
-    
-    if (field === 'dob') {
-      finalValue = formatDateInput(value);
-      
-      // Validate if it's complete (dd-mm-yyyy format)
-      if (finalValue && finalValue.length === 10) {
-        if (!isValidDate(finalValue)) {
-          newErrors.dob = 'Ngày tháng năm không hợp lệ (dd-mm-yyyy)';
-        } else {
-          newErrors.dob = null;
-        }
-      } else if (finalValue && finalValue.length > 0) {
-        newErrors.dob = null; // Clear error while typing
-      } else {
-        newErrors.dob = null;
-      }
-    } else if (field === 'email') {
-      // Real-time email validation
-      if (value && !validateEmail(value)) {
+
+    if (field === 'email' && value) {
+      if (!validateEmail(value)) {
         newErrors.email = 'Email không hợp lệ';
       } else {
         newErrors.email = null;
       }
-    } else if (field === 'phoneNumber') {
-      // Real-time phone validation
-      if (value && !validatePhoneNumber(value)) {
-        newErrors.phoneNumber = 'Số điện thoại không hợp lệ (tối thiểu 9 chữ số)';
+    } else if (field === 'phoneNumber' && value) {
+      if (!validatePhoneNumber(value)) {
+        newErrors.phoneNumber = 'Số điện thoại phải từ 10-11 số';
       } else {
         newErrors.phoneNumber = null;
       }
-    }
-    
-    setFormData((prev) => ({
-      ...prev,
-      [field]: finalValue,
-    }));
-    
-    // Clear error for this field when user starts typing (except email and phone)
-    if (errors[field] && field !== 'dob' && field !== 'email' && field !== 'phoneNumber') {
+    } else if (errors[field]) {
       newErrors[field] = null;
     }
-    
+
+    setFormData((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
+
     setErrors(newErrors);
   };
 
@@ -299,10 +200,7 @@ export default function UpdateProfileScreen({ route, navigation }) {
           {/* Email */}
           <View style={styles.formGroup}>
             <Text style={styles.label}>Email</Text>
-            <View style={[
-              styles.inputContainer,
-              errors.email && styles.inputError,
-            ]}>
+            <View style={[styles.inputContainer, errors.email && styles.inputError]}>
               <MaterialCommunityIcons
                 name="email-outline"
                 size={20}
@@ -319,18 +217,13 @@ export default function UpdateProfileScreen({ route, navigation }) {
                 selectTextOnFocus
               />
             </View>
-            {errors.email && (
-              <Text style={styles.errorText}>{errors.email}</Text>
-            )}
+            {errors.email && <Text style={styles.errorText}>{errors.email}</Text>}
           </View>
 
           {/* Phone Number */}
           <View style={styles.formGroup}>
             <Text style={styles.label}>Số điện thoại</Text>
-            <View style={[
-              styles.inputContainer,
-              errors.phoneNumber && styles.inputError,
-            ]}>
+            <View style={[styles.inputContainer, errors.phoneNumber && styles.inputError]}>
               <MaterialCommunityIcons
                 name="phone-outline"
                 size={20}
@@ -347,9 +240,7 @@ export default function UpdateProfileScreen({ route, navigation }) {
                 selectTextOnFocus
               />
             </View>
-            {errors.phoneNumber && (
-              <Text style={styles.errorText}>{errors.phoneNumber}</Text>
-            )}
+            {errors.phoneNumber && <Text style={styles.errorText}>{errors.phoneNumber}</Text>}
           </View>
 
           {/* CCCD/CMND - Read Only */}
@@ -370,32 +261,69 @@ export default function UpdateProfileScreen({ route, navigation }) {
           {/* Date of Birth */}
           <View style={styles.formGroup}>
             <Text style={styles.label}>Ngày sinh</Text>
-            <View style={[
-              styles.inputContainer,
-              errors.dob && styles.inputError,
-            ]}>
+            <TouchableOpacity
+              style={styles.inputContainer}
+              onPress={() => !loading && setShowDatePicker(true)}
+              disabled={loading}
+            >
               <MaterialCommunityIcons
                 name="cake-variant"
                 size={20}
                 color="#6B7280"
                 style={styles.inputIcon}
               />
-              <TextInput
-                style={styles.input}
-                placeholder="dd-mm-yyyy"
-                placeholderTextColor="#D1D5DB"
-                value={formData.dob}
-                onChangeText={(value) => handleInputChange('dob', value)}
-                keyboardType="numeric"
-                maxLength={10}
-                selectTextOnFocus
+              <Text style={[styles.input, !formData.dob && styles.placeholder]}>
+                {formData.dob ? formatDateForDisplay(formData.dob) : 'dd-mm-yyyy'}
+              </Text>
+              <MaterialCommunityIcons
+                name="calendar"
+                size={20}
+                color="#6B7280"
+                style={styles.dateIcon}
               />
-            </View>
-            {errors.dob && (
-              <Text style={styles.errorText}>{errors.dob}</Text>
-            )}
-            <Text style={styles.helperText}>Ví dụ: 01-01-1990</Text>
+            </TouchableOpacity>
           </View>
+
+          {/* DateTimePicker Modal */}
+          <Modal
+            visible={showDatePicker}
+            transparent
+            animationType="fade"
+            onRequestClose={() => setShowDatePicker(false)}
+          >
+            <TouchableOpacity
+              style={styles.modalOverlay}
+              activeOpacity={1}
+              onPress={() => setShowDatePicker(false)}
+            >
+              <View style={styles.datePickerContainer}>
+                <View style={styles.datePickerHeader}>
+                  <TouchableOpacity onPress={() => setShowDatePicker(false)}>
+                    <Text style={styles.datePickerCancel}>Hủy</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => {
+                      setShowDatePicker(false);
+                    }}
+                  >
+                    <Text style={styles.datePickerDone}>Xong</Text>
+                  </TouchableOpacity>
+                </View>
+                <DateTimePicker
+                  value={formData.dob || new Date()}
+                  mode="date"
+                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                  onChange={(event, selectedDate) => {
+                    if (selectedDate) {
+                      setFormData((prev) => ({ ...prev, dob: selectedDate }));
+                    }
+                  }}
+                  maximumDate={new Date()}
+                  minimumDate={new Date(1900, 0, 1)}
+                />
+              </View>
+            </TouchableOpacity>
+          </Modal>
 
           {/* Gender */}
           <View style={styles.formGroup}>
@@ -478,7 +406,6 @@ export default function UpdateProfileScreen({ route, navigation }) {
             <View style={[
               styles.inputContainer,
               styles.textAreaContainer,
-              errors.address && styles.inputError,
             ]}>
               <MaterialCommunityIcons
                 name="map-marker-outline"
@@ -497,9 +424,6 @@ export default function UpdateProfileScreen({ route, navigation }) {
                 editable={!loading}
               />
             </View>
-            {errors.address && (
-              <Text style={styles.errorText}>{errors.address}</Text>
-            )}
           </View>
 
           {/* Buttons */}
@@ -598,6 +522,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#1F2937',
     padding: 0,
+  },
+  placeholder: {
+    color: '#D1D5DB',
+  },
+  dateIcon: {
+    marginLeft: 8,
   },
   textAreaContainer: {
     height: 120,
@@ -711,5 +641,34 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
     marginTop: 6,
     fontStyle: 'italic',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  datePickerContainer: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    paddingBottom: 20,
+  },
+  datePickerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  datePickerCancel: {
+    fontSize: 16,
+    color: '#6B7280',
+  },
+  datePickerDone: {
+    fontSize: 16,
+    color: '#3B82F6',
+    fontWeight: '600',
   },
 });
