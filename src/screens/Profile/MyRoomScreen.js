@@ -61,15 +61,15 @@ export default function MyRoomScreen({ navigation }) {
 
       if (response.data?.success && response.data.data?.length > 0) {
         const contracts = response.data.data;
-        // Filter only active contracts and extract unique rooms
-        const activeContracts = contracts.filter((c) => c.status?.toLowerCase() === 'active');
+        // Lấy tất cả phòng từ mọi hợp đồng của tenant
+        const allContracts = contracts.filter((c) => c.roomId && c.roomId._id);
         
-        if (activeContracts.length === 0) {
-          setError('Không có hợp đồng đang hoạt động');
+        if (allContracts.length === 0) {
+          setError('Không có phòng nào trong hợp đồng');
           setRoomsList([]);
         } else {
           const uniqueRooms = {};
-          activeContracts.forEach((contract) => {
+          allContracts.forEach((contract) => {
             if (contract.roomId && contract.roomId._id) {
               uniqueRooms[contract.roomId._id] = contract.roomId;
             }
@@ -77,9 +77,14 @@ export default function MyRoomScreen({ navigation }) {
           
           const rooms = Object.values(uniqueRooms);
           if (rooms.length > 0) {
-            setRoomsList(rooms);
+            // Gắn contractStatus vào mỗi room
+            const roomsWithStatus = rooms.map((room) => {
+              const contract = allContracts.find((c) => c.roomId?._id === room._id);
+              return { ...room, contractStatus: contract?.status };
+            });
+            setRoomsList(roomsWithStatus);
             // Set first room as selected by default
-            setSelectedRoom(rooms[0]);
+            setSelectedRoom(roomsWithStatus[0]);
           } else {
             setError('Không tìm thấy thông tin phòng');
           }
@@ -188,7 +193,10 @@ export default function MyRoomScreen({ navigation }) {
   // ── Extract room info ──
   const roomType = selectedRoom?.roomTypeId;
   const floor = selectedRoom?.floorId;
-  const statusBadge = getRoomStatusBadge(selectedRoom?.status);
+  const isInactive = selectedRoom?.contractStatus?.toLowerCase() === 'inactive';
+  const statusBadge = isInactive
+    ? { bg: '#FEF3C7', text: '#92400E', label: 'Chưa sử dụng' }
+    : getRoomStatusBadge(selectedRoom?.status);
 
   return (
     <SafeAreaView style={styles.safeContainer}>
@@ -206,7 +214,11 @@ export default function MyRoomScreen({ navigation }) {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Các phòng của tôi ({roomsList.length})</Text>
             {roomsList.map((room, index) => {
-              const badge = getRoomStatusBadge(room.status);
+              // Nếu hợp đồng inactive thì hiện "Chưa sử dụng", không lấy status của phòng
+              const isInactive = room.contractStatus?.toLowerCase() === 'inactive';
+              const badge = isInactive
+                ? { bg: '#FEF3C7', text: '#92400E', label: 'Chưa sử dụng' }
+                : getRoomStatusBadge(room.status);
               const rtype = room.roomTypeId;
               const flr = room.floorId;
               return (

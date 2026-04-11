@@ -192,6 +192,7 @@ export default function RequestListScreen({ navigation }) {
       case 'Pending':        return { label: 'Chờ xử lý',      color: '#F59E0B', bg: '#FEF3C7', icon: 'clock-outline' };
       case 'Processing':     return { label: 'Đang xử lý',    color: '#3B82F6', bg: '#DBEAFE', icon: 'cog' };
       case 'Done':           return { label: 'Đã xử lý',      color: '#10B981', bg: '#D1FAE5', icon: 'check-circle-outline' };
+      case 'Rejected':       return { label: 'Từ chối',       color: '#EF4444', bg: '#FEE2E2', icon: 'close-circle-outline' };
       case 'Unpaid':         return { label: 'Chờ thanh toán', color: '#CA8A04', bg: '#FEF9C3', icon: 'cash-clock' };
       case 'Paid':           return { label: 'Đã thanh toán',  color: '#10B981', bg: '#D1FAE5', icon: 'cash-check' };
       default:               return { label: status || 'Không xác định', color: '#6B7280', bg: '#F3F4F6', icon: 'help-circle' };
@@ -681,6 +682,34 @@ export default function RequestListScreen({ navigation }) {
                     </View>
                   </View>
                 )}
+
+                {/* Lý do từ chối từ quản lý (khiếu nại) — sau Mô tả, giống mockup */}
+                {type === 'complaint' &&
+                  data.managerNote != null &&
+                  String(data.managerNote).trim() !== '' && (
+                    <View style={styles.detailSection}>
+                      <Text style={styles.detailSectionTitle}>Lý do từ chối từ quản lý</Text>
+                      <View style={styles.detailRejectionBox}>
+                        <View style={styles.detailRejectionMeta}>
+                          <MaterialCommunityIcons name="account-tie" size={16} color="#EF4444" />
+                          <Text style={styles.detailRejectionAuthor}>
+                            {data.responseBy?.fullname ||
+                              data.responseBy?.username ||
+                              data.responseBy?.email ||
+                              'Quản lý'}
+                          </Text>
+                          {data.responseDate ? (
+                            <Text style={styles.detailRejectionDate}>
+                              {formatDate(data.responseDate)}
+                            </Text>
+                          ) : null}
+                        </View>
+                        <Text style={styles.detailRejectionText}>
+                          {String(data.managerNote).trim()}
+                        </Text>
+                      </View>
+                    </View>
+                  )}
 
                 {/* Images (repair/maintenance) */}
                 {type === 'maintenance' && data.images && data.images.length > 0 && (
@@ -1302,6 +1331,35 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#374151',
     lineHeight: 20,
+  },
+  detailRejectionBox: {
+    backgroundColor: '#FEF2F2',
+    borderLeftWidth: 3,
+    borderLeftColor: '#EF4444',
+    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+  },
+  detailRejectionMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 6,
+  },
+  detailRejectionAuthor: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#991B1B',
+    flex: 1,
+  },
+  detailRejectionDate: {
+    fontSize: 11,
+    color: '#9CA3AF',
+  },
+  detailRejectionText: {
+    fontSize: 14,
+    color: '#7F1D1D',
+    lineHeight: 21,
   },
   detailNoteBox: {
     backgroundColor: '#FEF3C7',

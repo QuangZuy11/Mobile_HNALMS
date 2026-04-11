@@ -50,6 +50,8 @@ const getStatusBadge = (status) => {
       return { bg: '#FEE2E2', text: '#991B1B', label: 'Đã hết hạn', icon: 'clock-alert' };
     case 'terminated':
       return { bg: '#FEE2E2', text: '#991B1B', label: 'Đã thanh lý', icon: 'close-circle' };
+    case 'inactive':
+      return { bg: '#FEF3C7', text: '#92400E', label: 'Chưa hiệu lực', icon: 'timer-sand' };
     case 'pending':
       return { bg: '#FEF3C7', text: '#92400E', label: 'Chờ xử lý', icon: 'timer-sand' };
     default:
