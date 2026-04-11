@@ -22,6 +22,7 @@ import {
   createMoveOutRequestAPI,
   getMyMoveOutRequestAPI,
   getMoveOutDepositVsInvoiceAPI,
+  deleteMoveOutRequestAPI,
 } from '../../services/move-out.service';
 
 // ─── Status helpers ──────────────────────────────────────────────────────────
@@ -97,7 +98,7 @@ const getGapContractBadge = (isGapContract) => {
   return (
     <View style={styles.gapContractBadge}>
       <MaterialCommunityIcons name="shield-check" size={15} color="#059669" />
-      <Text style={styles.gapContractBadgeText}>Gap Contract – Được bảo vệ hoàn cọc</Text>
+      <Text style={styles.gapContractBadgeText}>Hợp đồng ngắn hạn – Được bảo vệ hoàn cọc</Text>
     </View>
   );
 };
@@ -587,6 +588,47 @@ export default function CreateMoveOutRequestModal({
     setShowDateModal(false);
   };
 
+  // ── Delete move-out request ──
+  const canDeleteRequest = existingRequest && existingRequest.status === 'Requested';
+
+  const handleDeleteRequest = () => {
+    const statusLabel = getStatusInfo(existingRequest.status).label;
+    Alert.alert(
+      'Xác nhận xoá yêu cầu',
+      `Bạn có chắc muốn xoá yêu cầu trả phòng ở trạng thái "${statusLabel}" không?`,
+      [
+        { text: 'Huỷ', style: 'cancel' },
+        {
+          text: 'Xoá',
+          style: 'destructive',
+          onPress: async () => {
+            setLoading(true);
+            try {
+              const requestId = existingRequest._id || existingRequest.id;
+              await deleteMoveOutRequestAPI(requestId);
+              Alert.alert('Thành công', 'Yêu cầu trả phòng đã được xoá.', [
+                {
+                  text: 'OK',
+                  onPress: () => {
+                    setExistingRequest(null);
+                    resetForm();
+                    if (onSuccess) onSuccess(null);
+                    onClose();
+                  },
+                },
+              ]);
+            } catch (err) {
+              const msg = err?.response?.data?.message || err?.message || 'Không thể xoá yêu cầu trả phòng.';
+              Alert.alert('Lỗi', msg);
+            } finally {
+              setLoading(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   // ── Formatters ──
   const formatDate = (date) =>
     new Date(date).toLocaleDateString('vi-VN', {
@@ -684,7 +726,7 @@ export default function CreateMoveOutRequestModal({
                     <View style={[styles.warningFlag, { backgroundColor: '#ECFDF5', borderRadius: 6, padding: 8 }]}>
                       <MaterialCommunityIcons name="shield-check" size={15} color="#059669" />
                       <Text style={[styles.warningFlagText, { color: '#059669' }]}>
-                        Bạn là người thuê Gap Contract – Luôn được hoàn cọc khi trả phòng
+                        Luôn được hoàn cọc khi trả phòng
                       </Text>
                     </View>
                   )}
@@ -755,7 +797,7 @@ export default function CreateMoveOutRequestModal({
         {/* Deposit vs invoice result */}
         {(fetchingDepositVsInvoice || hasRefundToTenant || hasRefundTicket) && (
           <View style={styles.infoSection}>
-            <Text style={styles.sectionTitle}>💰 Hoàn cọc cho tenant</Text>
+            <Text style={styles.sectionTitle}>Hoàn cọc cho tenant</Text>
             <View style={styles.infoBox}>
               {fetchingDepositVsInvoice ? (
                 <View style={styles.loadingRow}>
@@ -764,50 +806,16 @@ export default function CreateMoveOutRequestModal({
                 </View>
               ) : (
                 <>
-                  <InfoRow
-                    label="Số tiền được hoàn"
-                    value={
-                      hasRefundToTenant
-                        ? formatCurrency(depositVsInvoice.refundToTenant)
-                        : 'Đang cập nhật'
-                    }
-                    valueStyle={{
-                      color: hasRefundToTenant
-                        ? depositVsInvoice.refundToTenant > 0
-                          ? '#10B981'
-                          : '#6B7280'
-                        : '#6B7280',
-                      fontWeight: '700',
-                    }}
-                    isLast={!hasRefundTicket}
-                  />
-
                   {hasRefundTicket && (
                     <>
                       <InfoRow
-                        label="Số tiền phiếu chi"
+                        label="Số tiền được hoàn"
                         value={
                           refundTicket?.amount != null
                             ? formatCurrency(refundTicket.amount)
                             : '—'
                         }
                       />
-                      <InfoRow
-                        label="Trạng thái phiếu chi"
-                        value={getRefundTicketStatusLabel(refundTicket?.status)}
-                        valueStyle={{
-                          color: getRefundTicketStatusColor(refundTicket?.status),
-                          fontWeight: '700',
-                        }}
-                        isLast={!paymentVoucherDisplay}
-                      />
-                      {paymentVoucherDisplay && (
-                        <InfoRow
-                          label="Chứng từ chi"
-                          value={paymentVoucherDisplay}
-                          isLast
-                        />
-                      )}
                     </>
                   )}
                 </>
@@ -819,17 +827,8 @@ export default function CreateMoveOutRequestModal({
         {/* Paid / Completed – show payment info */}
         {(req.status?.toLowerCase() === 'paid' || req.status?.toLowerCase() === 'completed') && (
           <View style={styles.infoSection}>
-            <Text style={styles.sectionTitle}>💳 Thông tin thanh toán</Text>
+            <Text style={styles.sectionTitle}>Thông tin thanh toán</Text>
             <View style={styles.infoBox}>
-              {req.paymentMethod && (
-                <InfoRow
-                  label="Phương thức"
-                  value={req.paymentMethod === 'online' ? '💻 Online' : '💵 Tiền mặt'}
-                />
-              )}
-              {req.paymentTransactionCode && (
-                <InfoRow label="Mã giao dịch" value={req.paymentTransactionCode} />
-              )}
               {req.paymentDate && (
                 <InfoRow label="Ngày thanh toán" value={formatDate(req.paymentDate)} />
               )}
@@ -838,9 +837,9 @@ export default function CreateMoveOutRequestModal({
                   label="Hoàn cọc"
                   value={
                     req.isDepositForfeited
-                      ? '❌ Bị tịch thu'
+                      ? 'Bị tịch thu'
                       : req.depositRefundAmount > 0
-                      ? `✅ ${formatCurrency(req.depositRefundAmount)}`
+                      ? `${formatCurrency(req.depositRefundAmount)}`
                       : 'Không có'
                   }
                   valueStyle={{
@@ -859,7 +858,7 @@ export default function CreateMoveOutRequestModal({
         {/* Completed – show completion info */}
         {req.status?.toLowerCase() === 'completed' && (
           <View style={styles.infoSection}>
-            <Text style={styles.sectionTitle}>🎉 Hoàn tất trả phòng</Text>
+            <Text style={styles.sectionTitle}>Hoàn tất trả phòng</Text>
             <View style={styles.infoBox}>
               {req.completedDate && (
                 <InfoRow label="Ngày hoàn thành" value={formatDate(req.completedDate)} />
@@ -879,7 +878,27 @@ export default function CreateMoveOutRequestModal({
 
         {/* Close button */}
         <View style={styles.formSection}>
-          <TouchableOpacity style={styles.cancelBtn} onPress={onClose}>
+          {canDeleteRequest && (
+            <TouchableOpacity
+              style={[styles.deleteBtn, loading && styles.submitBtnDisabled]}
+              onPress={handleDeleteRequest}
+              disabled={loading}
+            >
+              {loading ? (
+                <ActivityIndicator size="small" color="#FFF" />
+              ) : (
+                <>
+                  <MaterialCommunityIcons name="delete-outline" size={20} color="#FFF" />
+                  <Text style={styles.deleteBtnText}>Xoá yêu cầu trả phòng</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity
+            style={styles.cancelBtn}
+            onPress={onClose}
+            disabled={loading}
+          >
             <Text style={styles.cancelBtnText}>Đóng</Text>
           </TouchableOpacity>
         </View>
@@ -1611,4 +1630,15 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   cancelBtnText: { textAlign: 'center', fontSize: 14, fontWeight: '600', color: '#6B7280' },
+  deleteBtn: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 13,
+    backgroundColor: '#DC2626',
+    borderRadius: 8,
+    marginBottom: 10,
+  },
+  deleteBtnText: { fontSize: 15, fontWeight: '700', color: '#FFF' },
 });
