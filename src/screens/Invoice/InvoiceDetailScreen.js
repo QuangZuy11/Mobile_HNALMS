@@ -58,6 +58,41 @@ const formatCurrency = (v) =>
 
 const formatDate = (d) => d ? new Date(d).toLocaleDateString('vi-VN') : '—';
 
+/**
+ * Parse date range từ itemName prepaid.
+ * VD: "Tiền thuê phòng trả trước (từ 01/05/2026 đến 30/06/2026) (2 tháng)"
+ * Trả về mảng label "Tháng M - YYYY", ví dụ: ["Tháng 5 - 2026", "Tháng 6 - 2026"]
+ */
+const parsePrepaidMonthsFromItemName = (itemName) => {
+    if (!itemName) return [];
+    // Tìm date range: (từ DD/MM/YYYY đến DD/MM/YYYY)
+    const rangeMatch = itemName.match(/\(từ\s*(\d{2})\/(\d{2})\/(\d{4})\s*đến\s*(\d{2})\/(\d{2})\/(\d{4})\)/);
+    if (!rangeMatch) return [];
+    const [, , startMonth, startYear, , endMonth, endYear] = rangeMatch;
+    const sMonth = parseInt(startMonth, 10);
+    const sYear = parseInt(startYear, 10);
+    const eMonth = parseInt(endMonth, 10);
+    const eYear = parseInt(endYear, 10);
+    const months = [];
+    let y = sYear, m = sMonth;
+    while (y < eYear || (y === eYear && m <= eMonth)) {
+        months.push(`Tháng ${m} - ${y}`);
+        m++;
+        if (m > 12) { m = 1; y++; }
+    }
+    return months;
+};
+
+/* ─── item trong danh sách tháng trả trước ─── */
+function PrepaidMonthItem({ label }) {
+    return (
+        <View style={styles.prepaidMonthItem}>
+            <Text style={styles.prepaidMonthDot}>•</Text>
+            <Text style={styles.prepaidMonthText}>{label}</Text>
+        </View>
+    );
+}
+
 /* ─── small reusable row ─── */
 function InfoRow({ icon, label, value, valueStyle }) {
     return (
@@ -123,6 +158,18 @@ export default function InvoiceDetailScreen({ navigation, route }) {
 
     const invoiceItems = useMemo(() => invoice?.items || [], [invoice]);
 
+    /** Danh sách tháng trả trước, parse từ itemName trong items */
+    const prepaidMonthList = useMemo(() => {
+        if (!isPrepaidType) return [];
+        // Tìm item chứa date range trong prepaid invoice
+        const prepaidItem = invoiceItems.find((item) =>
+            item.itemName?.toLowerCase().includes('trả trước') ||
+            item.itemName?.toLowerCase().includes('tra truoc')
+        );
+        if (!prepaidItem?.itemName) return [];
+        return parsePrepaidMonthsFromItemName(prepaidItem.itemName);
+    }, [invoiceItems, isPrepaidType]);
+
     return (
         <SafeAreaView style={styles.safeContainer}>
             {/* ── Header ── */}
@@ -183,7 +230,6 @@ export default function InvoiceDetailScreen({ navigation, route }) {
                             )}
                             {isPrepaidType && (
                                 <View style={styles.amountBannerMeta}>
-                                    <Text style={styles.amountBannerMetaLabel}>Đóng trước tiền phòng</Text>
                                 </View>
                             )}
                         </View>
@@ -195,7 +241,7 @@ export default function InvoiceDetailScreen({ navigation, route }) {
                             {isViolation && <InfoRow icon="tag-outline" label="Loại Hóa Đơn" value="Vi phạm" />}
                             {isRepair && <InfoRow icon="tag-outline" label="Loại Hóa Đơn" value="Sửa chữa" />}
                             {!isIncurred && !isPrepaidType && <InfoRow icon="tag-outline" label="Loại Hóa Đơn" value="Định kỳ" />}
-                            {isPrepaidType && <InfoRow icon="tag-outline" label="Loại Hóa Đơn" value="Đóng trước tiền phòng" />}
+                            {isPrepaidType && <InfoRow icon="tag-outline" label="Loại Hóa Đơn" value="Trả trước tiền phòng" />}
                             {/* Periodic: room from roomId object */}
                             {!isIncurred && !isPrepaidType && room && <InfoRow icon="home-outline" label="Phòng" value={`${room.name} `} />}
                             {!isIncurred && !isPrepaidType && room?.roomTypeId?.currentPrice != null && (
@@ -215,8 +261,19 @@ export default function InvoiceDetailScreen({ navigation, route }) {
                                     {room.roomTypeId?.currentPrice != null && (
                                         <InfoRow icon="currency-usd" label="Giá phòng" value={formatCurrency(room.roomTypeId.currentPrice)} />
                                     )}
-                                    {invoice.prepaidMonths > 0 && (
-                                        <InfoRow icon="calendar-month" label="Số tháng đóng trước" value={`${invoice.prepaidMonths} tháng`} />
+                                    {prepaidMonthList.length > 0 && (
+                                        <>
+                                            <InfoRow icon="calendar-month" label="Số tháng trả trước" value={`${prepaidMonthList.length} tháng`} />
+                                            <View style={styles.infoRow}>
+                                                <MaterialCommunityIcons name="calendar-check" size={16} color="#6B7280" style={styles.infoIcon} />
+                                                <Text style={styles.infoLabel}>Tháng trả trước</Text>
+                                                <View style={{ flex: 1, alignItems: 'flex-end' }}>
+                                                    {prepaidMonthList.map((label, idx) => (
+                                                        <PrepaidMonthItem key={idx} label={label} />
+                                                    ))}
+                                                </View>
+                                            </View>
+                                        </>
                                     )}
                                 </>
                             )}
@@ -468,6 +525,17 @@ const styles = StyleSheet.create({
     violationImage: { width: 150, height: 150, borderRadius: 10, marginRight: 10 },
     noImageBox: { alignItems: 'center', justifyContent: 'center', paddingVertical: 30, backgroundColor: '#F9FAFB', marginHorizontal: 14, borderRadius: 10 },
     noImageText: { fontSize: 13, color: '#9CA3AF', marginTop: 8 },
+
+    /* prepaid month list */
+    prepaidMonthItem: {
+        flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 2,
+    },
+    prepaidMonthDot: {
+        fontSize: 16, color: '#7C3AED', fontWeight: '700', lineHeight: 18,
+    },
+    prepaidMonthText: {
+        fontSize: 13, color: '#1F2937', fontWeight: '600',
+    },
 
     /* pay bar */
     payBar: {
