@@ -220,7 +220,11 @@ export default function InvoiceDetailScreen({ navigation, route }) {
                                     )}
                                 </>
                             )}
-                            <InfoRow icon="calendar-check" label="Ngày gửi" value={formatDate(invoice.createdAt)} />
+                            <InfoRow
+                                icon="calendar-check"
+                                label={isPrepaidRent ? 'Ngày thanh toán' : 'Ngày gửi'}
+                                value={formatDate(invoice.createdAt)}
+                            />
                             {!isPrepaidType && (
                                 <InfoRow icon="calendar-clock" label="Đến hạn" value={formatDate(invoice.dueDate)}
                                     valueStyle={invoice.status === 'Overdue' ? { color: '#F59E0B', fontWeight: '700' } : {}} />

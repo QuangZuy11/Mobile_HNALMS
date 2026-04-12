@@ -401,18 +401,24 @@ export default function InvoiceListScreen({ navigation, route }) {
         <View style={styles.metaRow}>
           <View style={styles.metaItem}>
             <MaterialCommunityIcons name="calendar-plus" size={13} color="#6B7280" />
-            <Text style={styles.metaLabel}>Ngày gửi</Text>
+            <Text style={styles.metaLabel}>
+              {item.invoiceCode?.toUpperCase().startsWith('HD-PREPAID') ? 'Ngày thanh toán' : 'Ngày gửi'}
+            </Text>
             <Text style={styles.metaValue}>{formatDate(item.createdAt)}</Text>
           </View>
           <View style={styles.metaSep} />
-          <View style={styles.metaItem}>
-            <MaterialCommunityIcons name="calendar-clock" size={13} color="#6B7280" />
-            <Text style={styles.metaLabel}>Đến hạn</Text>
-            <Text style={[styles.metaValue, item.status === 'Overdue' && { color: '#F59E0B' }]}>
-              {formatDate(item.dueDate)}
-            </Text>
-          </View>
-          <View style={styles.metaSep} />
+          {!item.invoiceCode?.toUpperCase().startsWith('HD-PREPAID') && (
+            <>
+              <View style={styles.metaItem}>
+                <MaterialCommunityIcons name="calendar-clock" size={13} color="#6B7280" />
+                <Text style={styles.metaLabel}>Đến hạn</Text>
+                <Text style={[styles.metaValue, item.status === 'Overdue' && { color: '#F59E0B' }]}>
+                  {formatDate(item.dueDate)}
+                </Text>
+              </View>
+              <View style={styles.metaSep} />
+            </>
+          )}
           <View style={styles.metaItem}>
             <MaterialCommunityIcons name="tag-outline" size={13} color="#6B7280" />
             <Text style={styles.metaLabel}>Loại</Text>
