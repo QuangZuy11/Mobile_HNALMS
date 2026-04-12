@@ -313,7 +313,7 @@ export default function InvoiceListScreen({ navigation, route }) {
 
   const handleSetSearchText = useCallback((text) => setSearchText(text), []);
   const handleSetTypeFilter = useCallback((val) => setTypeFilter(val), []);
-  const handleSetShowFilters = useCallback((v) => setShowFilters(v), []);
+  const handleSetShowFilters = useCallback(() => setShowFilters(prev => !prev), []);
   const handleSetStatusFilter = useCallback((val) => { setStatusFilter(val); setShowStatusModal(false); }, []);
   const handleSetSentDate = useCallback((val) => { setSentDate(val); setShowSentModal(false); }, []);
   const handleSetDueDate = useCallback((val) => { setDueDate(val); setShowDueModal(false); }, []);

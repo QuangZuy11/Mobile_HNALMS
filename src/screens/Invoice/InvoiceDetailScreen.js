@@ -133,6 +133,7 @@ export default function InvoiceDetailScreen({ navigation, route }) {
 
     useEffect(() => {
         if (!invoiceId) { setError('Không tìm thấy mã hóa đơn'); setLoading(false); return; }
+        // HD-PREPAID nằm trong InvoiceIncurred → gọi API incurred
         const fetchAPI = invoiceType === 'Incurred' ? getIncurredInvoiceDetailAPI : getInvoiceDetailAPI;
         console.log('InvoiceDetailScreen - invoiceId:', invoiceId, 'invoiceType:', invoiceType);
         fetchAPI(invoiceId)
