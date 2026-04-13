@@ -1,81 +1,75 @@
-// PrepaidRentScreen — Chọn hợp đồng/phòng, chọn tháng bắt đầu+kết thúc, xem lịch sử trả trước
-import React, { useState, useEffect } from 'react';
+// PrepaidRentScreen — Chọn tháng trả trước tiền phòng, chỉ cần chọn tháng cuối cùng
+import React, { useState, useEffect, useMemo } from 'react';
 import {
     View, Text, SafeAreaView, StyleSheet, TouchableOpacity,
-    ScrollView, ActivityIndicator, Alert, Modal, FlatList,
+    ScrollView, ActivityIndicator, Alert, Modal,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import {
     getMyContractForPrepaidAPI,
     createPrepaidRentAPI,
-    getPrepaidRentHistoryAPI,
 } from '../../services/prepaid_rent.service';
-
-/** Số tháng tròn tính từ paidThrough đến endDate (≥ 0)
- *  paidThrough: rentPaidUntil hoặc startDate  */
-const calcMonthsRemaining = (paidThrough, endDate) => {
-    if (!endDate) return 0;
-    const base = new Date(paidThrough);
-    const end = new Date(endDate);
-    let m = 0;
-    for (let n = 1; n <= 240; n++) {
-        const d = new Date(base);
-        d.setMonth(d.getMonth() + n);
-        if (d > end) break;
-        m = n;
-    }
-    return m;
-};
-
-/** Tính số tháng từ startMonthIndex đến endMonthIndex (đều là index = year*12+month)
- *  VD: idx 2026*12+4 → idx 2026*12+6 → 2 tháng  */
-const monthsBetweenIndices = (startIdx, endIdx) => Math.max(0, endIdx - startIdx + 1);
-
-/** Chuyển {year, month} → index để so sánh */
-const toIdx = (y, m) => y * 12 + m;
-/** Chuyển index → {year, month} */
-const fromIdx = (idx) => ({ year: Math.floor(idx / 12), month: idx % 12 });
-const MONTH_NAMES = ['Tháng 1', 'Tháng 2', 'Tháng 3', 'Tháng 4', 'Tháng 5', 'Tháng 6',
-    'Tháng 7', 'Tháng 8', 'Tháng 9', 'Tháng 10', 'Tháng 11', 'Tháng 12'];
 
 const fmtMoney = (v) => {
     const n = Number(v);
     return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(Number.isFinite(n) ? n : 0);
 };
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('vi-VN') : '—';
-const fmtMonthYear = (y, m) => `${MONTH_NAMES[m]} ${y}`;
 
-/** Định dạng khoảng tháng cho lịch sử
- *  VD: endMonth 2026/5, prepaidMonths 2 → "Tháng 5, 6 năm 2026"
- *  VD: endMonth 2027/1, prepaidMonths 4 → "Tháng 11, 12 năm 2026 + Tháng 1 năm 2027" */
-const formatPrepaidPeriod = (createdAt, prepaidMonths) => {
-    if (!createdAt || !prepaidMonths) return '—';
-    // endMonth = tháng tạo request (đã trả đến)
-    const endDate = new Date(createdAt);
-    const endY = endDate.getFullYear();
-    const endM = endDate.getMonth(); // 0-indexed
-    const startM = (endM - prepaidMonths + 1 + 12) % 12;
-    const startY = endM - prepaidMonths + 1 < 0 ? endY - 1 : endY;
+const MONTH_NAMES_SHORT = ['Tháng 1', 'Tháng 2', 'Tháng 3', 'Tháng 4', 'Tháng 5', 'Tháng 6',
+    'Tháng 7', 'Tháng 8', 'Tháng 9', 'Tháng 10', 'Tháng 11', 'Tháng 12'];
 
-    const fmtMonth = (y, m) => `${MONTH_NAMES[m]} ${y}`;
-    const fmtRange = (sy, sm, ey, em) => {
-        if (sy === ey) {
-            if (sm === em) return fmtMonth(sy, sm);
-            return `Tháng ${sm + 1}, ${em + 1} năm ${sy}`;
+/** Chuyển {year, month} → index = year*12+month */
+const toIdx = (y, m) => y * 12 + m;
+/** Format hiển thị "Tháng M YYYY" */
+const fmtMonthDisplay = (y, m) => `${MONTH_NAMES_SHORT[m]} ${y}`;
+
+/* ──────────────── Main Screen ──────────────── */
+function MonthPickerModal({ visible, title, minIdx, maxIdx, initialIdx,
+    availableMonths, selectedIdx, onSelect, onClose }) {
+    const [curIdx, setCurIdx] = useState(initialIdx ?? minIdx);
+
+    useEffect(() => {
+        if (visible) setCurIdx(initialIdx ?? minIdx);
+    }, [visible, initialIdx, minIdx]);
+
+    // Render các nút tháng grid 3 cột
+    const renderMonthButtons = () => {
+        const rows = [];
+        for (let y = Math.floor(minIdx / 12); y <= Math.ceil(maxIdx / 12); y++) {
+            for (let m = 0; m < 12; m++) {
+                const idx = toIdx(y, m);
+                if (idx < minIdx || idx > maxIdx) continue;
+
+                // Kiểm tra xem tháng này có trong danh sách available không
+                const isAvailable = !availableMonths || availableMonths.length === 0 || availableMonths.includes(idx);
+                const isSelected = idx === curIdx;
+
+                rows.push(
+                    <TouchableOpacity
+                        key={idx}
+                        style={[
+                            styles.monthItem,
+                            isSelected && styles.monthItemActive,
+                            !isAvailable && styles.monthItemDisabled,
+                        ]}
+                        onPress={() => isAvailable && setCurIdx(idx)}
+                        disabled={!isAvailable}
+                        activeOpacity={0.7}
+                    >
+                        <Text style={[
+                            styles.monthItemText,
+                            isSelected && styles.monthItemTextActive,
+                            !isAvailable && styles.monthItemTextDisabled,
+                        ]}>
+                            {MONTH_NAMES_SHORT[m]} {y}
+                        </Text>
+                    </TouchableOpacity>
+                );
+            }
         }
-        return `${fmtMonth(sy, sm)} + ${fmtMonth(ey, em)}`;
+        return rows;
     };
-
-    return fmtRange(startY, startM, endY, endM);
-};
-
-/* ──────────────── MonthPicker Modal ──────────────── */
-function MonthPickerModal({ visible, title, startIdx, endIdx: propEndIdx, minIdx, maxIdx,
-    onSelect, onClose }) {
-    const [curIdx, setCurIdx] = useState(startIdx ?? minIdx);
-
-    // Reset khi mở
-    useEffect(() => { setCurIdx(startIdx ?? minIdx); }, [visible, startIdx]);
 
     const handleDone = () => {
         onSelect(curIdx);
@@ -92,30 +86,11 @@ function MonthPickerModal({ visible, title, startIdx, endIdx: propEndIdx, minIdx
                         <TouchableOpacity onPress={handleDone}><Text style={styles.monthPickerDone}>Xong</Text></TouchableOpacity>
                     </View>
                     <View style={styles.monthPickerBody}>
-                        <View style={styles.monthScroll}>
-                            {(() => {
-                                const rows = [];
-                                for (let y = Math.floor(minIdx / 12); y <= Math.ceil(maxIdx / 12); y++) {
-                                    for (let m = 0; m < 12; m++) {
-                                        const idx = toIdx(y, m);
-                                        if (idx < minIdx || idx > maxIdx) continue;
-                                        const active = idx === curIdx;
-                                        rows.push(
-                                            <TouchableOpacity
-                                                key={idx}
-                                                style={[styles.monthItem, active && styles.monthItemActive]}
-                                                onPress={() => setCurIdx(idx)}
-                                            >
-                                                <Text style={[styles.monthItemText, active && styles.monthItemTextActive]}>
-                                                    {MONTH_NAMES[m]} {y}
-                                                </Text>
-                                            </TouchableOpacity>
-                                        );
-                                    }
-                                }
-                                return rows;
-                            })()}
-                        </View>
+                        <ScrollView style={styles.monthScrollView} showsVerticalScrollIndicator={false}>
+                            <View style={styles.monthScroll}>
+                                {renderMonthButtons()}
+                            </View>
+                        </ScrollView>
                     </View>
                 </View>
             </TouchableOpacity>
@@ -123,54 +98,12 @@ function MonthPickerModal({ visible, title, startIdx, endIdx: propEndIdx, minIdx
     );
 }
 
-/* ──────────────── Lịch sử trả trước ──────────────── */
-function HistoryCard({ history, contractCode }) {
-    // Chỉ hiện lịch sử của phòng/hợp đồng đang được chọn
-    const filtered = history.filter(
-        (item) => !contractCode || item.contractCode === contractCode
-    );
-    if (!filtered.length) return null;
-
-    const getStatusStyle = (s) => {
-        if (s === 'paid') return { bg: '#D1FAE5', color: '#065F46', icon: 'check-circle', label: 'Đã thanh toán' };
-        if (s === 'pending') return { bg: '#FEF3C7', color: '#92400E', icon: 'clock-outline', label: 'Đang chờ' };
-        if (s === 'expired') return { bg: '#FEE2E2', color: '#991B1B', icon: 'timer-sand-empty', label: 'Hết hạn' };
-        return { bg: '#F3F4F6', color: '#374151', icon: 'help-circle-outline', label: s };
-    };
-
+/* ──────────────── PrepaidMonthItem (hiển thị từng tháng như InvoiceDetailScreen) ──────────────── */
+function PrepaidMonthItem({ label }) {
     return (
-        <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-                <View style={[styles.sectionIconWrap, { backgroundColor: '#10B9811A' }]}>
-                    <MaterialCommunityIcons name="history" size={18} color="#10B981" />
-                </View>
-                <Text style={styles.sectionTitle}>Lịch sử trả trước tiền phòng</Text>
-            </View>
-            {filtered.map((item, idx) => {
-                const st = getStatusStyle(item.status);
-                const period = formatPrepaidPeriod(item.createdAt, item.prepaidMonths);
-                return (
-                    <View key={item._id} style={styles.historyItem}>
-                        <View style={styles.historyItemLeft}>
-                            <View style={[styles.historyDot, { backgroundColor: st.color }]} />
-                            <View style={{ flex: 1 }}>
-                                <View style={styles.historyHeader}>
-                                    <Text style={styles.historyInvoice}>Lần {idx + 1}</Text>
-                                    <View style={[styles.historyBadge, { backgroundColor: st.bg }]}>
-                                        <MaterialCommunityIcons name={st.icon} size={10} color={st.color} />
-                                        <Text style={[styles.historyBadgeText, { color: st.color }]}>{st.label}</Text>
-                                    </View>
-                                </View>
-                                <Text style={styles.historyPeriod}>{period}</Text>
-                                <Text style={styles.historyDate}>{fmtDate(item.createdAt)}</Text>
-                            </View>
-                        </View>
-                        <View style={styles.historyRight}>
-                            <Text style={styles.historyAmount}>{fmtMoney(item.totalAmount)}</Text>
-                        </View>
-                    </View>
-                );
-            })}
+        <View style={styles.prepaidMonthItem}>
+            <Text style={styles.prepaidMonthDot}>•</Text>
+            <Text style={styles.prepaidMonthText}>{label}</Text>
         </View>
     );
 }
@@ -183,13 +116,9 @@ export default function PrepaidRentScreen({ navigation }) {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [submitting, setSubmitting] = useState(false);
-    const [history, setHistory] = useState([]);
 
-    // Month picker states
-    const [startPickerVisible, setStartPickerVisible] = useState(false);
+    // Chỉ 1 picker: chọn tháng kết thúc trả trước
     const [endPickerVisible, setEndPickerVisible] = useState(false);
-    // Chỉ lưu index (year*12+month), không lưu tên
-    const [selectedStartIdx, setSelectedStartIdx] = useState(null);
     const [selectedEndIdx, setSelectedEndIdx] = useState(null);
 
     useEffect(() => {
@@ -205,9 +134,8 @@ export default function PrepaidRentScreen({ navigation }) {
         }
     }, [contracts]);
 
-    // Reset month selection when contract changes
+    // Reset khi đổi hợp đồng
     useEffect(() => {
-        setSelectedStartIdx(null);
         setSelectedEndIdx(null);
     }, [selectedContractId]);
 
@@ -215,10 +143,7 @@ export default function PrepaidRentScreen({ navigation }) {
         try {
             setLoading(true);
             setError(null);
-            const [contractRes, historyRes] = await Promise.all([
-                getMyContractForPrepaidAPI(),
-                getPrepaidRentHistoryAPI(),
-            ]);
+            const contractRes = await getMyContractForPrepaidAPI();
             if (contractRes.success && contractRes.data) {
                 const list = Array.isArray(contractRes.data.contracts)
                     ? contractRes.data.contracts
@@ -230,9 +155,6 @@ export default function PrepaidRentScreen({ navigation }) {
                 }
             } else {
                 setError(contractRes.message || 'Không có hợp đồng đang hoạt động.');
-            }
-            if (historyRes.success && Array.isArray(historyRes.data)) {
-                setHistory(historyRes.data);
             }
         } catch (err) {
             setError(err?.response?.data?.message || err.message || 'Lỗi khi tải dữ liệu');
@@ -248,40 +170,105 @@ export default function PrepaidRentScreen({ navigation }) {
     const roomPrice = Number.isFinite(Number(contractData?.room?.roomPrice))
         ? Number(contractData.room.roomPrice) : 0;
 
-    // Tính các tháng còn lại có thể trả trước
-    const paidThrough = contractData?.rentPaidUntil
-        ? new Date(contractData.rentPaidUntil)
-        : contractData?.startDate
-            ? new Date(contractData.startDate)
-            : new Date();
-    const monthsRemaining = contractData
-        ? calcMonthsRemaining(paidThrough, contractData.endDate)
-        : 0;
+    // ─── Logic generate tháng có thể chọn ───
+    const {
+        availableMonths,    // mảng idx các tháng được phép chọn
+        minAvailableIdx,    // idx nhỏ nhất
+        maxAvailableIdx,    // idx lớn nhất
+        fullyPaid,
+    } = useMemo(() => {
+        if (!contractData) return { availableMonths: [], minAvailableIdx: 0, maxAvailableIdx: 0, fullyPaid: false };
 
-    // Tính range picker từ paidThrough (tháng kế tiếp) đến endDate
-    const pickerBaseDate = new Date(paidThrough);
-    pickerBaseDate.setMonth(pickerBaseDate.getMonth() + 1); // bắt đầu từ tháng sau tháng đã trả
-    const pickerMinIdx = toIdx(pickerBaseDate.getFullYear(), pickerBaseDate.getMonth());
+        const rentPaidUntilDate = contractData.rentPaidUntil
+            ? new Date(contractData.rentPaidUntil)
+            : new Date(contractData.startDate);
+        const endDate = new Date(contractData.endDate);
 
-    const endDateObj = contractData ? new Date(contractData.endDate) : null;
-    const pickerMaxIdx = endDateObj ? toIdx(endDateObj.getFullYear(), endDateObj.getMonth()) : pickerMinIdx;
+        // rentPaidUntil → tháng kế tiếp (tháng đầu tiên có thể trả trước)
+        const baseDate = new Date(rentPaidUntilDate);
+        baseDate.setMonth(baseDate.getMonth() + 1);
+        // Lấy ngày 1 của tháng đó (bỏ ngày lẻ)
+        const firstPayableMonth = new Date(baseDate.getFullYear(), baseDate.getMonth(), 1);
 
-    // Nếu đã trả full (không còn tháng nào) → disabled
-    const fullyPaid = monthsRemaining === 0;
+        // Tháng kết thúc: tháng trước tháng của endDate (vì endDate không phải cuối tháng)
+        const endMonthDate = new Date(endDate.getFullYear(), endDate.getMonth() - 1, 1);
 
-    // Computed total months từ 2 picker
-    const totalPrepaidMonths = (selectedStartIdx != null && selectedEndIdx != null)
-        ? monthsBetweenIndices(selectedStartIdx, selectedEndIdx)
+        // Luôn đảm bảo tối thiểu 3 tháng → bắt đầu từ tháng thứ 3
+        const threeMonthsLater = new Date(firstPayableMonth);
+        threeMonthsLater.setMonth(threeMonthsLater.getMonth() + 2); // +2 vì đã là tháng đầu tiên, +2 nữa = tháng thứ 3
+
+        // Không chọn tháng quá khứ (trước tháng hiện tại)
+        const now = new Date();
+        const currentMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+        // Xác định minIdx thực tế = max(3 tháng, tháng hiện tại)
+        const minCandidate = threeMonthsLater > currentMonth ? threeMonthsLater : currentMonth;
+        const effectiveMin = minCandidate < endMonthDate ? minCandidate : endMonthDate;
+
+        const minIdx = toIdx(effectiveMin.getFullYear(), effectiveMin.getMonth());
+        const maxIdx = toIdx(endMonthDate.getFullYear(), endMonthDate.getMonth());
+
+        if (minIdx > maxIdx) {
+            return { availableMonths: [], minAvailableIdx: minIdx, maxAvailableIdx: maxIdx, fullyPaid: true };
+        }
+
+        // Tạo mảng tất cả các tháng hợp lệ (đủ 3 tháng)
+        const months = [];
+        for (let idx = minIdx; idx <= maxIdx; idx++) {
+            months.push(idx);
+        }
+
+        return { availableMonths: months, minAvailableIdx: minIdx, maxAvailableIdx: maxIdx, fullyPaid: false };
+    }, [contractData]);
+
+    // ─── Số tháng trả trước auto-calculate ───
+    const prepaidMonths = useMemo(() => {
+        if (selectedEndIdx == null || availableMonths.length === 0) return null;
+        if (!availableMonths.includes(selectedEndIdx)) return null;
+
+        // Tính số tháng từ (rentPaidUntil + 1 tháng) → tháng user chọn
+        const rentPaidUntilDate = contractData?.rentPaidUntil
+            ? new Date(contractData.rentPaidUntil)
+            : new Date(contractData?.startDate);
+        const startNextMonth = new Date(rentPaidUntilDate);
+        startNextMonth.setMonth(startNextMonth.getMonth() + 1);
+        const startIdx = toIdx(startNextMonth.getFullYear(), startNextMonth.getMonth());
+
+        // months = selectedEndIdx - startIdx + 1
+        const months = selectedEndIdx - startIdx + 1;
+        return months > 0 ? months : null;
+    }, [selectedEndIdx, availableMonths, contractData]);
+
+    const totalAmount = prepaidMonths ? prepaidMonths * roomPrice : 0;
+
+    const selectedEndLabel = selectedEndIdx != null
+        ? fmtMonthDisplay(Math.floor(selectedEndIdx / 12), selectedEndIdx % 12)
         : null;
-    const totalAmount = totalPrepaidMonths ? totalPrepaidMonths * roomPrice : 0;
 
-    // Validation: chọn phải trong range, end >= start
-    const isSelectionValid =
-        selectedStartIdx != null &&
-        selectedEndIdx != null &&
-        selectedEndIdx >= selectedStartIdx &&
-        selectedStartIdx >= pickerMinIdx &&
-        selectedEndIdx <= pickerMaxIdx;
+    // ─── Danh sách tháng trả trước đã chọn (hiển thị như InvoiceDetailScreen) ───
+    const prepaidMonthList = useMemo(() => {
+        if (!contractData || selectedEndIdx == null || prepaidMonths == null) return [];
+
+        const rentPaidUntilDate = contractData.rentPaidUntil
+            ? new Date(contractData.rentPaidUntil)
+            : new Date(contractData.startDate);
+        const startNextMonth = new Date(rentPaidUntilDate);
+        startNextMonth.setMonth(startNextMonth.getMonth() + 1);
+
+        const months = [];
+        const cur = new Date(startNextMonth);
+        for (let i = 0; i < prepaidMonths; i++) {
+            months.push(`Tháng ${cur.getMonth() + 1} - ${cur.getFullYear()}`);
+            cur.setMonth(cur.getMonth() + 1);
+        }
+        return months;
+    }, [contractData, selectedEndIdx, prepaidMonths]);
+
+    // ─── Validation ───
+    const isSelectionValid = selectedEndIdx != null
+        && availableMonths.includes(selectedEndIdx)
+        && prepaidMonths != null
+        && prepaidMonths >= 1;
 
     const handleConfirm = async () => {
         if (!contractData) {
@@ -289,17 +276,16 @@ export default function PrepaidRentScreen({ navigation }) {
             return;
         }
         if (!isSelectionValid) {
-            Alert.alert('Thông báo', 'Vui lòng chọn tháng bắt đầu và kết thúc hợp lệ.');
+            Alert.alert('Thông báo', 'Vui lòng chọn tháng trả trước hợp lệ (tối thiểu 3 tháng).');
             return;
         }
 
-        const [sy, sm] = [Math.floor(selectedStartIdx / 12), selectedStartIdx % 12];
         const [ey, em] = [Math.floor(selectedEndIdx / 12), selectedEndIdx % 12];
 
         Alert.alert(
             'Xác nhận thanh toán',
-            `Bạn muốn đóng trước tiền phòng từ ${fmtMonthYear(sy, sm)} đến ${fmtMonthYear(ey, em)}?\n\n` +
-            `Số tháng: ${totalPrepaidMonths} tháng\n` +
+            `Bạn muốn đóng trước tiền phòng đến hết ${fmtMonthDisplay(ey, em)}?\n\n` +
+            `Số tháng: ${prepaidMonths} tháng\n` +
             `Số tiền: ${fmtMoney(totalAmount)}\n\n` +
             'Hệ thống sẽ tạo mã QR để bạn thanh toán.',
             [
@@ -311,7 +297,7 @@ export default function PrepaidRentScreen({ navigation }) {
                         try {
                             const res = await createPrepaidRentAPI(
                                 contractData.contractId,
-                                totalPrepaidMonths
+                                prepaidMonths
                             );
                             if (res.success && res.data) {
                                 navigation.navigate('PrepaidRentQR', { paymentData: res.data });
@@ -365,14 +351,6 @@ export default function PrepaidRentScreen({ navigation }) {
     const selectLabel = contractData
         ? `${contractData.room?.name || 'Phòng'} · ${contractData.contractCode || ''}`
         : 'Chọn phòng / hợp đồng';
-
-    // Nhãn cho 2 picker
-    const startLabel = selectedStartIdx != null
-        ? fmtMonthYear(Math.floor(selectedStartIdx / 12), selectedStartIdx % 12)
-        : null;
-    const endLabel = selectedEndIdx != null
-        ? fmtMonthYear(Math.floor(selectedEndIdx / 12), selectedEndIdx % 12)
-        : null;
 
     return (
         <SafeAreaView style={styles.safe}>
@@ -452,9 +430,43 @@ export default function PrepaidRentScreen({ navigation }) {
                             <InfoRow icon="barcode" label="Mã Hợp Đồng" value={contractData.contractCode} />
                             <InfoRow icon="calendar-check" label="Ngày bắt đầu" value={fmtDate(contractData.startDate)} />
                             <InfoRow icon="calendar-clock" label="Ngày kết thúc" value={fmtDate(contractData.endDate)} />
+
+                            {/* Tháng đã trả trước - hiển thị danh sách tháng */}
                             {contractData.rentPaidUntil && (
-                                <InfoRow icon="calendar-check" label="Đã trả đến"
-                                    value={`${fmtDate(contractData.rentPaidUntil)} — còn ${monthsRemaining} tháng có thể trả`} />
+                                <>
+                                    <InfoRow icon="calendar-check" label="Ngày đã trả đến"
+                                        value={fmtDate(contractData.rentPaidUntil)} />
+                                    {/* Danh sách tháng đã trả trước */}
+                                    <View style={styles.infoRow}>
+                                        <MaterialCommunityIcons name="calendar-month" size={16} color="#6B7280" style={styles.infoIcon} />
+                                        <Text style={styles.infoLabel}>Tháng đã trả trước</Text>
+                                        <View style={{ flex: 1, alignItems: 'flex-end' }}>
+                                            {(() => {
+                                                const rentDate = new Date(contractData.rentPaidUntil);
+                                                const endY = rentDate.getFullYear();
+                                                const endM = rentDate.getMonth();
+                                                const baseDate = contractData.startDate ? new Date(contractData.startDate) : new Date();
+                                                const startNext = new Date(baseDate);
+                                                startNext.setMonth(startNext.getMonth() + 1);
+                                                const startM = startNext.getMonth();
+                                                const startY = startNext.getFullYear();
+                                                const totalMonths = (endY - startY) * 12 + (endM - startM) + 1;
+                                                const months = [];
+                                                const cur = new Date(startY, startM, 1);
+                                                for (let i = 0; i < totalMonths && i < 60; i++) {
+                                                    months.push(`Tháng ${cur.getMonth() + 1} - ${cur.getFullYear()}`);
+                                                    cur.setMonth(cur.getMonth() + 1);
+                                                }
+                                                if (months.length === 0) {
+                                                    return <Text style={styles.infoValue}>—</Text>;
+                                                }
+                                                return months.map((label, idx) => (
+                                                    <PrepaidMonthItem key={idx} label={label} />
+                                                ));
+                                            })()}
+                                        </View>
+                                    </View>
+                                </>
                             )}
                         </View>
 
@@ -500,33 +512,10 @@ export default function PrepaidRentScreen({ navigation }) {
                                 </View>
 
                                 <Text style={styles.monthHint}>
-                                    Có thể đóng trước: {monthsRemaining} tháng
-                                    {' · '}Giá mỗi tháng: {fmtMoney(roomPrice)}
+                                    Trả trước tối thiểu 3 tháng · Giá mỗi tháng: {fmtMoney(roomPrice)}
                                 </Text>
 
-                                {/* Start month picker */}
-                                <TouchableOpacity
-                                    style={styles.monthPickerRow}
-                                    onPress={() => setStartPickerVisible(true)}
-                                    activeOpacity={0.75}
-                                >
-                                    <View style={styles.monthPickerRowInner}>
-                                        <MaterialCommunityIcons name="calendar-start" size={22} color="#7C3AED" />
-                                        <View style={{ flex: 1, marginLeft: 12 }}>
-                                            <Text style={styles.monthPickerLabel}>Tháng bắt đầu</Text>
-                                            <Text style={[styles.monthPickerValue, !startLabel && styles.monthPickerPlaceholder]}>
-                                                {startLabel || '— Chọn tháng bắt đầu —'}
-                                            </Text>
-                                        </View>
-                                        <MaterialCommunityIcons name="chevron-down" size={20} color="#6B7280" />
-                                    </View>
-                                </TouchableOpacity>
-
-                                <View style={styles.monthArrow}>
-                                    <MaterialCommunityIcons name="arrow-down-bold" size={20} color="#9CA3AF" />
-                                </View>
-
-                                {/* End month picker */}
+                                {/* Picker tháng kết thúc */}
                                 <TouchableOpacity
                                     style={styles.monthPickerRow}
                                     onPress={() => setEndPickerVisible(true)}
@@ -535,30 +524,57 @@ export default function PrepaidRentScreen({ navigation }) {
                                     <View style={styles.monthPickerRowInner}>
                                         <MaterialCommunityIcons name="calendar-end" size={22} color="#7C3AED" />
                                         <View style={{ flex: 1, marginLeft: 12 }}>
-                                            <Text style={styles.monthPickerLabel}>Tháng kết thúc</Text>
-                                            <Text style={[styles.monthPickerValue, !endLabel && styles.monthPickerPlaceholder]}>
-                                                {endLabel || '— Chọn tháng kết thúc —'}
+                                            <Text style={styles.monthPickerLabel}>Trả trước đến hết tháng</Text>
+                                            <Text style={[styles.monthPickerValue, !selectedEndLabel && styles.monthPickerPlaceholder]}>
+                                                {selectedEndLabel || '— Chọn tháng —'}
                                             </Text>
                                         </View>
                                         <MaterialCommunityIcons name="chevron-down" size={20} color="#6B7280" />
                                     </View>
                                 </TouchableOpacity>
 
+                                {/* Số tháng trả trước (auto-calculate, không cho nhập) */}
+                                {prepaidMonths != null && (
+                                    <View style={styles.autoMonthsRow}>
+                                        <View style={styles.autoMonthsLeft}>
+                                            <MaterialCommunityIcons name="counter" size={18} color="#7C3AED" />
+                                            <Text style={styles.autoMonthsLabel}>Số tháng trả trước</Text>
+                                        </View>
+                                        <View style={styles.autoMonthsValueBox}>
+                                            <Text style={styles.autoMonthsValue}>{prepaidMonths}</Text>
+                                            <Text style={styles.autoMonthsUnit}>tháng</Text>
+                                        </View>
+                                    </View>
+                                )}
+
+                                {/* Danh sách tháng trả trước */}
+                                {prepaidMonthList.length > 0 && (
+                                    <View style={styles.prepaidListSection}>
+                                        <Text style={styles.prepaidListTitle}>Các tháng trả trước</Text>
+                                        {prepaidMonthList.map((label, idx) => (
+                                            <PrepaidMonthItem key={idx} label={label} />
+                                        ))}
+                                    </View>
+                                )}
+
                                 {/* Tổng hợp */}
-                                {totalPrepaidMonths != null && (
+                                {prepaidMonths != null && (
                                     <View style={styles.totalRow}>
                                         <View>
                                             <Text style={styles.totalLabel}>Tổng cộng</Text>
-                                            <Text style={styles.totalMonths}>{totalPrepaidMonths} tháng</Text>
+                                            <Text style={styles.totalMonths}>{prepaidMonths} tháng</Text>
                                         </View>
                                         <Text style={styles.totalValue}>{fmtMoney(totalAmount)}</Text>
                                     </View>
                                 )}
 
-                                {isSelectionValid && selectedEndIdx < selectedStartIdx && (
+                                {/* Cảnh báo chọn tháng quá khứ */}
+                                {selectedEndIdx != null && !availableMonths.includes(selectedEndIdx) && (
                                     <View style={styles.monthErrorBanner}>
                                         <MaterialCommunityIcons name="alert-circle-outline" size={16} color="#DC2626" />
-                                        <Text style={styles.monthErrorText}>Tháng kết thúc phải lớn hơn hoặc bằng tháng bắt đầu.</Text>
+                                        <Text style={styles.monthErrorText}>
+                                            Tháng đã chọn không hợp lệ. Phải đảm bảo tối thiểu 3 tháng trả trước.
+                                        </Text>
                                     </View>
                                 )}
                             </View>
@@ -566,11 +582,7 @@ export default function PrepaidRentScreen({ navigation }) {
                     </>
                 )}
 
-                {/* Lịch sử trả trước — chỉ hiện khi đã chọn phòng */}
-                {showDetails && (
-                    <HistoryCard history={history} contractCode={contractData?.contractCode} />
-                )}
-
+                {/* Lịch sử trả trước */}
                 <View style={{ height: 110 }} />
             </ScrollView>
 
@@ -641,30 +653,15 @@ export default function PrepaidRentScreen({ navigation }) {
                 </TouchableOpacity>
             </Modal>
 
-            {/* Modal chọn tháng bắt đầu */}
-            <MonthPickerModal
-                visible={startPickerVisible}
-                title="Chọn tháng bắt đầu"
-                startIdx={selectedStartIdx}
-                minIdx={pickerMinIdx}
-                maxIdx={selectedEndIdx ?? pickerMaxIdx}
-                onSelect={(idx) => {
-                    setSelectedStartIdx(idx);
-                    // Nếu chưa chọn end hoặc end < start → set end = idx
-                    if (selectedEndIdx == null || idx > selectedEndIdx) {
-                        setSelectedEndIdx(idx);
-                    }
-                }}
-                onClose={() => setStartPickerVisible(false)}
-            />
-
-            {/* Modal chọn tháng kết thúc */}
+            {/* Modal chọn tháng */}
             <MonthPickerModal
                 visible={endPickerVisible}
-                title="Chọn tháng kết thúc"
-                startIdx={selectedEndIdx}
-                minIdx={selectedStartIdx ?? pickerMinIdx}
-                maxIdx={pickerMaxIdx}
+                title="Chọn tháng trả trước đến hết"
+                minIdx={minAvailableIdx}
+                maxIdx={maxAvailableIdx}
+                initialIdx={selectedEndIdx}
+                availableMonths={availableMonths}
+                selectedIdx={selectedEndIdx}
                 onSelect={(idx) => setSelectedEndIdx(idx)}
                 onClose={() => setEndPickerVisible(false)}
             />
@@ -748,11 +745,11 @@ const styles = StyleSheet.create({
     hintBannerText: { flex: 1, fontSize: 13, color: '#92400E', lineHeight: 19 },
 
     infoRow: {
-        flexDirection: 'row', alignItems: 'center',
+        flexDirection: 'row', alignItems: 'flex-start',
         paddingHorizontal: 16, paddingVertical: 11,
         borderBottomWidth: 1, borderBottomColor: '#F9FAFB',
     },
-    infoIcon: { marginRight: 10 },
+    infoIcon: { marginRight: 10, marginTop: 2 },
     infoLabel: { fontSize: 13, color: '#6B7280', marginRight: 8 },
     infoValue: { fontSize: 13, fontWeight: '600', color: '#1F2937' },
 
@@ -762,7 +759,6 @@ const styles = StyleSheet.create({
         backgroundColor: '#F9FAFB',
     },
 
-    /* Month picker rows */
     monthPickerRow: { paddingHorizontal: 16, paddingVertical: 4 },
     monthPickerRowInner: {
         flexDirection: 'row', alignItems: 'center',
@@ -771,7 +767,40 @@ const styles = StyleSheet.create({
     monthPickerLabel: { fontSize: 12, color: '#6B7280', marginBottom: 2 },
     monthPickerValue: { fontSize: 15, fontWeight: '700', color: '#1F2937' },
     monthPickerPlaceholder: { fontWeight: '600', color: '#9CA3AF' },
-    monthArrow: { alignItems: 'center', paddingVertical: 4 },
+
+    /* Auto months row */
+    autoMonthsRow: {
+        flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+        paddingHorizontal: 16, paddingVertical: 12,
+        backgroundColor: '#F5F3FF',
+        borderTopWidth: 1, borderTopColor: '#EDE9FE',
+    },
+    autoMonthsLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    autoMonthsLabel: { fontSize: 13, color: '#6B7280' },
+    autoMonthsValueBox: {
+        flexDirection: 'row', alignItems: 'baseline', gap: 4,
+    },
+    autoMonthsValue: { fontSize: 22, fontWeight: '800', color: '#7C3AED' },
+    autoMonthsUnit: { fontSize: 13, color: '#7C3AED', fontWeight: '600' },
+
+    /* Prepaid month list */
+    prepaidListSection: {
+        paddingHorizontal: 16, paddingVertical: 10,
+        backgroundColor: '#FAFAFA',
+        borderTopWidth: 1, borderTopColor: '#F3F4F6',
+    },
+    prepaidListTitle: {
+        fontSize: 12, color: '#6B7280', fontWeight: '600', marginBottom: 6,
+    },
+    prepaidMonthItem: {
+        flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 2,
+    },
+    prepaidMonthDot: {
+        fontSize: 16, color: '#7C3AED', fontWeight: '700', lineHeight: 18,
+    },
+    prepaidMonthText: {
+        fontSize: 13, color: '#1F2937', fontWeight: '600',
+    },
 
     totalRow: {
         flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
@@ -796,26 +825,6 @@ const styles = StyleSheet.create({
         padding: 16, backgroundColor: '#F0FDF4',
     },
     fullyPaidText: { flex: 1, fontSize: 13, color: '#065F46', lineHeight: 19 },
-
-    /* History */
-    historyItem: {
-        flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start',
-        paddingHorizontal: 16, paddingVertical: 12,
-        borderBottomWidth: 1, borderBottomColor: '#F9FAFB',
-    },
-    historyItemLeft: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, flex: 1 },
-    historyDot: { width: 8, height: 8, borderRadius: 4, marginTop: 5 },
-    historyHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
-    historyInvoice: { fontSize: 13, fontWeight: '700', color: '#1F2937' },
-    historyPeriod: { fontSize: 13, fontWeight: '600', color: '#374151', marginBottom: 2 },
-    historyDate: { fontSize: 12, color: '#9CA3AF' },
-    historyRight: { alignItems: 'flex-end', justifyContent: 'center' },
-    historyAmount: { fontSize: 16, fontWeight: '800', color: '#7C3AED' },
-    historyBadge: {
-        flexDirection: 'row', alignItems: 'center', gap: 3,
-        paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6,
-    },
-    historyBadgeText: { fontSize: 10, fontWeight: '700' },
 
     /* Bottom bar */
     bottomBar: {
@@ -872,10 +881,10 @@ const styles = StyleSheet.create({
     monthPickerTitle: { fontSize: 17, fontWeight: '700', color: '#1F2937' },
     monthPickerDone: { fontSize: 16, fontWeight: '700', color: '#7C3AED' },
     monthPickerBody: { paddingVertical: 8 },
+    monthScrollView: { maxHeight: 320 },
     monthScroll: {
         flexDirection: 'row', flexWrap: 'wrap',
         paddingHorizontal: 12, paddingVertical: 8,
-        maxHeight: 300,
     },
     monthItem: {
         width: '30%', marginHorizontal: '1.5%',
@@ -886,6 +895,8 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     monthItemActive: { backgroundColor: '#7C3AED' },
+    monthItemDisabled: { backgroundColor: '#F9FAFB', opacity: 0.5 },
     monthItemText: { fontSize: 12, fontWeight: '600', color: '#374151', textAlign: 'center' },
     monthItemTextActive: { color: '#FFF' },
+    monthItemTextDisabled: { color: '#D1D5DB' },
 });
