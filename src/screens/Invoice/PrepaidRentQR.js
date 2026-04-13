@@ -63,15 +63,6 @@ function CountdownTimer({ initialSeconds, onExpire }) {
     );
 }
 
-/* ────────────────────────── SuccessCheckmark ────────────────────────── */
-function SuccessCheckmark() {
-    return (
-        <View style={styles.successIconWrap}>
-            <MaterialCommunityIcons name="check-circle" size={64} color="#10B981" />
-        </View>
-    );
-}
-
 export default function PrepaidRentQR({ navigation, route }) {
     const { paymentData } = route.params ?? {};
 
@@ -194,33 +185,92 @@ export default function PrepaidRentQR({ navigation, route }) {
 
     // ─── Phase: Success ───
     if (phase === 'success') {
+        const payment = paymentData || {};
         return (
             <SafeAreaView style={styles.safe}>
-                <View style={styles.successContainer}>
-                    <SuccessCheckmark />
-                    <Text style={styles.successTitle}>Thanh toán thành công!</Text>
-                    <Text style={styles.successSubtitle}>
-                        Hóa đơn trả trước tiền phòng của bạn đã được xác nhận.
-                    </Text>
-                    <View style={styles.successDetailCard}>
-                        <View style={styles.successDetailRow}>
-                            <Text style={styles.successDetailLabel}>Mã giao dịch</Text>
-                            <Text style={styles.successDetailValue}>{paymentData.transactionCode}</Text>
+                <ScrollView contentContainerStyle={styles.successScroll} showsVerticalScrollIndicator={false}>
+                    {/* Header */}
+                    <View style={styles.successTop}>
+                        <View style={styles.successIconWrap}>
+                            <MaterialCommunityIcons name="check-circle" size={72} color="#10B981" />
                         </View>
-                        <View style={styles.successDetailDivider} />
-                        <View style={styles.successDetailRow}>
-                            <Text style={styles.successDetailLabel}>Số tháng</Text>
-                            <Text style={styles.successDetailValue}>{paymentData.prepaidMonths} tháng</Text>
+                        <Text style={styles.successTitle}>Thanh toán thành công!</Text>
+                        <Text style={styles.successSubtitle}>
+                            Hóa đơn trả trước tiền phòng của bạn đã được xác nhận.
+                        </Text>
+                    </View>
+
+                    {/* Invoice Card */}
+                    <View style={styles.invoiceCard}>
+                        {/* Invoice Header */}
+                        <View style={styles.invoiceCardHeader}>
+                            <View style={styles.invoiceHeaderLeft}>
+                                <MaterialCommunityIcons name="file-document-check" size={24} color="#7C3AED" />
+                                <Text style={styles.invoiceHeaderTitle}>HÓA ĐƠN TRẢ TRƯỚC</Text>
+                            </View>
+                            <View style={styles.paidBadge}>
+                                <Text style={styles.paidBadgeText}>ĐÃ THANH TOÁN</Text>
+                            </View>
                         </View>
-                        <View style={styles.successDetailDivider} />
-                        <View style={styles.successDetailRow}>
-                            <Text style={styles.successDetailLabel}>Số tiền</Text>
-                            <Text style={[styles.successDetailValue, { color: '#10B981' }]}>
-                                {fmtMoney(paymentData.totalAmount)}
+
+                        {/* Invoice Info */}
+                        <View style={styles.invoiceInfoRow}>
+                            <Text style={styles.invoiceLabel}>Mã hóa đơn</Text>
+                            <Text style={styles.invoiceValue}>{payment.invoiceCode || payment.transactionCode}</Text>
+                        </View>
+                        <View style={styles.invoiceDivider} />
+                        <View style={styles.invoiceInfoRow}>
+                            <Text style={styles.invoiceLabel}>Phòng</Text>
+                            <Text style={styles.invoiceValue}>{payment.roomName || '—'}</Text>
+                        </View>
+                        <View style={styles.invoiceDivider} />
+                        <View style={styles.invoiceInfoRow}>
+                            <Text style={styles.invoiceLabel}>Số tháng</Text>
+                            <Text style={[styles.invoiceValue, { color: '#7C3AED', fontWeight: '800' }]}>
+                                {payment.prepaidMonths || 0} tháng
                             </Text>
                         </View>
+                        {payment.prepaidFromMonth && payment.prepaidToMonth && (
+                            <>
+                                <View style={styles.invoiceDivider} />
+                                <View style={styles.invoiceInfoRow}>
+                                    <Text style={styles.invoiceLabel}>Kỳ hạn</Text>
+                                    <Text style={styles.invoiceValue}>
+                                        {payment.prepaidFromMonth} — {payment.prepaidToMonth}
+                                    </Text>
+                                </View>
+                            </>
+                        )}
+                        <View style={styles.invoiceDivider} />
+                        <View style={styles.invoiceInfoRow}>
+                            <Text style={styles.invoiceLabel}>Số tiền</Text>
+                            <Text style={[styles.invoiceValue, { color: '#10B981', fontWeight: '800', fontSize: 18 }]}>
+                                {fmtMoney(payment.totalAmount)}
+                            </Text>
+                        </View>
+                        <View style={styles.invoiceDivider} />
+                        <View style={styles.invoiceInfoRow}>
+                            <Text style={styles.invoiceLabel}>Ngày thanh toán</Text>
+                            <Text style={styles.invoiceValue}>
+                                {new Date().toLocaleDateString('vi-VN')}
+                            </Text>
+                        </View>
+                        <View style={styles.invoiceDivider} />
+                        <View style={styles.invoiceInfoRow}>
+                            <Text style={styles.invoiceLabel}>Mã giao dịch</Text>
+                            <Text style={styles.invoiceValue}>{payment.transactionCode}</Text>
+                        </View>
                     </View>
-                </View>
+
+                    {/* Info Box */}
+                    <View style={styles.successInfoBox}>
+                        <MaterialCommunityIcons name="information-outline" size={18} color="#6B7280" />
+                        <Text style={styles.successInfoText}>
+                            Hóa đơn đã được ghi nhận. Tiền phòng của bạn đã được cập nhật đến hết kỳ trả trước.
+                        </Text>
+                    </View>
+                </ScrollView>
+
                 <View style={styles.bottomBar}>
                     <TouchableOpacity
                         style={styles.successBtn}
@@ -466,32 +516,53 @@ const styles = StyleSheet.create({
     downloadBtnText: { fontSize: 14, fontWeight: '700', color: '#FFFFFF' },
 
     /* success */
-    successContainer: {
-        flex: 1, justifyContent: 'center', alignItems: 'center',
-        paddingHorizontal: 32,
-    },
+    successScroll: { paddingHorizontal: 16, paddingTop: 24, paddingBottom: 20 },
+    successTop: { alignItems: 'center', marginBottom: 24 },
     successIconWrap: {
-        width: 100, height: 100, borderRadius: 50,
+        width: 120, height: 120, borderRadius: 60,
         backgroundColor: '#D1FAE5',
-        justifyContent: 'center', alignItems: 'center', marginBottom: 20,
+        justifyContent: 'center', alignItems: 'center', marginBottom: 16,
     },
     successTitle: { fontSize: 24, fontWeight: '800', color: '#1F2937', textAlign: 'center' },
     successSubtitle: {
-        fontSize: 14, color: '#6B7280', textAlign: 'center', marginTop: 8, marginBottom: 24,
+        fontSize: 14, color: '#6B7280', textAlign: 'center', marginTop: 8,
     },
-    successDetailCard: {
-        backgroundColor: '#FFFFFF', borderRadius: 14,
-        paddingVertical: 4, width: '100%',
-        elevation: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.05, shadowRadius: 3,
+
+    /* Invoice Card */
+    invoiceCard: {
+        backgroundColor: '#FFFFFF', borderRadius: 16,
+        overflow: 'hidden', elevation: 2, shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 4,
+        marginBottom: 16,
     },
-    successDetailRow: {
+    invoiceCardHeader: {
         flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-        paddingHorizontal: 16, paddingVertical: 12,
+        backgroundColor: '#7C3AED', paddingHorizontal: 16, paddingVertical: 14,
     },
-    successDetailDivider: { height: 1, backgroundColor: '#F3F4F6' },
-    successDetailLabel: { fontSize: 13, color: '#6B7280' },
-    successDetailValue: { fontSize: 14, fontWeight: '700', color: '#1F2937' },
+    invoiceHeaderLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    invoiceHeaderTitle: { fontSize: 13, fontWeight: '800', color: '#FFFFFF', letterSpacing: 1 },
+    paidBadge: {
+        backgroundColor: '#10B981', borderRadius: 6,
+        paddingHorizontal: 8, paddingVertical: 4,
+    },
+    paidBadgeText: { fontSize: 10, fontWeight: '800', color: '#FFFFFF', letterSpacing: 0.5 },
+    invoiceInfoRow: {
+        flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+        paddingHorizontal: 16, paddingVertical: 13,
+    },
+    invoiceDivider: { height: 1, backgroundColor: '#F3F4F6', marginHorizontal: 16 },
+    invoiceLabel: { fontSize: 13, color: '#6B7280' },
+    invoiceValue: { fontSize: 13, fontWeight: '600', color: '#1F2937' },
+
+    /* Info Box */
+    successInfoBox: {
+        flexDirection: 'row', alignItems: 'flex-start', gap: 8,
+        backgroundColor: '#F9FAFB', borderRadius: 12,
+        padding: 14,
+        borderWidth: 1, borderColor: '#E5E7EB',
+    },
+    successInfoText: { flex: 1, fontSize: 12, color: '#6B7280', lineHeight: 18 },
+
     successBtn: {
         flex: 1, backgroundColor: '#10B981', borderRadius: 12,
         flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
