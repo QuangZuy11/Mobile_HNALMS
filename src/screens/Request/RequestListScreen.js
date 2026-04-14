@@ -18,8 +18,8 @@ import {
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { 
-  getAllRequestsAPI, 
+import {
+  getAllRequestsAPI,
   getComplaintRequestsAPI,
   getRepairRequestsAPI,
   getMyTransferRequestsAPI,
@@ -52,17 +52,17 @@ export default function RequestListScreen({ navigation }) {
     try {
       const token = await AsyncStorage.getItem('authToken');
       const userDataStr = await AsyncStorage.getItem('userData');
-      
+
       if (userDataStr) {
         const userData = JSON.parse(userDataStr);
         setUserInfo(userData);
       }
-      
+
       if (!token) {
         Alert.alert('Thông báo', 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
         return false;
       }
-      
+
       return true;
     } catch (error) {
       return false;
@@ -87,15 +87,18 @@ export default function RequestListScreen({ navigation }) {
   // Map status from API to Vietnamese
   const getStatusText = (status) => {
     switch (status) {
-      case 'Pending':        return 'Chờ xử lý';
-      case 'Processing':     return 'Đang xử lý';
-      case 'Done':           return 'Đã xử lý';
-      case 'Unpaid':         return 'Chờ thanh toán';
-      case 'Paid':           return 'Đã thanh toán';
-      case 'Approved':       return 'Đã duyệt';
-      case 'Rejected':       return 'Từ chối';
-      case 'Cancelled':      return 'Đã hủy';
-      default:               return status || 'Chờ xử lý';
+      case 'Pending': return 'Chờ xử lý';
+      case 'Processing': return 'Đang xử lý';
+      case 'Done': return 'Đã xử lý';
+      case 'Unpaid': return 'Chờ thanh toán';
+      case 'Paid': return 'Đã thanh toán';
+      case 'Approved': return 'Đã duyệt';
+      case 'Rejected': return 'Từ chối';
+      case 'Cancelled': return 'Đã hủy';
+      case 'InvoiceReleased': return 'Đã xuất hóa đơn';
+      case 'Completed': return 'Hoàn tất';
+      case 'Paid': return 'Đã thanh toán';
+      default: return status || 'Chờ xử lý';
     }
   };
 
@@ -104,14 +107,17 @@ export default function RequestListScreen({ navigation }) {
     switch (status) {
       case 'Đã xử lý':
       case 'Đã thanh toán':
-      case 'Đã duyệt':      return { bg: '#D1FAE5', text: '#10B981' };
-      case 'Chờ xử lý':    return { bg: '#FEF3C7', text: '#F59E0B' };
-      case 'Đang xử lý':    return { bg: '#DBEAFE', text: '#3B82F6' };
-      case 'Chờ thanh toán':  return { bg: '#FEF9C3', text: '#CA8A04' };
+      case 'Đã duyệt': return { bg: '#D1FAE5', text: '#10B981' };
+      case 'Chờ xử lý': return { bg: '#FEF3C7', text: '#F59E0B' };
+      case 'Đang xử lý': return { bg: '#DBEAFE', text: '#3B82F6' };
+      case 'Chờ thanh toán': return { bg: '#FEF9C3', text: '#CA8A04' };
       case 'Từ chối':
-      case 'Đã hủy':         return { bg: '#FEE2E2', text: '#EF4444' };
+      case 'Đã hủy': return { bg: '#FEE2E2', text: '#EF4444' };
       case 'Chưa phân công': return { bg: '#F3E8FF', text: '#7C3AED' };
-      default:               return { bg: '#F3F4F6', text: '#6B7280' };
+      case 'Đã xuất hóa đơn': return { bg: '#D1FAE5', text: '#10B981' };
+      case 'Hoàn tất': return { bg: '#D1FAE5', text: '#10B981' };
+      case 'Đã thanh toán': return { bg: '#D1FAE5', text: '#10B981' };
+      default: return { bg: '#F3F4F6', text: '#6B7280' };
     }
   };
 
@@ -144,10 +150,10 @@ export default function RequestListScreen({ navigation }) {
       }
 
       const requestType = getRequestType(item);
-      
+
       let title = '';
       let typeLabel = '';
-      
+
       if (requestType === 'complaint') {
         const content = item.content || '';
         title = `${item.category || 'Khiếu nại'} - ${content.substring(0, 50)}${content.length > 50 ? '...' : ''}`;
@@ -189,13 +195,17 @@ export default function RequestListScreen({ navigation }) {
   // ─── Detail modal helpers ──────────────────────────────────────────────────
   const getDetailStatusInfo = (status) => {
     switch (status) {
-      case 'Pending':        return { label: 'Chờ xử lý',      color: '#F59E0B', bg: '#FEF3C7', icon: 'clock-outline' };
-      case 'Processing':     return { label: 'Đang xử lý',    color: '#3B82F6', bg: '#DBEAFE', icon: 'cog' };
-      case 'Done':           return { label: 'Đã xử lý',      color: '#10B981', bg: '#D1FAE5', icon: 'check-circle-outline' };
-      case 'Rejected':       return { label: 'Từ chối',       color: '#EF4444', bg: '#FEE2E2', icon: 'close-circle-outline' };
-      case 'Unpaid':         return { label: 'Chờ thanh toán', color: '#CA8A04', bg: '#FEF9C3', icon: 'cash-clock' };
-      case 'Paid':           return { label: 'Đã thanh toán',  color: '#10B981', bg: '#D1FAE5', icon: 'cash-check' };
-      default:               return { label: status || 'Không xác định', color: '#6B7280', bg: '#F3F4F6', icon: 'help-circle' };
+      case 'Pending': return { label: 'Chờ xử lý', color: '#F59E0B', bg: '#FEF3C7', icon: 'clock-outline' };
+      case 'Processing': return { label: 'Đang xử lý', color: '#3B82F6', bg: '#DBEAFE', icon: 'cog' };
+      case 'Done': return { label: 'Đã xử lý', color: '#10B981', bg: '#D1FAE5', icon: 'check-circle-outline' };
+      case 'Approved': return { label: 'Đã duyệt', color: '#10B981', bg: '#D1FAE5', icon: 'check-decagram-outline' };
+      case 'Rejected': return { label: 'Từ chối', color: '#EF4444', bg: '#FEE2E2', icon: 'close-circle-outline' };
+      case 'Cancelled': return { label: 'Đã hủy', color: '#EF4444', bg: '#FEE2E2', icon: 'cancel' };
+      case 'Unpaid': return { label: 'Chờ thanh toán', color: '#CA8A04', bg: '#FEF9C3', icon: 'cash-clock' };
+      case 'InvoiceReleased': return { label: 'Đã xuất hóa đơn', color: '#F59E0B', bg: '#FEF3C7', icon: 'file-document-outline' };
+      case 'Paid': return { label: 'Đã thanh toán', color: '#10B981', bg: '#D1FAE5', icon: 'cash-check' };
+      case 'Completed': return { label: 'Hoàn tất', color: '#10B981', bg: '#D1FAE5', icon: 'flag-checkered' };
+      default: return { label: status || 'Không xác định', color: '#6B7280', bg: '#F3F4F6', icon: 'help-circle' };
     }
   };
 
@@ -243,14 +253,14 @@ export default function RequestListScreen({ navigation }) {
   const loadRequests = async (filter = selectedFilter) => {
     try {
       setLoading(true);
-      
+
       const isAuthenticated = await checkAuth();
       if (!isAuthenticated) {
         setLoading(false);
         setRequests([]);
         return;
       }
-      
+
       // Helper to extract array from various API response shapes
       const extractArray = (res) => {
         if (!res || !res.success) return [];
@@ -302,9 +312,9 @@ export default function RequestListScreen({ navigation }) {
 
       setRequests(mappedRequests);
     } catch (error) {
-      
+
       let errorMessage = 'Không thể tải danh sách yêu cầu. Vui lòng thử lại.';
-      
+
       if (error.status === 403) {
         errorMessage = 'Bạn không có quyền xem danh sách yêu cầu';
       } else if (error.status === 401) {
@@ -314,7 +324,7 @@ export default function RequestListScreen({ navigation }) {
       } else if (error.message) {
         errorMessage = error.message;
       }
-      
+
       Alert.alert('Lỗi', errorMessage);
       setRequests([]);
     } finally {
@@ -513,21 +523,21 @@ export default function RequestListScreen({ navigation }) {
                       {
                         backgroundColor:
                           item.type === 'complaint' ? '#FEE2E2' :
-                          item.type === 'maintenance' ? '#DBEAFE' :
-                          item.type === 'moving' ? '#FEF3C7' : '#F3F4F6',
+                            item.type === 'maintenance' ? '#DBEAFE' :
+                              item.type === 'moving' ? '#FEF3C7' : '#F3F4F6',
                       },
                     ]}>
                       <MaterialCommunityIcons
                         name={
                           item.type === 'complaint' ? 'alert-circle' :
-                          item.type === 'maintenance' ? 'tools' :
-                          item.type === 'moving' ? 'home-move-outline' : 'file-document'
+                            item.type === 'maintenance' ? 'tools' :
+                              item.type === 'moving' ? 'home-move-outline' : 'file-document'
                         }
                         size={14}
                         color={
                           item.type === 'complaint' ? '#EF4444' :
-                          item.type === 'maintenance' ? '#3B82F6' :
-                          item.type === 'moving' ? '#F59E0B' : '#6B7280'
+                            item.type === 'maintenance' ? '#3B82F6' :
+                              item.type === 'moving' ? '#F59E0B' : '#6B7280'
                         }
                       />
                       <Text style={[
@@ -535,8 +545,8 @@ export default function RequestListScreen({ navigation }) {
                         {
                           color:
                             item.type === 'complaint' ? '#EF4444' :
-                            item.type === 'maintenance' ? '#3B82F6' :
-                            item.type === 'moving' ? '#F59E0B' : '#6B7280',
+                              item.type === 'maintenance' ? '#3B82F6' :
+                                item.type === 'moving' ? '#F59E0B' : '#6B7280',
                         },
                       ]}>
                         {item.typeLabel}
