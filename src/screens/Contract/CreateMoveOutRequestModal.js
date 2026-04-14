@@ -648,6 +648,9 @@ export default function CreateMoveOutRequestModal({
     const refundTicket = depositVsInvoice?.refundTicket;
     const hasRefundTicket = Boolean(refundTicket);
     const paymentVoucherDisplay = getPaymentVoucherDisplay(refundTicket?.paymentVoucher);
+    // depositRefundAmount trực tiếp từ moveout request (backend field)
+    const depositRefundAmount = req?.depositRefundAmount ?? null;
+    const hasDepositRefundAmount = depositRefundAmount != null && depositRefundAmount >= 0;
 
     return (
       <>
@@ -795,9 +798,9 @@ export default function CreateMoveOutRequestModal({
           )}
 
         {/* Deposit vs invoice result */}
-        {(fetchingDepositVsInvoice || hasRefundToTenant || hasRefundTicket) && (
+        {(fetchingDepositVsInvoice || hasDepositRefundAmount || hasRefundToTenant || hasRefundTicket) && (
           <View style={styles.infoSection}>
-            <Text style={styles.sectionTitle}>Hoàn cọc cho tenant</Text>
+            <Text style={styles.sectionTitle}>Số tiền được hoàn</Text>
             <View style={styles.infoBox}>
               {fetchingDepositVsInvoice ? (
                 <View style={styles.loadingRow}>
@@ -806,54 +809,36 @@ export default function CreateMoveOutRequestModal({
                 </View>
               ) : (
                 <>
-                  {hasRefundTicket && (
-                    <>
-                      <InfoRow
-                        label="Số tiền được hoàn"
-                        value={
-                          refundTicket?.amount != null
-                            ? formatCurrency(refundTicket.amount)
-                            : '—'
-                        }
-                      />
-                    </>
+                  {/* Hiển thị depositRefundAmount trực tiếp từ moveout request */}
+                  {hasDepositRefundAmount && (
+                    <InfoRow
+                      label="Tổng tiền hoàn cho bạn"
+                      value={formatCurrency(depositRefundAmount)}
+                      valueStyle={{
+                        color: depositRefundAmount > 0 ? '#10B981' : '#6B7280',
+                        fontWeight: '700',
+                        fontSize: 15,
+                      }}
+                    />
                   )}
                 </>
               )}
             </View>
+            {/* Ghi chú trạng thái */}
+            {!fetchingDepositVsInvoice && hasDepositRefundAmount && !req.isDepositForfeited && depositRefundAmount > 0 && (
+              <View style={[styles.actionHint, { backgroundColor: '#ECFDF5', borderColor: '#A7F3D0' }]}>
+                <MaterialCommunityIcons name="cash-refund" size={16} color="#059669" />
+                <Text style={[styles.actionHintText, { color: '#065F46' }]}>
+                  {req.status?.toLowerCase() === 'completed'
+                    ? `Bạn sẽ nhận được ${formatCurrency(depositRefundAmount)} khi hoàn tất trả phòng.`
+                    : `Số tiền hoàn dự kiến: ${formatCurrency(depositRefundAmount)}. Sẽ được chi trả sau khi hoàn tất trả phòng.`
+                  }
+                </Text>
+              </View>
+            )}
           </View>
         )}
 
-        {/* Paid / Completed – show payment info */}
-        {(req.status?.toLowerCase() === 'paid' || req.status?.toLowerCase() === 'completed') && (
-          <View style={styles.infoSection}>
-            <Text style={styles.sectionTitle}>Thông tin thanh toán</Text>
-            <View style={styles.infoBox}>
-              {req.paymentDate && (
-                <InfoRow label="Ngày thanh toán" value={formatDate(req.paymentDate)} />
-              )}
-              {req.depositRefundAmount != null && (
-                <InfoRow
-                  label="Hoàn cọc"
-                  value={
-                    req.isDepositForfeited
-                      ? 'Bị tịch thu'
-                      : req.depositRefundAmount > 0
-                      ? `${formatCurrency(req.depositRefundAmount)}`
-                      : 'Không có'
-                  }
-                  valueStyle={{
-                    color: req.isDepositForfeited ? '#DC2626' : req.depositRefundAmount > 0 ? '#10B981' : '#6B7280',
-                  }}
-                  isLast={!req.accountantNotes}
-                />
-              )}
-              {req.accountantNotes && (
-                <InfoRow label="Ghi chú kế toán" value={req.accountantNotes} isLast />
-              )}
-            </View>
-          </View>
-        )}
 
         {/* Completed – show completion info */}
         {req.status?.toLowerCase() === 'completed' && (
@@ -930,7 +915,7 @@ export default function CreateMoveOutRequestModal({
           <View style={styles.ruleHintBox}>
             <MaterialCommunityIcons name="information-outline" size={16} color="#1D4ED8" />
             <Text style={styles.ruleHintText}>
-              Ngày trả phòng dự kiến phải nhỏ hơn ngày hết hạn hợp đồng ({formatDate(contractInfo.endDate)}).
+              Ngày trả phòng dự kiến phải nhỏ hơn hoặc bằng ngày hết hạn hợp đồng ({formatDate(contractInfo.endDate)}).
             </Text>
           </View>
         )}
