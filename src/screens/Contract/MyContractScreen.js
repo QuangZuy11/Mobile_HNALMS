@@ -137,6 +137,15 @@ export default function MyContractScreen({ navigation }) {
   // Nút "Gia hạn" — hiện khi contract active và chưa có move-out request
   const canRenewContract = (contract, preview) => {
     if (contract.status !== 'active') return false;
+    
+    // Kiểm tra cửa sổ 30 -> 7 ngày
+    const daysLeft = calculateRemainingDays(contract.endDate);
+    if (daysLeft === null || daysLeft > 30 || daysLeft < 7) return false;
+    
+    // Kiểm tra đã gia hạn hoặc đã từ chối chưa
+    const renewalStatus = preview?.renewalStatus ?? contract.renewalStatus ?? null;
+    if (renewalStatus === 'renewed' || renewalStatus === 'declined') return false;
+
     // Ẩn nút gia hạn nếu đã có yêu cầu trả phòng
     const existingRequest = moveOutRequests[contract._id];
     if (existingRequest?._id || existingRequest?.id) return false;
@@ -146,7 +155,15 @@ export default function MyContractScreen({ navigation }) {
   // Nút "Từ chối" — chỉ hiện khi CHƯA từ chối, trong cửa sổ gia hạn, VÀ chưa có move-out request
   const canDeclineContract = (contract, preview) => {
     if (contract.status !== 'active') return false;
-    if (preview?.renewalStatus === 'declined') return false; // đã từ chối rồi
+    
+    // Kiểm tra cửa sổ 30 -> 7 ngày
+    const daysLeft = calculateRemainingDays(contract.endDate);
+    if (daysLeft === null || daysLeft > 30 || daysLeft < 7) return false;
+    
+    // Kiểm tra đã gia hạn hoặc đã từ chối chưa
+    const renewalStatus = preview?.renewalStatus ?? contract.renewalStatus ?? null;
+    if (renewalStatus === 'renewed' || renewalStatus === 'declined') return false;
+
     // Ẩn nút từ chối nếu đã có yêu cầu trả phòng
     const existingRequest = moveOutRequests[contract._id];
     if (existingRequest?._id || existingRequest?.id) return false;
