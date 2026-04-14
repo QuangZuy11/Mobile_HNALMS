@@ -14,7 +14,14 @@ const fmtMoney = (v) => {
     const n = Number(v);
     return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(Number.isFinite(n) ? n : 0);
 };
-const fmtDate = (d) => d ? new Date(d).toLocaleDateString('vi-VN') : '—';
+const fmtDate = (d) => {
+    if (!d) return '—';
+    const date = new Date(d);
+    const day = String(date.getUTCDate()).padStart(2, '0');
+    const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+    const year = date.getUTCFullYear();
+    return `${day}/${month}/${year}`;
+};
 
 const MONTH_NAMES_SHORT = ['Tháng 1', 'Tháng 2', 'Tháng 3', 'Tháng 4', 'Tháng 5', 'Tháng 6',
     'Tháng 7', 'Tháng 8', 'Tháng 9', 'Tháng 10', 'Tháng 11', 'Tháng 12'];
@@ -184,29 +191,37 @@ export default function PrepaidRentScreen({ navigation }) {
             : new Date(contractData.startDate);
         const endDate = new Date(contractData.endDate);
 
+        // Normalize rentPaidUntil về ngày 1 UTC để tránh timezone overflow
+        const normalizedPaidThrough = new Date(rentPaidUntilDate);
+        normalizedPaidThrough.setUTCDate(1);
+        normalizedPaidThrough.setUTCHours(0, 0, 0, 0);
+
         // rentPaidUntil → tháng kế tiếp (tháng đầu tiên có thể trả trước)
-        const baseDate = new Date(rentPaidUntilDate);
-        baseDate.setMonth(baseDate.getMonth() + 1);
-        // Lấy ngày 1 của tháng đó (bỏ ngày lẻ)
-        const firstPayableMonth = new Date(baseDate.getFullYear(), baseDate.getMonth(), 1);
+        const firstPayableMonth = new Date(normalizedPaidThrough);
+        firstPayableMonth.setUTCMonth(firstPayableMonth.getUTCMonth() + 1);
+        firstPayableMonth.setUTCDate(1);
 
         // Tháng kết thúc: tháng trước tháng của endDate (vì endDate không phải cuối tháng)
-        const endMonthDate = new Date(endDate.getFullYear(), endDate.getMonth() - 1, 1);
+        const normalizedEnd = new Date(endDate);
+        normalizedEnd.setUTCDate(1);
+        normalizedEnd.setUTCHours(0, 0, 0, 0);
+        const endMonthDate = new Date(normalizedEnd);
+        endMonthDate.setUTCMonth(endMonthDate.getUTCMonth() - 1);
 
         // Luôn đảm bảo tối thiểu 3 tháng → bắt đầu từ tháng thứ 3
         const threeMonthsLater = new Date(firstPayableMonth);
-        threeMonthsLater.setMonth(threeMonthsLater.getMonth() + 2); // +2 vì đã là tháng đầu tiên, +2 nữa = tháng thứ 3
+        threeMonthsLater.setUTCMonth(threeMonthsLater.getUTCMonth() + 2);
 
         // Không chọn tháng quá khứ (trước tháng hiện tại)
         const now = new Date();
-        const currentMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        const currentMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
 
         // Xác định minIdx thực tế = max(3 tháng, tháng hiện tại)
         const minCandidate = threeMonthsLater > currentMonth ? threeMonthsLater : currentMonth;
         const effectiveMin = minCandidate < endMonthDate ? minCandidate : endMonthDate;
 
-        const minIdx = toIdx(effectiveMin.getFullYear(), effectiveMin.getMonth());
-        const maxIdx = toIdx(endMonthDate.getFullYear(), endMonthDate.getMonth());
+        const minIdx = toIdx(effectiveMin.getUTCFullYear(), effectiveMin.getUTCMonth());
+        const maxIdx = toIdx(endMonthDate.getUTCFullYear(), endMonthDate.getUTCMonth());
 
         if (minIdx > maxIdx) {
             return { availableMonths: [], minAvailableIdx: minIdx, maxAvailableIdx: maxIdx, fullyPaid: true };
@@ -230,9 +245,12 @@ export default function PrepaidRentScreen({ navigation }) {
         const rentPaidUntilDate = contractData?.rentPaidUntil
             ? new Date(contractData.rentPaidUntil)
             : new Date(contractData?.startDate);
-        const startNextMonth = new Date(rentPaidUntilDate);
-        startNextMonth.setMonth(startNextMonth.getMonth() + 1);
-        const startIdx = toIdx(startNextMonth.getFullYear(), startNextMonth.getMonth());
+        const normalizedPaidThrough = new Date(rentPaidUntilDate);
+        normalizedPaidThrough.setUTCDate(1);
+        normalizedPaidThrough.setUTCHours(0, 0, 0, 0);
+        const startNextMonth = new Date(normalizedPaidThrough);
+        startNextMonth.setUTCMonth(startNextMonth.getUTCMonth() + 1);
+        const startIdx = toIdx(startNextMonth.getUTCFullYear(), startNextMonth.getUTCMonth());
 
         // months = selectedEndIdx - startIdx + 1
         const months = selectedEndIdx - startIdx + 1;
@@ -252,14 +270,17 @@ export default function PrepaidRentScreen({ navigation }) {
         const rentPaidUntilDate = contractData.rentPaidUntil
             ? new Date(contractData.rentPaidUntil)
             : new Date(contractData.startDate);
-        const startNextMonth = new Date(rentPaidUntilDate);
-        startNextMonth.setMonth(startNextMonth.getMonth() + 1);
+        const normalizedPaidThrough = new Date(rentPaidUntilDate);
+        normalizedPaidThrough.setUTCDate(1);
+        normalizedPaidThrough.setUTCHours(0, 0, 0, 0);
+        const startNextMonth = new Date(normalizedPaidThrough);
+        startNextMonth.setUTCMonth(startNextMonth.getUTCMonth() + 1);
 
         const months = [];
         const cur = new Date(startNextMonth);
         for (let i = 0; i < prepaidMonths; i++) {
-            months.push(`Tháng ${cur.getMonth() + 1} - ${cur.getFullYear()}`);
-            cur.setMonth(cur.getMonth() + 1);
+            months.push(`Tháng ${cur.getUTCMonth() + 1} - ${cur.getUTCFullYear()}`);
+            cur.setUTCMonth(cur.getUTCMonth() + 1);
         }
         return months;
     }, [contractData, selectedEndIdx, prepaidMonths]);
@@ -443,19 +464,21 @@ export default function PrepaidRentScreen({ navigation }) {
                                         <View style={{ flex: 1, alignItems: 'flex-end' }}>
                                             {(() => {
                                                 const rentDate = new Date(contractData.rentPaidUntil);
-                                                const endY = rentDate.getFullYear();
-                                                const endM = rentDate.getMonth();
+                                                const endY = rentDate.getUTCFullYear();
+                                                const endM = rentDate.getUTCMonth();
                                                 const baseDate = contractData.startDate ? new Date(contractData.startDate) : new Date();
+                                                baseDate.setUTCDate(1);
+                                                baseDate.setUTCHours(0, 0, 0, 0);
                                                 const startNext = new Date(baseDate);
-                                                startNext.setMonth(startNext.getMonth() + 1);
-                                                const startM = startNext.getMonth();
-                                                const startY = startNext.getFullYear();
+                                                startNext.setUTCMonth(startNext.getUTCMonth() + 1);
+                                                const startM = startNext.getUTCMonth();
+                                                const startY = startNext.getUTCFullYear();
                                                 const totalMonths = (endY - startY) * 12 + (endM - startM) + 1;
                                                 const months = [];
-                                                const cur = new Date(startY, startM, 1);
+                                                const cur = new Date(Date.UTC(startY, startM, 1));
                                                 for (let i = 0; i < totalMonths && i < 60; i++) {
-                                                    months.push(`Tháng ${cur.getMonth() + 1} - ${cur.getFullYear()}`);
-                                                    cur.setMonth(cur.getMonth() + 1);
+                                                    months.push(`Tháng ${cur.getUTCMonth() + 1} - ${cur.getUTCFullYear()}`);
+                                                    cur.setUTCMonth(cur.getUTCMonth() + 1);
                                                 }
                                                 if (months.length === 0) {
                                                     return <Text style={styles.infoValue}>—</Text>;

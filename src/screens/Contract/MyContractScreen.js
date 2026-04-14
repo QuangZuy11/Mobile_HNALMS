@@ -29,11 +29,10 @@ const { width, height } = Dimensions.get('window');
 const formatDate = (dateString) => {
   if (!dateString) return 'Chưa cập nhật';
   const date = new Date(dateString);
-  return date.toLocaleDateString('vi-VN', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  });
+  const day = String(date.getUTCDate()).padStart(2, '0');
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const year = date.getUTCFullYear();
+  return `${day}/${month}/${year}`;
 };
 
 const formatCurrency = (value) => {
