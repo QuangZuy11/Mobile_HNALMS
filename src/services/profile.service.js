@@ -130,10 +130,10 @@ export const getTenantRoomsAPI = async () => {
     if (response.data?.success && response.data.data?.length > 0) {
       const contracts = response.data.data;
       
-      // Extract all unique rooms from all contracts (active + inactive)
+      // Extract all unique rooms from ACTIVE and INACTIVE (future) contracts
       const uniqueRooms = {};
       contracts.forEach((contract) => {
-        if (contract.roomId && contract.roomId._id) {
+        if ((contract.status === 'active' || contract.status === 'inactive') && contract.roomId && contract.roomId._id) {
           const room = contract.roomId;
           const roomPrice = contract.price || room.roomTypeId?.currentPrice || null;
           
