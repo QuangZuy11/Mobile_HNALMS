@@ -25,10 +25,16 @@ export const loginAPI = async (username, password) => {
       throw new Error(data.message || 'Đăng nhập thất bại');
     }
 
-    // Save token to AsyncStorage
+    // Lấy thông tin user và token
     const token = data.token || data.data?.token;
     const user = data.user || data.data?.user;
+
+    // Kiểm tra role của user, chỉ cho phép Tenant
+    if (user && user.role?.toLowerCase() !== 'tenant') {
+      throw new Error('Bạn không có quyền đăng nhập vào ứng dụng này.');
+    }
     
+    // Save token to AsyncStorage
     if (token) {
       await AsyncStorage.setItem('authToken', token);
     }
