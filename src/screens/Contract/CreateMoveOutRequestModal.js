@@ -520,7 +520,7 @@ export default function CreateMoveOutRequestModal({
       const successMessage =
         response?.message || response?.data?.message || 'Yêu cầu trả phòng đã được gửi thành công.';
 
-      Alert.alert('Thành công ✅', successMessage, [
+      Alert.alert('Thành công', successMessage, [
         {
           text: 'OK',
           onPress: () => {
