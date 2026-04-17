@@ -717,7 +717,7 @@ export default function CreateMoveOutRequestModal({
           {/* Basic info */}
           <View style={styles.infoBox}>
             <InfoRow label="Ngày yêu cầu" value={formatDate(req.requestDate)} />
-            <InfoRow label="Ngày dự kiến trả phòng" value={formatDate(req.expectedMoveOutDate)} />
+            <InfoRow label="Ngày trả phòng" value={formatDate(req.expectedMoveOutDate)} />
             <InfoRow label="Lý do" value={req.reason} isLast={!req.isEarlyNotice && !req.isUnderMinStay && !req.isDepositForfeited} />
 
             {/* Deposit warning flags */}
@@ -915,7 +915,7 @@ export default function CreateMoveOutRequestModal({
           <View style={styles.ruleHintBox}>
             <MaterialCommunityIcons name="information-outline" size={16} color="#1D4ED8" />
             <Text style={styles.ruleHintText}>
-              Ngày trả phòng dự kiến phải nhỏ hơn hoặc bằng ngày hết hạn hợp đồng ({formatDate(contractInfo.endDate)}).
+              Ngày trả phòng phải nhỏ hơn hoặc bằng ngày hết hạn hợp đồng ({formatDate(contractInfo.endDate)}).
             </Text>
           </View>
         )}
@@ -923,7 +923,7 @@ export default function CreateMoveOutRequestModal({
         {/* Expected date */}
         <View style={styles.formGroup}>
           <Text style={styles.label}>
-            Ngày trả phòng dự kiến <Text style={styles.required}>*</Text>
+            Ngày trả phòng <Text style={styles.required}>*</Text>
           </Text>
           <TouchableOpacity
             style={[styles.datePickerBtn, showDateModal && styles.datePickerBtnSelected]}
