@@ -277,21 +277,18 @@ export default function CreateMoveOutRequestModal({
     const isUnderMinStayByDay = stayDays < MIN_STAY_MONTHS_REQUIRED * 30;
     const isUnderMinStay = isUnderMinStayByMonth && isUnderMinStayByDay;
 
-    // Tính khoảng cách từ today (requestDate) → endDate (phải >= 30 ngày)
+    // Điều kiện báo trước 30 ngày đã BỎ — chỉ còn điều kiện 6 tháng
     let daysBeforeContractEnd = null;
-    let isEarlyNotice = false;
-
     if (contractInfo?.endDate) {
       const endDateOnly = normalizeDateOnly(contractInfo.endDate);
       daysBeforeContractEnd = Math.floor((endDateOnly - todayDateOnly) / DAY_IN_MS);
-      isEarlyNotice = daysBeforeContractEnd < NOTICE_DAYS_REQUIRED;
     }
 
     return {
       daysBeforeContractEnd,
       stayMonths,
       stayDays,
-      isEarlyNotice,
+      isEarlyNotice: false, // Không áp dụng penalty báo trước nữa
       isUnderMinStay,
     };
   };
@@ -312,11 +309,7 @@ export default function CreateMoveOutRequestModal({
     }
 
     const warnings = [];
-    if (risk.isEarlyNotice) {
-      warnings.push(
-        `Ngày yêu cầu trả phòng cách ngày kết thúc hợp đồng ${risk.daysBeforeContractEnd ?? 0} ngày, chưa đủ tối thiểu ${NOTICE_DAYS_REQUIRED} ngày báo trước. Bạn có thể bị mất cọc.`
-      );
-    }
+    // isEarlyNotice đã BỎ — chỉ cảnh báo nếu chưa đủ 6 tháng
     if (risk.isUnderMinStay) {
       warnings.push(
         `Bạn sẽ không được hoàn cọc vì thời gian ở tính đến ngày yêu cầu là ${risk.stayMonths} tháng (${risk.stayDays} ngày), chưa đủ ${MIN_STAY_MONTHS_REQUIRED} tháng.`
@@ -326,7 +319,7 @@ export default function CreateMoveOutRequestModal({
     setDepositWarning(warnings.length > 0 ? warnings : null);
     return {
       warnings,
-      isEarlyNotice: risk.isEarlyNotice,
+      isEarlyNotice: false,
       isUnderMinStay: risk.isUnderMinStay,
     };
   };
