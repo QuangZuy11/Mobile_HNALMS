@@ -34,6 +34,8 @@ const getRoomStatusBadge = (status) => {
       return { bg: '#DBEAFE', text: '#0369A1', label: 'Đang sử dụng' };
     case 'available':
       return { bg: '#D1FAE5', text: '#047857', label: 'Còn trống' };
+    case 'deposited':
+      return { bg: '#F3F4F6', text: '#374151', label: 'Đã đặt cọc' };
     default:
       return { bg: '#F3F4F6', text: '#374151', label: status || 'Chưa xác định' };
   }
@@ -63,7 +65,7 @@ export default function MyRoomScreen({ navigation }) {
         const contracts = response.data.data;
         // Lấy tất cả phòng từ mọi hợp đồng của tenant
         const allContracts = contracts.filter((c) => c.roomId && c.roomId._id);
-        
+
         if (allContracts.length === 0) {
           setError('Không có phòng nào trong hợp đồng');
           setRoomsList([]);
@@ -74,7 +76,7 @@ export default function MyRoomScreen({ navigation }) {
               uniqueRooms[contract.roomId._id] = contract.roomId;
             }
           });
-          
+
           const rooms = Object.values(uniqueRooms);
           if (rooms.length > 0) {
             // Gắn contractStatus vào mỗi room
@@ -233,7 +235,7 @@ export default function MyRoomScreen({ navigation }) {
                         <MaterialCommunityIcons name="door-open" size={24} color="#3B82F6" />
                       </View>
                     </View>
-                    
+
                     <View style={styles.roomListCardMiddle}>
                       <Text style={styles.roomListName} numberOfLines={1}>{room.name || 'N/A'}</Text>
                       <Text style={styles.roomListCode}>{room.roomCode || 'N/A'}</Text>
