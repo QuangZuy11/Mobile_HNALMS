@@ -325,7 +325,7 @@ export default function RequestListScreen({ navigation }) {
         errorMessage = error.message;
       }
 
-      Alert.alert('Lỗi', errorMessage);
+      Alert.alert('Thông báo', errorMessage);
       setRequests([]);
     } finally {
       setLoading(false);
@@ -808,7 +808,7 @@ export default function RequestListScreen({ navigation }) {
                                   Alert.alert('Thành công', 'Đã xóa yêu cầu thành công');
                                   loadRequests();
                                 } catch (err) {
-                                  Alert.alert('Lỗi', err.message || 'Không thể xóa yêu cầu');
+                                  Alert.alert('Thông báo', err.message || 'Không thể xóa yêu cầu');
                                 } finally {
                                   setDeletingId(null);
                                 }
@@ -866,7 +866,7 @@ export default function RequestListScreen({ navigation }) {
                                   Alert.alert('Thành công', 'Đã xóa yêu cầu thành công');
                                   loadRequests();
                                 } catch (err) {
-                                  Alert.alert('Lỗi', err.message || 'Không thể xóa yêu cầu');
+                                  Alert.alert('Thông báo', err.message || 'Không thể xóa yêu cầu');
                                 } finally {
                                   setDeletingId(null);
                                 }
@@ -924,7 +924,7 @@ export default function RequestListScreen({ navigation }) {
                                   Alert.alert('Thành công', 'Đã xóa khiếu nại thành công');
                                   loadRequests();
                                 } catch (err) {
-                                  Alert.alert('Lỗi', err.message || 'Không thể xóa khiếu nại');
+                                  Alert.alert('Thông báo', err.message || 'Không thể xóa khiếu nại');
                                 } finally {
                                   setDeletingId(null);
                                 }

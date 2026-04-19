@@ -28,7 +28,7 @@ export default function CreateRepairRequestScreen({ navigation }) {
   const [devices, setDevices] = useState([]);
   const [fetchingDevices, setFetchingDevices] = useState(true);
   const [devicesError, setDevicesError] = useState(null);
-  
+
   // Room selection states
   const [rooms, setRooms] = useState([]);
   const [selectedRoom, setSelectedRoom] = useState(null);
@@ -82,7 +82,7 @@ export default function CreateRepairRequestScreen({ navigation }) {
       } catch (error) {
         setRoomsError(error.message);
         Alert.alert(
-          'Lỗi',
+          'Thông báo',
           'Không thể tải danh sách phòng. ' + error.message,
           [
             { text: 'Thử lại', onPress: () => fetchRooms() },
@@ -128,7 +128,7 @@ export default function CreateRepairRequestScreen({ navigation }) {
       } catch (error) {
         setDevicesError(error.message);
         Alert.alert(
-          'Lỗi',
+          'Thông báo',
           'Không thể tải danh sách thiết bị. ' + error.message,
           [
             { text: 'Thử lại', onPress: () => fetchDevices() },
@@ -148,7 +148,7 @@ export default function CreateRepairRequestScreen({ navigation }) {
     (async () => {
       const { status: cameraStatus } = await ImagePicker.requestCameraPermissionsAsync();
       const { status: galleryStatus } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      
+
       if (cameraStatus !== 'granted' || galleryStatus !== 'granted') {
       }
     })();
@@ -180,7 +180,7 @@ export default function CreateRepairRequestScreen({ navigation }) {
         setImages(combined.slice(0, MAX_IMAGES));
       }
     } catch (error) {
-      Alert.alert('Lỗi', 'Không thể chọn ảnh');
+      Alert.alert('Thông báo', 'Không thể chọn ảnh');
     }
   };
 
@@ -200,7 +200,7 @@ export default function CreateRepairRequestScreen({ navigation }) {
         setImages([...images, result.assets[0].uri]);
       }
     } catch (error) {
-      Alert.alert('Lỗi', 'Không thể chụp ảnh');
+      Alert.alert('Thông báo', 'Không thể chụp ảnh');
     }
   };
 
@@ -228,19 +228,19 @@ export default function CreateRepairRequestScreen({ navigation }) {
   const handleSubmit = async () => {
     // Validation
     if (!selectedRoom) {
-      Alert.alert('Lỗi', 'Vui lòng chọn phòng gửi yêu cầu');
+      Alert.alert('Thông báo', 'Vui lòng chọn phòng gửi yêu cầu');
       return;
     }
     if (!itemType) {
-      Alert.alert('Lỗi', 'Vui lòng chọn thiết bị cần ' + type.toLowerCase());
+      Alert.alert('Thông báo', 'Vui lòng chọn thiết bị cần ' + type.toLowerCase());
       return;
     }
     if (!description.trim()) {
-      Alert.alert('Lỗi', 'Vui lòng mô tả vấn đề');
+      Alert.alert('Thông báo', 'Vui lòng mô tả vấn đề');
       return;
     }
     if (description.trim().length < 10) {
-      Alert.alert('Lỗi', 'Mô tả phải có ít nhất 10 ký tự');
+      Alert.alert('Thông báo', 'Mô tả phải có ít nhất 10 ký tự');
       return;
     }
 
@@ -249,7 +249,7 @@ export default function CreateRepairRequestScreen({ navigation }) {
       // Upload images to Cloudinary if any
       let imageUrls = [];
       if (images.length > 0) {
-        
+
         try {
           imageUrls = await uploadMultipleImages(
             images,
@@ -258,14 +258,14 @@ export default function CreateRepairRequestScreen({ navigation }) {
               setUploadProgress({ current, total });
             }
           );
-          
+
           if (imageUrls.length < images.length) {
             Alert.alert(
               'Cảnh báo',
               `Chỉ tải lên được ${imageUrls.length}/${images.length} ảnh. Bạn có muốn tiếp tục?`,
               [
                 { text: 'Hủy', style: 'cancel', onPress: () => { setLoading(false); return; } },
-                { text: 'Tiếp tục', onPress: () => {} },
+                { text: 'Tiếp tục', onPress: () => { } },
               ]
             );
           }
@@ -275,19 +275,19 @@ export default function CreateRepairRequestScreen({ navigation }) {
             uploadError.message + '\n\nBạn có muốn tiếp tục không có ảnh?',
             [
               { text: 'Hủy', style: 'cancel', onPress: () => { setLoading(false); return; } },
-              { text: 'Tiếp tục', onPress: () => {} },
+              { text: 'Tiếp tục', onPress: () => { } },
             ]
           );
           imageUrls = [];
         }
-        
+
         // Reset upload progress
         setUploadProgress({ current: 0, total: 0 });
       }
-      
+
       // Find selected device
       const selectedDevice = devices.find((d) => d.id === itemType);
-      
+
       const repairData = {
         roomId: selectedRoom, // Room ID where repair is needed
         devicesId: itemType, // Device ID from database (_id)
@@ -309,7 +309,7 @@ export default function CreateRepairRequestScreen({ navigation }) {
         ]
       );
     } catch (error) {
-      Alert.alert('Lỗi', error.message || 'Không thể gửi yêu cầu. Vui lòng thử lại.');
+      Alert.alert('Thông báo', error.message || 'Không thể gửi yêu cầu. Vui lòng thử lại.');
     } finally {
       setLoading(false);
     }
@@ -489,10 +489,10 @@ export default function CreateRepairRequestScreen({ navigation }) {
           {/* Images Section */}
           <View style={styles.formGroup}>
             <Text style={styles.label}>Hình ảnh (tùy chọn)</Text>
-            
+
             {images.length > 0 && (
-              <ScrollView 
-                horizontal 
+              <ScrollView
+                horizontal
                 showsHorizontalScrollIndicator={false}
                 style={styles.imagePreviewContainer}
               >
@@ -509,7 +509,7 @@ export default function CreateRepairRequestScreen({ navigation }) {
                 ))}
               </ScrollView>
             )}
-            
+
             <TouchableOpacity
               style={styles.imagePickerButton}
               onPress={showImageOptions}

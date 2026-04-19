@@ -29,7 +29,7 @@ export default function ChangePasswordScreen({ navigation }) {
 
   const handleChangePassword = async () => {
     if (formData.newPassword !== formData.confirmPassword) {
-      Alert.alert('Lỗi', 'Mật khẩu xác nhận không khớp');
+      Alert.alert('Thông báo', 'Mật khẩu mới và mật khẩu xác nhận không khớp !');
       return;
     }
 
