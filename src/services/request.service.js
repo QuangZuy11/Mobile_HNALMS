@@ -389,7 +389,7 @@ export const createRepairRequestAPI = async (repairData) => {
     
     // Check if response is successful
     if (!response.data.success) {
-      throw new Error(response.data.message || 'Không thể tạo yêu cầu sửa chữa/bảo trì');
+      throw new Error(response.data.message || 'Không thể tạo yêu cầu sửa chữa');
     }
     
     return response.data;
