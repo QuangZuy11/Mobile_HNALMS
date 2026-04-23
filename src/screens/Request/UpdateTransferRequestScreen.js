@@ -397,7 +397,7 @@ export default function UpdateTransferRequestScreen({ navigation, route }) {
             </Text>
             {selectedDateObj && <MaterialCommunityIcons name="check-circle" size={18} color="#F59E0B" />}
           </TouchableOpacity>
-          <Text style={styles.helperText}>Ngày chuyển phải từ ngày mai trở đi</Text>
+          <Text style={styles.helperText}>Ngày chuyển bắt buộc phải là ngày mai</Text>
 
           {/* Step 4: Reason */}
           <View style={[styles.stepHeader, { marginTop: 28 }]}>
@@ -520,8 +520,14 @@ export default function UpdateTransferRequestScreen({ navigation, route }) {
               {buildCalendarDays(calYear, calMonth).map((day, index) => {
                 if (!day) return <View key={`empty-${index}`} style={styles.calCell} />;
                 const cellDate = new Date(calYear, calMonth, day);
-                cellDate.setHours(0, 0, 0, 0);
-                const isPast = cellDate <= today;
+                
+                const tomorrow = new Date();
+                tomorrow.setDate(tomorrow.getDate() + 1);
+                tomorrow.setHours(0, 0, 0, 0);
+                
+                const isTomorrow = cellDate.getTime() === tomorrow.getTime();
+                const isDisabled = !isTomorrow;
+                
                 const isToday = cellDate.getTime() === today.getTime();
                 const isSelected = selectedDateObj &&
                   cellDate.getTime() === new Date(selectedDateObj).setHours(0, 0, 0, 0);
@@ -534,10 +540,10 @@ export default function UpdateTransferRequestScreen({ navigation, route }) {
                       styles.calCell,
                       isToday && styles.calCellToday,
                       isSelected && styles.calCellSelected,
-                      isPast && styles.calCellDisabled,
+                      isDisabled && styles.calCellDisabled,
                     ]}
                     onPress={() => onCalendarDayPress(day)}
-                    disabled={isPast}
+                    disabled={isDisabled}
                     activeOpacity={0.7}
                   >
                     <Text style={[
@@ -545,7 +551,7 @@ export default function UpdateTransferRequestScreen({ navigation, route }) {
                       isSunday && styles.calDaySunday,
                       isToday && styles.calDayTextToday,
                       isSelected && styles.calDayTextSelected,
-                      isPast && styles.calDayTextDisabled,
+                      isDisabled && styles.calDayTextDisabled,
                     ]}>
                       {day}
                     </Text>
