@@ -259,7 +259,7 @@ export default function UpdateRepairRequestScreen({ navigation, route }) {
               `Chỉ tải lên được ${newUploadedUrls.length}/${newLocalImages.length} ảnh. Bạn có muốn tiếp tục?`,
               [
                 { text: 'Hủy', style: 'cancel', onPress: () => { setLoading(false); } },
-                { text: 'Tiếp tục', onPress: () => {} },
+                { text: 'Tiếp tục', onPress: () => { } },
               ]
             );
           }
@@ -269,7 +269,7 @@ export default function UpdateRepairRequestScreen({ navigation, route }) {
             uploadError.message + '\n\nBạn có muốn tiếp tục không có ảnh mới?',
             [
               { text: 'Hủy', style: 'cancel', onPress: () => { setLoading(false); } },
-              { text: 'Tiếp tục', onPress: () => {} },
+              { text: 'Tiếp tục', onPress: () => { } },
             ]
           );
           newUploadedUrls = [];
@@ -524,7 +524,7 @@ export default function UpdateRepairRequestScreen({ navigation, route }) {
           <View style={styles.infoBox}>
             <MaterialCommunityIcons name="information-outline" size={20} color="#3B82F6" />
             <Text style={styles.infoText}>
-              Chỉ có thể chỉnh sửa khi ở trạng thái "Chờ xử lý". Ảnh mới sẽ được tải lên Cloudinary khi lưu.
+              Chỉ có thể chỉnh sửa khi ở trạng thái "Chờ xử lý".
             </Text>
           </View>
 
