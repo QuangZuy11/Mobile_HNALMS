@@ -63,8 +63,12 @@ export default function MyRoomScreen({ navigation }) {
 
       if (response.data?.success && response.data.data?.length > 0) {
         const contracts = response.data.data;
-        // Lấy tất cả phòng từ mọi hợp đồng của tenant
-        const allContracts = contracts.filter((c) => c.roomId && c.roomId._id);
+        // Lấy tất cả phòng từ mọi hợp đồng của tenant (loại bỏ hợp đồng đã hết hạn hoặc thanh lý)
+        const allContracts = contracts.filter((c) => {
+          if (!c.roomId || !c.roomId._id) return false;
+          const status = c.status?.toLowerCase();
+          return status !== 'expired' && status !== 'terminated';
+        });
 
         if (allContracts.length === 0) {
           setError('Không có phòng nào trong hợp đồng');

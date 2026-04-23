@@ -387,37 +387,6 @@ export default function CreateRepairRequestScreen({ navigation }) {
             )}
           </View>
 
-          {/* Type Selection */}
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>Loại yêu cầu *</Text>
-            <View style={styles.typeGrid}>
-              {types.map((t) => (
-                <TouchableOpacity
-                  key={t.id}
-                  style={[
-                    styles.typeButton,
-                    type === t.value && styles.typeButtonSelected,
-                  ]}
-                  onPress={() => setType(t.value)}
-                >
-                  <MaterialCommunityIcons
-                    name={t.icon}
-                    size={24}
-                    color={type === t.value ? '#3B82F6' : '#9CA3AF'}
-                  />
-                  <Text
-                    style={[
-                      styles.typeButtonText,
-                      type === t.value && styles.typeButtonTextSelected,
-                    ]}
-                  >
-                    {t.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-
           {/* Item Type Selection */}
           <View style={styles.formGroup}>
             <Text style={styles.label}>Thiết bị cần {type.toLowerCase()} *</Text>

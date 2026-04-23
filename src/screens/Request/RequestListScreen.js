@@ -125,7 +125,7 @@ export default function RequestListScreen({ navigation }) {
   const filterOptions = [
     { id: 'all', label: 'Tất cả', icon: 'format-list-bulleted' },
     { id: 'complaint', label: 'Khiếu nại', icon: 'alert-circle' },
-    { id: 'maintenance', label: 'Sửa chữa/Bảo trì', icon: 'tools' },
+    { id: 'maintenance', label: 'Sửa chữa', icon: 'tools' },
     { id: 'moving', label: 'Chuyển phòng', icon: 'home-move-outline' },
   ];
 
@@ -161,7 +161,7 @@ export default function RequestListScreen({ navigation }) {
       } else if (requestType === 'maintenance') {
         const deviceName = item.devicesId?.name || item.deviceName || 'Thiết bị';
         title = `${item.type || 'Yêu cầu'} - ${deviceName}`;
-        typeLabel = 'Sửa chữa/Bảo trì';
+        typeLabel = 'Sửa chữa';
       } else if (requestType === 'moving') {
         const targetName =
           item.targetRoomId?.name ||
@@ -355,7 +355,7 @@ export default function RequestListScreen({ navigation }) {
   const requestTypes = [
     {
       id: 'maintenance',
-      title: 'Yêu cầu sửa chữa/Bảo trì',
+      title: 'Yêu cầu sửa chữa',
       subtitle: 'Báo cáo hư hỏng',
       icon: 'tools',
       color: '#3B82F6',
