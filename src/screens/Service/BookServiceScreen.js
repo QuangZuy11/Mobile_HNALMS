@@ -60,8 +60,11 @@ export default function BookServiceScreen({ navigation }) {
       });
 
       if (response.data?.data) {
-        // Lấy tất cả hợp đồng có phòng
-        const allContracts = response.data.data.filter((c) => c.roomId && c.roomId._id);
+        // Chỉ lấy hợp đồng có phòng và chưa hết hạn / chưa thanh lý
+        const EXCLUDED_STATUSES = ['expired', 'terminated'];
+        const allContracts = response.data.data.filter(
+          (c) => c.roomId && c.roomId._id && !EXCLUDED_STATUSES.includes(c.status?.toLowerCase())
+        );
         setContracts(allContracts || []);
       } else {
         setContracts([]);
