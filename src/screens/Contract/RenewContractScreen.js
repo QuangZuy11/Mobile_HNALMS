@@ -12,7 +12,16 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  LogBox,
 } from 'react-native';
+
+// Ẩn các lỗi API không cần thiết khỏi LogBox overlay
+LogBox.ignoreLogs([
+  'confirmRenewalAPI error',
+  'getRenewalPreviewAPI error',
+  'declineRenewalAPI error',
+]);
+
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import {
   getRenewalPreviewAPI,
