@@ -443,7 +443,7 @@ export default function CreateRepairRequestScreen({ navigation }) {
             <Text style={styles.label}>Mô tả chi tiết * (tối thiểu 10 ký tự)</Text>
             <TextInput
               style={[styles.input, styles.textArea]}
-              placeholder="Mô tả chi tiết vấn đề:\n- Tình trạng hiện tại (hỏng, rò rỉ, không hoạt động...)\n- Thời gian bắt đầu xảy ra\n- Mức độ ảnh hưởng\n- Các triệu chứng khác"
+              placeholder="Mô tả chi tiết vấn đề...."
               placeholderTextColor="#9CA3AF"
               value={description}
               onChangeText={setDescription}

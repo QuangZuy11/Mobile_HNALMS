@@ -161,7 +161,7 @@ export default function CreateComplaintRequestScreen({ navigation }) {
               color="#3B82F6"
             />
             <Text style={styles.infoText}>
-              Khiếu nại sẽ được xem xét trong vòng 1 - 2 ngày làm việc. Bạn sẽ nhận được phản hồi qua thông báo.
+              Khiếu nại sẽ được xem xét trong vòng 1 - 2 ngày làm việc.
             </Text>
           </View>
         </View>
