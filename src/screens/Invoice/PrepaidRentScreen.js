@@ -183,6 +183,7 @@ export default function PrepaidRentScreen({ navigation }) {
         minAvailableIdx,    // idx nhỏ nhất
         maxAvailableIdx,    // idx lớn nhất
         fullyPaid,
+        insufficientMonths, // HĐ >=6 tháng nhưng monthsRemaining < minPrepaidMonths
     } = useMemo(() => {
         if (!contractData) return { availableMonths: [], minAvailableIdx: 0, maxAvailableIdx: 0, fullyPaid: false };
 
@@ -208,32 +209,38 @@ export default function PrepaidRentScreen({ navigation }) {
         const endMonthDate = new Date(normalizedEnd);
         endMonthDate.setUTCMonth(endMonthDate.getUTCMonth() - 1);
 
-        // Luôn đảm bảo tối thiểu 3 tháng → bắt đầu từ tháng thứ 3
-        const threeMonthsLater = new Date(firstPayableMonth);
-        threeMonthsLater.setUTCMonth(threeMonthsLater.getUTCMonth() + 2);
+        // Luôn đảm bảo tối thiểu minPrepaidMonths tháng → bắt đầu từ tháng thứ minPrepaidMonths
+        const minPrepaid = contractData.minPrepaidMonths || 1;
+        const minMonthsLater = new Date(firstPayableMonth);
+        minMonthsLater.setUTCMonth(minMonthsLater.getUTCMonth() + minPrepaid - 1);
 
         // Không chọn tháng quá khứ (trước tháng hiện tại)
         const now = new Date();
         const currentMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
 
-        // Xác định minIdx thực tế = max(3 tháng, tháng hiện tại)
-        const minCandidate = threeMonthsLater > currentMonth ? threeMonthsLater : currentMonth;
+        // Xác định minIdx thực tế = max(minMonths, tháng hiện tại)
+        const minCandidate = minMonthsLater > currentMonth ? minMonthsLater : currentMonth;
         const effectiveMin = minCandidate < endMonthDate ? minCandidate : endMonthDate;
 
         const minIdx = toIdx(effectiveMin.getUTCFullYear(), effectiveMin.getUTCMonth());
         const maxIdx = toIdx(endMonthDate.getUTCFullYear(), endMonthDate.getUTCMonth());
 
         if (minIdx > maxIdx) {
-            return { availableMonths: [], minAvailableIdx: minIdx, maxAvailableIdx: maxIdx, fullyPaid: true };
+            return { availableMonths: [], minAvailableIdx: minIdx, maxAvailableIdx: maxIdx, fullyPaid: true, insufficientMonths: false };
         }
 
-        // Tạo mảng tất cả các tháng hợp lệ (đủ 3 tháng)
+        // Kiểm tra HĐ >= 6 tháng nhưng số tháng còn lại không đủ minPrepaidMonths tháng
+        const startIdx = toIdx(firstPayableMonth.getUTCFullYear(), firstPayableMonth.getUTCMonth());
+        const monthsRemaining = maxIdx - startIdx + 1;
+        const insufficient = minPrepaid >= 3 && monthsRemaining < 3;
+
+        // Tạo mảng tất cả các tháng hợp lệ (đủ minPrepaidMonths tháng)
         const months = [];
         for (let idx = minIdx; idx <= maxIdx; idx++) {
             months.push(idx);
         }
 
-        return { availableMonths: months, minAvailableIdx: minIdx, maxAvailableIdx: maxIdx, fullyPaid: false };
+        return { availableMonths: months, minAvailableIdx: minIdx, maxAvailableIdx: maxIdx, fullyPaid: false, insufficientMonths: insufficient };
     }, [contractData]);
 
     // ─── Số tháng trả trước auto-calculate ───
@@ -289,7 +296,7 @@ export default function PrepaidRentScreen({ navigation }) {
     const isSelectionValid = selectedEndIdx != null
         && availableMonths.includes(selectedEndIdx)
         && prepaidMonths != null
-        && prepaidMonths >= 1;
+        && prepaidMonths >= (contractData?.minPrepaidMonths || 1);
 
     const handleConfirm = async () => {
         if (!contractData) {
@@ -297,7 +304,7 @@ export default function PrepaidRentScreen({ navigation }) {
             return;
         }
         if (!isSelectionValid) {
-            Alert.alert('Thông báo', 'Vui lòng chọn tháng trả trước hợp lệ (tối thiểu 3 tháng).');
+            Alert.alert('Thông báo', `Vui lòng chọn tháng trả trước hợp lệ (tối thiểu ${contractData?.minPrepaidMonths || 1} tháng).`);
             return;
         }
 
@@ -499,7 +506,7 @@ export default function PrepaidRentScreen({ navigation }) {
                                 <View style={[styles.sectionIconWrap, { backgroundColor: '#3B82F61A' }]}>
                                     <MaterialCommunityIcons name="home-outline" size={18} color="#3B82F6" />
                                 </View>
-                                <Text style={styles.sectionTitle}>Thông tin phòng</Text>
+                                <Text style={styles.sectionTitle}>Thông tin phòng </Text>
                             </View>
                             <InfoRow icon="home-outline" label="Phòng" value={contractData.room?.name} />
                             <InfoRow icon="door-open" label="Loại Phòng" value={contractData.room?.roomTypeName} />
@@ -525,6 +532,17 @@ export default function PrepaidRentScreen({ navigation }) {
                                     </Text>
                                 </View>
                             </View>
+                        ) : insufficientMonths ? (
+                            <View style={styles.section}>
+
+                                <View style={[styles.fullyPaidBanner, { backgroundColor: '#FEF3C7' }]}>
+                                    <MaterialCommunityIcons name="calendar-alert" size={32} color="#92400E" />
+                                    <Text style={[styles.fullyPaidText, { color: '#92400E' }]}>
+                                        Số tháng đóng trước còn lại không đủ {contractData?.minPrepaidMonths || 3} tháng.
+                                        Vui lòng chờ đến kỳ thanh toán tiếp theo.
+                                    </Text>
+                                </View>
+                            </View>
                         ) : (
                             <View style={styles.section}>
                                 <View style={styles.sectionHeader}>
@@ -535,7 +553,7 @@ export default function PrepaidRentScreen({ navigation }) {
                                 </View>
 
                                 <Text style={styles.monthHint}>
-                                    Trả trước tối thiểu 3 tháng · Giá mỗi tháng: {fmtMoney(roomPrice)}
+                                    Trả trước tối thiểu {contractData?.minPrepaidMonths || 1} tháng · Giá mỗi tháng: {fmtMoney(roomPrice)}
                                 </Text>
 
                                 {/* Picker tháng kết thúc */}
@@ -596,7 +614,7 @@ export default function PrepaidRentScreen({ navigation }) {
                                     <View style={styles.monthErrorBanner}>
                                         <MaterialCommunityIcons name="alert-circle-outline" size={16} color="#DC2626" />
                                         <Text style={styles.monthErrorText}>
-                                            Tháng đã chọn không hợp lệ. Phải đảm bảo tối thiểu 3 tháng trả trước.
+                                            Tháng đã chọn không hợp lệ. Phải đảm bảo tối thiểu {contractData?.minPrepaidMonths || 1} tháng trả trước.
                                         </Text>
                                     </View>
                                 )}
@@ -614,10 +632,10 @@ export default function PrepaidRentScreen({ navigation }) {
                 <TouchableOpacity
                     style={[
                         styles.confirmBtn,
-                        (!contractData || !isSelectionValid || submitting || fullyPaid) && styles.confirmBtnDisabled,
+                        (!contractData || !isSelectionValid || submitting || fullyPaid || insufficientMonths) && styles.confirmBtnDisabled,
                     ]}
                     onPress={handleConfirm}
-                    disabled={!contractData || !isSelectionValid || submitting || fullyPaid}
+                    disabled={!contractData || !isSelectionValid || submitting || fullyPaid || insufficientMonths}
                     activeOpacity={0.85}
                 >
                     {submitting ? (

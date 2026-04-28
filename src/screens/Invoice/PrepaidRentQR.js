@@ -201,9 +201,9 @@ export default function PrepaidRentQR({ navigation, route }) {
                     </View>
 
                     {/* Invoice Card */}
-                    <View style={styles.invoiceCard}>
-                        {/* Invoice Header */}
-                        <View style={styles.invoiceCardHeader}>
+                    {/* <View style={styles.invoiceCard}> */}
+                    {/* Invoice Header */}
+                    {/* <View style={styles.invoiceCardHeader}>
                             <View style={styles.invoiceHeaderLeft}>
                                 <MaterialCommunityIcons name="file-document-check" size={24} color="#7C3AED" />
                                 <Text style={styles.invoiceHeaderTitle}>HÓA ĐƠN TRẢ TRƯỚC</Text>
@@ -211,10 +211,10 @@ export default function PrepaidRentQR({ navigation, route }) {
                             <View style={styles.paidBadge}>
                                 <Text style={styles.paidBadgeText}>ĐÃ THANH TOÁN</Text>
                             </View>
-                        </View>
+                        </View> */}
 
-                        {/* Invoice Info */}
-                        <View style={styles.invoiceInfoRow}>
+                    {/* Invoice Info */}
+                    {/* <View style={styles.invoiceInfoRow}>
                             <Text style={styles.invoiceLabel}>Mã hóa đơn</Text>
                             <Text style={styles.invoiceValue}>{payment.invoiceCode || payment.transactionCode}</Text>
                         </View>
@@ -260,7 +260,7 @@ export default function PrepaidRentQR({ navigation, route }) {
                             <Text style={styles.invoiceLabel}>Mã giao dịch</Text>
                             <Text style={styles.invoiceValue}>{payment.transactionCode}</Text>
                         </View>
-                    </View>
+                    </View> */}
 
                     {/* Info Box */}
                     <View style={styles.successInfoBox}>
