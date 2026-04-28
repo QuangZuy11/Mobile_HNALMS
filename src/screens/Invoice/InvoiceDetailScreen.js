@@ -12,6 +12,7 @@ const STATUS_CONFIG = {
     Paid: { label: 'Đã thanh toán', color: '#10B981', bg: '#D1FAE5', icon: 'check-circle-outline' },
     Overdue: { label: 'Quá hạn', color: '#F59E0B', bg: '#FEF3C7', icon: 'alert-circle-outline' },
     Cancelled: { label: 'Đã huỷ', color: '#6B7280', bg: '#F3F4F6', icon: 'cancel' },
+    Draft: { label: 'Nháp', color: '#6B7280', bg: '#F3F4F6', icon: 'file-document-edit-outline' },
 };
 
 const TYPE_LABEL = { Periodic: 'Định kỳ', Incurred: 'Phát sinh', Other: 'Khác' };
@@ -154,8 +155,9 @@ export default function InvoiceDetailScreen({ navigation, route }) {
     const cfg = STATUS_CONFIG[normalizedStatus] ?? STATUS_CONFIG.Unpaid;
     // Periodic (Invoice): roomId is direct. Incurred (InvoiceIncurred): roomId is inside contractId.
     const room = invoice?.roomId ?? invoice?.contractId?.roomId;
-    // Chỉ hiện nút thanh toán khi status là Unpaid hoặc Overdue
-    const isUnpaid = normalizedStatus === 'Unpaid' || normalizedStatus === 'Overdue';
+    // Chỉ hiện nút thanh toán khi status là Unpaid hoặc Overdue, KHÔNG phải Draft
+    const isUnpaid = (normalizedStatus === 'Unpaid' || normalizedStatus === 'Overdue') && normalizedStatus !== 'Draft';
+    const isDraft = normalizedStatus === 'Draft';
 
     const invoiceItems = useMemo(() => invoice?.items || [], [invoice]);
 
@@ -205,20 +207,20 @@ export default function InvoiceDetailScreen({ navigation, route }) {
                     <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
 
                         {/* ── Hero card ── */}
-                        <View style={styles.heroCard}>
+                        <View style={[styles.heroCard, isDraft && styles.heroCardDraft]}>
                             <View style={[styles.heroIconWrap, { backgroundColor: cfg.bg }]}>
-                                <MaterialCommunityIcons name="receipt-text" size={32} color={cfg.color} />
+                                <MaterialCommunityIcons name="receipt-text" size={32} color={isDraft ? '#9CA3AF' : cfg.color} />
                             </View>
-                            <Text style={styles.heroTitle}>{invoice.title}</Text>
-                            <Text style={styles.heroCode}>{invoice.invoiceCode}</Text>
+                            <Text style={[styles.heroTitle, isDraft && styles.heroTitleDraft]}>{invoice.title}</Text>
+                            <Text style={[styles.heroCode, isDraft && styles.heroCodeDraft]}>{invoice.invoiceCode}</Text>
                             <View style={[styles.heroBadge, { backgroundColor: cfg.bg }]}>
-                                <MaterialCommunityIcons name={cfg.icon} size={13} color={cfg.color} />
-                                <Text style={[styles.heroBadgeText, { color: cfg.color }]}>{cfg.label}</Text>
+                                <MaterialCommunityIcons name={cfg.icon} size={13} color={isDraft ? '#9CA3AF' : cfg.color} />
+                                <Text style={[styles.heroBadgeText, { color: isDraft ? '#9CA3AF' : cfg.color }]}>{cfg.label}</Text>
                             </View>
                         </View>
 
                         {/* ── Summary amount ── */}
-                        <View style={[styles.amountBanner, { backgroundColor: cfg.color }]}>
+                        <View style={[styles.amountBanner, { backgroundColor: isDraft ? '#6B7280' : cfg.color }]}>
                             <View>
                                 <Text style={styles.amountBannerLabel}>Tổng tiền phải trả</Text>
                                 <Text style={styles.amountBannerValue}>{formatCurrency(invoice.totalAmount)}</Text>
@@ -235,8 +237,18 @@ export default function InvoiceDetailScreen({ navigation, route }) {
                             )}
                         </View>
 
+                        {isDraft && (
+                            <View style={styles.draftNoteBox}>
+                                <MaterialCommunityIcons name="alert-circle-outline" size={18} color="#6B7280" />
+                                <Text style={styles.draftNoteBoxText}>
+                                    • Hãy kiểm tra lại các mục trong hóa đơn nếu có vấn đề vui lòng báo lại cho Quản lý của tòa nhà.{'\n'}
+                                    • Hóa đơn sẽ được phát hành và cho phép thanh toán sau 1 ngày.
+                                </Text>
+                            </View>
+                        )}
+
                         {/* ── Basic info ── */}
-                        <Section icon="information-outline" title="Thông tin hóa đơn" color="#3B82F6">
+                        <Section icon="information-outline" title="Thông tin hóa đơn" color={isDraft ? '#9CA3AF' : '#3B82F6'}>
                             <InfoRow icon="barcode" label="Mã hóa đơn" value={invoice.invoiceCode} />
                             {/* Hiển thị Loại Hóa Đơn theo từng loại */}
                             {isViolation && <InfoRow icon="tag-outline" label="Loại Hóa Đơn" value="Vi phạm" />}
@@ -347,7 +359,7 @@ export default function InvoiceDetailScreen({ navigation, route }) {
 
                         {/* ── Periodic: Chi tiết khoản thu (không hiển thị với HD-PREPAID) ── */}
                         {!isIncurred && !isPrepaidType && (
-                            <Section icon="format-list-bulleted" title="Chi tiết khoản thu" color="#F59E0B">
+                            <Section icon="format-list-bulleted" title="Chi tiết khoản thu" color={isDraft ? '#9CA3AF' : '#F59E0B'}>
                                 {invoiceItems.map((item, idx) => {
                                     const display = item._icon
                                         ? { icon: item._icon, color: item._color }
@@ -444,9 +456,12 @@ const styles = StyleSheet.create({
         borderRadius: 16, padding: 20, alignItems: 'center', gap: 6,
         elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.07, shadowRadius: 4,
     },
+    heroCardDraft: { backgroundColor: '#F9FAFB' },
     heroIconWrap: { width: 60, height: 60, borderRadius: 18, justifyContent: 'center', alignItems: 'center', marginBottom: 4 },
     heroTitle: { fontSize: 16, fontWeight: '700', color: '#1F2937', textAlign: 'center' },
+    heroTitleDraft: { color: '#9CA3AF' },
     heroCode: { fontSize: 13, color: '#9CA3AF' },
+    heroCodeDraft: { color: '#D1D5DB' },
     heroBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20, marginTop: 2 },
     heroBadgeText: { fontSize: 13, fontWeight: '700' },
 
@@ -552,5 +567,14 @@ const styles = StyleSheet.create({
         paddingVertical: 14,
     },
     payBtnText: { fontSize: 16, fontWeight: '700', color: '#FFFFFF' },
+
+    /* draft note */
+    draftNoteBox: {
+        flexDirection: 'row', alignItems: 'flex-start', gap: 10,
+        marginHorizontal: 12, marginTop: 10, paddingHorizontal: 16, paddingVertical: 14,
+        backgroundColor: '#F3F4F6', borderRadius: 12,
+        borderLeftWidth: 4, borderLeftColor: '#9CA3AF',
+    },
+    draftNoteBoxText: { flex: 1, fontSize: 13, color: '#6B7280', lineHeight: 22 },
 });
 

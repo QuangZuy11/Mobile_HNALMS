@@ -32,6 +32,7 @@ const STATUS_CONFIG = {
   Paid: { label: 'Đã thanh toán', color: '#10B981', bg: '#D1FAE5', icon: 'check-circle-outline' },
   Overdue: { label: 'Quá hạn', color: '#F59E0B', bg: '#FEF3C7', icon: 'alert-circle-outline' },
   Cancelled: { label: 'Đã huỷ', color: '#6B7280', bg: '#F3F4F6', icon: 'cancel' },
+  Draft: { label: 'Nháp', color: '#6B7280', bg: '#F3F4F6', icon: 'file-document-edit-outline' },
 };
 
 const TYPE_LABEL = {
@@ -376,23 +377,25 @@ export default function InvoiceListScreen({ navigation, route }) {
         ? item.roomName
         : item.roomId?.name ?? item.contractId?.roomId?.name ?? null;
 
+    const isDraft = normalizedStatus === 'Draft';
+
     return (
       <TouchableOpacity
-        style={styles.card}
+        style={[styles.card, isDraft && styles.cardDraft]}
         activeOpacity={0.85}
         onPress={() => navigation.navigate('InvoiceDetail', { invoiceId: item._id, invoiceType: item.invoiceType })}
       >
         <View style={styles.cardHeader}>
           <View style={[styles.cardIconBox, { backgroundColor: cfg.bg }]}>
-            <MaterialCommunityIcons name="receipt" size={22} color={cfg.color} />
+            <MaterialCommunityIcons name="receipt" size={22} color={isDraft ? '#9CA3AF' : cfg.color} />
           </View>
           <View style={styles.cardTitleWrap}>
-            <Text style={styles.cardTitle} numberOfLines={2}>{item.title}</Text>
-            <Text style={styles.cardCode}>{item.invoiceCode}</Text>
+            <Text style={[styles.cardTitle, isDraft && styles.cardTitleDraft]} numberOfLines={2}>{item.title}</Text>
+            <Text style={[styles.cardCode, isDraft && styles.cardCodeDraft]}>{item.invoiceCode}</Text>
           </View>
           <View style={[styles.badge, { backgroundColor: cfg.bg }]}>
-            <MaterialCommunityIcons name={cfg.icon} size={11} color={cfg.color} />
-            <Text style={[styles.badgeText, { color: cfg.color }]}>{cfg.label}</Text>
+            <MaterialCommunityIcons name={cfg.icon} size={11} color={isDraft ? '#9CA3AF' : cfg.color} />
+            <Text style={[styles.badgeText, { color: isDraft ? '#9CA3AF' : cfg.color }]}>{cfg.label}</Text>
           </View>
         </View>
 
@@ -400,19 +403,19 @@ export default function InvoiceListScreen({ navigation, route }) {
 
         <View style={styles.metaRow}>
           <View style={styles.metaItem}>
-            <MaterialCommunityIcons name="calendar-plus" size={13} color="#6B7280" />
+            <MaterialCommunityIcons name="calendar-plus" size={13} color="#9CA3AF" />
             <Text style={styles.metaLabel}>
               {item.invoiceCode?.toUpperCase().startsWith('HD-PREPAID') ? 'Ngày thanh toán' : 'Ngày gửi'}
             </Text>
-            <Text style={styles.metaValue}>{formatDate(item.createdAt)}</Text>
+            <Text style={[styles.metaValue, isDraft && styles.metaValueDraft]}>{formatDate(item.createdAt)}</Text>
           </View>
           <View style={styles.metaSep} />
           {!item.invoiceCode?.toUpperCase().startsWith('HD-PREPAID') && (
             <>
               <View style={styles.metaItem}>
-                <MaterialCommunityIcons name="calendar-clock" size={13} color="#6B7280" />
+                <MaterialCommunityIcons name="calendar-clock" size={13} color="#9CA3AF" />
                 <Text style={styles.metaLabel}>Đến hạn</Text>
-                <Text style={[styles.metaValue, item.status === 'Overdue' && { color: '#F59E0B' }]}>
+                <Text style={[styles.metaValue, isDraft && styles.metaValueDraft, item.status === 'Overdue' && { color: '#F59E0B' }]}>
                   {formatDate(item.dueDate)}
                 </Text>
               </View>
@@ -420,21 +423,30 @@ export default function InvoiceListScreen({ navigation, route }) {
             </>
           )}
           <View style={styles.metaItem}>
-            <MaterialCommunityIcons name="tag-outline" size={13} color="#6B7280" />
+            <MaterialCommunityIcons name="tag-outline" size={13} color="#9CA3AF" />
             <Text style={styles.metaLabel}>Loại</Text>
-            <Text style={styles.metaValue}>{TYPE_LABEL[item.invoiceType] || item.invoiceType}</Text>
+            <Text style={[styles.metaValue, isDraft && styles.metaValueDraft]}>{TYPE_LABEL[item.invoiceType] || item.invoiceType}</Text>
           </View>
           <View style={styles.metaSep} />
           <View style={styles.metaItem}>
-            <MaterialCommunityIcons name="home-outline" size={13} color="#6B7280" />
+            <MaterialCommunityIcons name="home-outline" size={13} color="#9CA3AF" />
             <Text style={styles.metaLabel}>Phòng</Text>
-            <Text style={styles.metaValue} numberOfLines={1}>{roomName || '—'}</Text>
+            <Text style={[styles.metaValue, isDraft && styles.metaValueDraft]} numberOfLines={1}>{roomName || '—'}</Text>
           </View>
         </View>
 
+        {isDraft && (
+          <View style={styles.draftNoteBox}>
+            <MaterialCommunityIcons name="alert-circle-outline" size={14} color="#6B7280" />
+            <Text style={styles.draftNoteText}>
+              Hóa đơn chưa phát hành
+            </Text>
+          </View>
+        )}
+
         <View style={[styles.amountRow, { borderTopColor: cfg.bg }]}>
-          <Text style={styles.amountLabel}>Tổng tiền</Text>
-          <Text style={[styles.amountValue, { color: cfg.color }]}>
+          <Text style={[styles.amountLabel, isDraft && styles.amountLabelDraft]}>Tổng tiền</Text>
+          <Text style={[styles.amountValue, { color: isDraft ? '#9CA3AF' : cfg.color }]}>
             {formatCurrency(item.totalAmount)}
           </Text>
         </View>
@@ -675,11 +687,16 @@ const styles = StyleSheet.create({
     marginBottom: 10, elevation: 2, shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.07, shadowRadius: 4, overflow: 'hidden',
   },
+  cardDraft: {
+    backgroundColor: '#F9FAFB', elevation: 0.5, shadowOpacity: 0.03,
+  },
   cardHeader: { flexDirection: 'row', alignItems: 'flex-start', padding: 14, gap: 10 },
   cardIconBox: { width: 42, height: 42, borderRadius: 11, justifyContent: 'center', alignItems: 'center', marginTop: 2 },
   cardTitleWrap: { flex: 1 },
   cardTitle: { fontSize: 14, fontWeight: '700', color: '#1F2937', lineHeight: 20 },
+  cardTitleDraft: { color: '#9CA3AF' },
   cardCode: { fontSize: 12, color: '#9CA3AF', marginTop: 2 },
+  cardCodeDraft: { color: '#D1D5DB' },
   badge: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 7, paddingVertical: 4, borderRadius: 20 },
   badgeText: { fontSize: 10, fontWeight: '700' },
   divider: { height: 1, backgroundColor: '#F3F4F6', marginHorizontal: 14 },
@@ -688,12 +705,21 @@ const styles = StyleSheet.create({
   metaSep: { width: 1, backgroundColor: '#E5E7EB', marginVertical: 2 },
   metaLabel: { fontSize: 10, color: '#9CA3AF', marginTop: 2 },
   metaValue: { fontSize: 12, fontWeight: '600', color: '#374151' },
+  metaValueDraft: { color: '#9CA3AF' },
+  draftNoteBox: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 8,
+    marginHorizontal: 14, marginVertical: 10, paddingHorizontal: 12, paddingVertical: 10,
+    backgroundColor: '#F3F4F6', borderRadius: 8,
+    borderLeftWidth: 3, borderLeftColor: '#9CA3AF',
+  },
+  draftNoteText: { flex: 1, fontSize: 11, color: '#6B7280', lineHeight: 18 },
   amountRow: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingHorizontal: 14, paddingVertical: 10,
     borderTopWidth: 1, borderTopColor: '#F3F4F6', backgroundColor: '#FAFAFA',
   },
   amountLabel: { fontSize: 13, color: '#6B7280' },
+  amountLabelDraft: { color: '#9CA3AF' },
   amountValue: { fontSize: 16, fontWeight: '800' },
   paginationBar: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap',

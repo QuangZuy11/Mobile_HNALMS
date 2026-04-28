@@ -151,7 +151,7 @@ export default function PayInvoiceScreen({ navigation, route }) {
         if (phase !== 'success') return;
         const t = setTimeout(() => {
             navigation.navigate('InvoiceList', { refresh: Date.now() });
-        }, 1200);
+        }, 30000);
         return () => clearTimeout(t);
     }, [phase, navigation]);
 
