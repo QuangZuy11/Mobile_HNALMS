@@ -30,13 +30,13 @@ export default function CreateMovingRoomRequestScreen({ navigation }) {
   const [loading, setLoading] = useState(false);
   const [showRoomModal, setShowRoomModal] = useState(false);
   const [showDateModal, setShowDateModal] = useState(false);
-  
+
   // Current room selection states
   const [currentRooms, setCurrentRooms] = useState([]);
   const [selectedCurrentRoom, setSelectedCurrentRoom] = useState(null);
   const [fetchingCurrentRooms, setFetchingCurrentRooms] = useState(true);
-  
-  const today = new Date(); today.setHours(0,0,0,0);
+
+  const today = new Date(); today.setHours(0, 0, 0, 0);
   const [calYear, setCalYear] = useState(today.getFullYear());
   const [calMonth, setCalMonth] = useState(today.getMonth());
 
@@ -127,9 +127,9 @@ export default function CreateMovingRoomRequestScreen({ navigation }) {
     return new Date(`${year}-${month}-${day}`).toISOString();
   };
 
-  const MONTH_NAMES = ['Tháng 1','Tháng 2','Tháng 3','Tháng 4','Tháng 5','Tháng 6',
-    'Tháng 7','Tháng 8','Tháng 9','Tháng 10','Tháng 11','Tháng 12'];
-  const DAY_NAMES = ['CN','T2','T3','T4','T5','T6','T7'];
+  const MONTH_NAMES = ['Tháng 1', 'Tháng 2', 'Tháng 3', 'Tháng 4', 'Tháng 5', 'Tháng 6',
+    'Tháng 7', 'Tháng 8', 'Tháng 9', 'Tháng 10', 'Tháng 11', 'Tháng 12'];
+  const DAY_NAMES = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
 
   const buildCalendarDays = (year, month) => {
     const firstDay = new Date(year, month, 1).getDay(); // 0=Sun
@@ -143,11 +143,11 @@ export default function CreateMovingRoomRequestScreen({ navigation }) {
   const onCalendarDayPress = (day) => {
     if (!day) return;
     const date = new Date(calYear, calMonth, day);
-    date.setHours(0,0,0,0);
+    date.setHours(0, 0, 0, 0);
     if (date <= today) return; // disable today and past
     setSelectedDateObj(date);
-    const dd = String(day).padStart(2,'0');
-    const mm = String(calMonth + 1).padStart(2,'0');
+    const dd = String(day).padStart(2, '0');
+    const mm = String(calMonth + 1).padStart(2, '0');
     setTransferDate(`${dd}/${mm}/${calYear}`);
     setShowDateModal(false);
   };
@@ -322,7 +322,7 @@ export default function CreateMovingRoomRequestScreen({ navigation }) {
               {currentRooms.map((room) => {
                 const price = room.contractPrice || room.roomTypeId?.currentPrice || null;
                 const isSelected = selectedCurrentRoom === room._id;
-                
+
                 return (
                   <TouchableOpacity
                     key={room._id}
@@ -442,7 +442,7 @@ export default function CreateMovingRoomRequestScreen({ navigation }) {
 
           <TextInput
             style={styles.textArea}
-            placeholder={`Mô tả lý do bạn muốn chuyển phòng (ít nhất 10 ký tự)\nVí dụ: Cần phòng rộng hơn để làm việc, muốn ở tầng thấp hơn...`}
+            placeholder={`Mô tả lý do bạn muốn chuyển phòng (ít nhất 10 ký tự)`}
             placeholderTextColor="#9CA3AF"
             value={reason}
             onChangeText={setReason}
@@ -573,14 +573,14 @@ export default function CreateMovingRoomRequestScreen({ navigation }) {
                 const cellDate = new Date(calYear, calMonth, day);
                 const tomorrow = new Date();
                 tomorrow.setDate(tomorrow.getDate() + 1);
-                tomorrow.setHours(0,0,0,0);
-                
+                tomorrow.setHours(0, 0, 0, 0);
+
                 const isTomorrow = cellDate.getTime() === tomorrow.getTime();
                 const isDisabled = !isTomorrow;
-                
+
                 const isToday = cellDate.getTime() === today.getTime();
                 const isSelected = selectedDateObj &&
-                  cellDate.getTime() === new Date(selectedDateObj).setHours(0,0,0,0);
+                  cellDate.getTime() === new Date(selectedDateObj).setHours(0, 0, 0, 0);
                 const isSunday = cellDate.getDay() === 0;
 
                 return (
