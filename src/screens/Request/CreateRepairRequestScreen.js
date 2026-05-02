@@ -243,6 +243,10 @@ export default function CreateRepairRequestScreen({ navigation }) {
       Alert.alert('Thông báo', 'Mô tả phải có ít nhất 10 ký tự');
       return;
     }
+    if (images.length === 0) {
+      Alert.alert('Thông báo', 'Vui lòng đính kèm ít nhất 1 ảnh để mô tả vấn đề cần sửa chữa');
+      return;
+    }
 
     setLoading(true);
     try {
@@ -457,7 +461,7 @@ export default function CreateRepairRequestScreen({ navigation }) {
 
           {/* Images Section */}
           <View style={styles.formGroup}>
-            <Text style={styles.label}>Hình ảnh (tùy chọn)</Text>
+            <Text style={styles.label}>Hình ảnh đính kèm * (bắt buộc ít nhất 1 ảnh)</Text>
 
             {images.length > 0 && (
               <ScrollView

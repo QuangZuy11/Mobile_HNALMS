@@ -23,7 +23,7 @@ export default function CreateComplaintRequestScreen({ navigation }) {
   const categories = [
     { id: 'Tiếng ồn', label: 'Tiếng ồn' },
     { id: 'Vệ sinh', label: 'Vệ sinh' },
-    { id: 'An niên', label: 'An ninh' },
+    { id: 'An ninh', label: 'An ninh' },
     { id: 'Cơ sở vật chất', label: 'Cơ sở vật chất' },
     { id: 'Thái độ phục vụ', label: 'Thái độ phục vụ' },
     { id: 'Khác', label: 'Khác' },
