@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,17 +9,21 @@ import {
   TextInput,
   Alert,
   ActivityIndicator,
-  FlatList,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { createComplaintRequestAPI } from '../../services/request.service';
+import { getTenantRoomsAPI } from '../../services/profile.service';
 
 export default function CreateComplaintRequestScreen({ navigation }) {
   const [category, setCategory] = useState('');
   const [content, setContent] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Categories now use API values directly
+  // Room selection
+  const [currentRooms, setCurrentRooms] = useState([]);
+  const [selectedRoomId, setSelectedRoomId] = useState(null);
+  const [fetchingRooms, setFetchingRooms] = useState(true);
+
   const categories = [
     { id: 'Tiếng ồn', label: 'Tiếng ồn' },
     { id: 'Vệ sinh', label: 'Vệ sinh' },
@@ -29,8 +33,25 @@ export default function CreateComplaintRequestScreen({ navigation }) {
     { id: 'Khác', label: 'Khác' },
   ];
 
+  useEffect(() => {
+    const fetchRooms = async () => {
+      try {
+        setFetchingRooms(true);
+        const res = await getTenantRoomsAPI();
+        if (res.success && res.data && res.data.length > 0) {
+          setCurrentRooms(res.data);
+          setSelectedRoomId(res.data[0]._id);
+        }
+      } catch {
+        // Không có phòng thì vẫn cho gửi khiếu nại
+      } finally {
+        setFetchingRooms(false);
+      }
+    };
+    fetchRooms();
+  }, []);
+
   const handleSubmit = async () => {
-    // Validation
     if (!category.trim()) {
       Alert.alert('Lỗi', 'Vui lòng chọn loại khiếu nại');
       return;
@@ -50,25 +71,18 @@ export default function CreateComplaintRequestScreen({ navigation }) {
 
     setLoading(true);
     try {
-      // Call API to create complaint request
       const response = await createComplaintRequestAPI({
         content: content.trim(),
         category: category,
+        roomId: selectedRoomId || undefined,
       });
 
-      // Show success message
       Alert.alert(
         'Thành công',
         response.message || 'Khiếu nại của bạn đã được gửi thành công. Chúng tôi sẽ xem xét và phản hồi sớm nhất.',
-        [
-          {
-            text: 'OK',
-            onPress: () => navigation.goBack(),
-          },
-        ]
+        [{ text: 'OK', onPress: () => navigation.goBack() }]
       );
     } catch (error) {
-      // Handle error
       const errorMessage = error.message || error.data?.message || 'Không thể gửi khiếu nại. Vui lòng thử lại.';
       Alert.alert('Lỗi', errorMessage);
     } finally {
@@ -76,28 +90,55 @@ export default function CreateComplaintRequestScreen({ navigation }) {
     }
   };
 
-  const selectedCategory = categories.find((c) => c.id === category);
-
   return (
     <SafeAreaView style={styles.safeContainer}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => navigation.goBack()}
-          style={styles.backButton}
-        >
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <MaterialCommunityIcons name="chevron-left" size={28} color="#1F2937" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Khiếu nại</Text>
         <View style={{ width: 28 }} />
       </View>
 
-      <ScrollView
-        contentContainerStyle={styles.scrollContainer}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Form Section */}
+      <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
         <View style={styles.formContainer}>
+
+          {/* Room Selection */}
+          <View style={styles.formGroup}>
+            <Text style={styles.label}>Phòng</Text>
+            {fetchingRooms ? (
+              <View style={styles.loadingRow}>
+                <ActivityIndicator size="small" color="#EF4444" />
+                <Text style={styles.loadingText}>Đang tải danh sách phòng...</Text>
+              </View>
+            ) : currentRooms.length === 0 ? (
+              <Text style={styles.noRoomText}>Không tìm thấy phòng nào</Text>
+            ) : (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.roomScroll}>
+                {currentRooms.map((room) => {
+                  const isSelected = selectedRoomId === room._id;
+                  return (
+                    <TouchableOpacity
+                      key={room._id}
+                      style={[styles.roomButton, isSelected && styles.roomButtonSelected]}
+                      onPress={() => setSelectedRoomId(room._id)}
+                    >
+                      <MaterialCommunityIcons
+                        name="door"
+                        size={22}
+                        color={isSelected ? '#EF4444' : '#9CA3AF'}
+                      />
+                      <Text style={[styles.roomButtonText, isSelected && styles.roomButtonTextSelected]}>
+                        {room.name}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            )}
+          </View>
+
           {/* Category Selection */}
           <View style={styles.formGroup}>
             <Text style={styles.label}>Loại khiếu nại *</Text>
@@ -105,18 +146,10 @@ export default function CreateComplaintRequestScreen({ navigation }) {
               {categories.map((cat) => (
                 <TouchableOpacity
                   key={cat.id}
-                  style={[
-                    styles.categoryButton,
-                    category === cat.id && styles.categoryButtonSelected,
-                  ]}
+                  style={[styles.categoryButton, category === cat.id && styles.categoryButtonSelected]}
                   onPress={() => setCategory(cat.id)}
                 >
-                  <Text
-                    style={[
-                      styles.categoryButtonText,
-                      category === cat.id && styles.categoryButtonTextSelected,
-                    ]}
-                  >
+                  <Text style={[styles.categoryButtonText, category === cat.id && styles.categoryButtonTextSelected]}>
                     {cat.label}
                   </Text>
                 </TouchableOpacity>
@@ -143,11 +176,7 @@ export default function CreateComplaintRequestScreen({ navigation }) {
 
           {/* Warning Box */}
           <View style={styles.warningBox}>
-            <MaterialCommunityIcons
-              name="alert-outline"
-              size={20}
-              color="#F59E0B"
-            />
+            <MaterialCommunityIcons name="alert-outline" size={20} color="#F59E0B" />
             <Text style={styles.warningText}>
               Vui lòng cung cấp thông tin chính xác. Các khiếu nại giả mạo sẽ bị xử lý theo quy định.
             </Text>
@@ -155,11 +184,7 @@ export default function CreateComplaintRequestScreen({ navigation }) {
 
           {/* Info Box */}
           <View style={styles.infoBox}>
-            <MaterialCommunityIcons
-              name="information-outline"
-              size={20}
-              color="#3B82F6"
-            />
+            <MaterialCommunityIcons name="information-outline" size={20} color="#3B82F6" />
             <Text style={styles.infoText}>
               Khiếu nại sẽ được xem xét trong vòng 1 - 2 ngày làm việc.
             </Text>
@@ -189,158 +214,71 @@ export default function CreateComplaintRequestScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  safeContainer: {
-    flex: 1,
-    backgroundColor: '#F9FAFB',
-  },
+  safeContainer: { flex: 1, backgroundColor: '#F9FAFB' },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    backgroundColor: '#FFFFFF', paddingVertical: 12, paddingHorizontal: 16,
+    borderBottomWidth: 1, borderBottomColor: '#E5E7EB',
   },
-  backButton: {
-    padding: 4,
+  backButton: { padding: 4 },
+  headerTitle: { fontSize: 18, fontWeight: '600', color: '#1F2937' },
+  scrollContainer: { flexGrow: 1, paddingBottom: 80 },
+  formContainer: { paddingHorizontal: 16, paddingVertical: 20 },
+  formGroup: { marginBottom: 20 },
+  label: { fontSize: 14, fontWeight: '600', color: '#1F2937', marginBottom: 8 },
+
+  // Room selection
+  roomScroll: { marginHorizontal: -4 },
+  roomButton: {
+    alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12,
+    marginHorizontal: 4, backgroundColor: '#FFFFFF', borderWidth: 1,
+    borderColor: '#E5E7EB', borderRadius: 10, minWidth: 90,
   },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#1F2937',
-  },
-  scrollContainer: {
-    flexGrow: 1,
-    paddingBottom: 80,
-  },
-  formContainer: {
-    paddingHorizontal: 16,
-    paddingVertical: 20,
-  },
-  formGroup: {
-    marginBottom: 20,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#1F2937',
-    marginBottom: 8,
-  },
+  roomButtonSelected: { borderWidth: 2, borderColor: '#EF4444', backgroundColor: '#FEE2E2' },
+  roomButtonText: { fontSize: 13, color: '#6B7280', marginTop: 6, fontWeight: '500', textAlign: 'center' },
+  roomButtonTextSelected: { color: '#EF4444', fontWeight: '700' },
+  loadingRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 12 },
+  loadingText: { fontSize: 13, color: '#6B7280' },
+  noRoomText: { fontSize: 13, color: '#9CA3AF', paddingVertical: 12 },
+
+  // Category
   input: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 10,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    fontSize: 14,
-    color: '#1F2937',
+    backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E5E7EB',
+    borderRadius: 10, paddingVertical: 12, paddingHorizontal: 14,
+    fontSize: 14, color: '#1F2937',
   },
-  textArea: {
-    minHeight: 100,
-    paddingVertical: 12,
-  },
-  charCount: {
-    fontSize: 12,
-    color: '#9CA3AF',
-    marginTop: 4,
-    textAlign: 'right',
-  },
-  categoryGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginHorizontal: -4,
-  },
+  textArea: { minHeight: 100, paddingVertical: 12 },
+  charCount: { fontSize: 12, color: '#9CA3AF', marginTop: 4, textAlign: 'right' },
+  categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -4 },
   categoryButton: {
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 8,
-    marginHorizontal: 4,
-    marginBottom: 8,
+    paddingVertical: 10, paddingHorizontal: 14, backgroundColor: '#FFFFFF',
+    borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8,
+    marginHorizontal: 4, marginBottom: 8,
   },
-  categoryButtonSelected: {
-    borderWidth: 2,
-    borderColor: '#EF4444',
-    backgroundColor: '#FEE2E2',
-  },
-  categoryButtonText: {
-    fontSize: 13,
-    color: '#6B7280',
-    textAlign: 'center',
-  },
-  categoryButtonTextSelected: {
-    color: '#EF4444',
-    fontWeight: '600',
-  },
+  categoryButtonSelected: { borderWidth: 2, borderColor: '#EF4444', backgroundColor: '#FEE2E2' },
+  categoryButtonText: { fontSize: 13, color: '#6B7280', textAlign: 'center' },
+  categoryButtonTextSelected: { color: '#EF4444', fontWeight: '600' },
   warningBox: {
-    flexDirection: 'row',
-    backgroundColor: '#FFFBEB',
-    borderLeftWidth: 4,
-    borderLeftColor: '#F59E0B',
-    borderRadius: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    marginBottom: 12,
+    flexDirection: 'row', backgroundColor: '#FFFBEB', borderLeftWidth: 4,
+    borderLeftColor: '#F59E0B', borderRadius: 8, paddingVertical: 12,
+    paddingHorizontal: 12, marginBottom: 12,
   },
-  warningText: {
-    fontSize: 13,
-    color: '#92400E',
-    marginLeft: 10,
-    flex: 1,
-  },
+  warningText: { fontSize: 13, color: '#92400E', marginLeft: 10, flex: 1 },
   infoBox: {
-    flexDirection: 'row',
-    backgroundColor: '#DBEAFE',
-    borderLeftWidth: 4,
-    borderLeftColor: '#3B82F6',
-    borderRadius: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 12,
+    flexDirection: 'row', backgroundColor: '#DBEAFE', borderLeftWidth: 4,
+    borderLeftColor: '#3B82F6', borderRadius: 8, paddingVertical: 12, paddingHorizontal: 12,
   },
-  infoText: {
-    fontSize: 13,
-    color: '#1E40AF',
-    marginLeft: 10,
-    flex: 1,
-  },
+  infoText: { fontSize: 13, color: '#1E40AF', marginLeft: 10, flex: 1 },
   buttonContainer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: '#FFFFFF',
-    borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    paddingBottom: 20,
+    position: 'absolute', bottom: 0, left: 0, right: 0,
+    backgroundColor: '#FFFFFF', borderTopWidth: 1, borderTopColor: '#E5E7EB',
+    paddingVertical: 12, paddingHorizontal: 16, paddingBottom: 20,
   },
   submitButton: {
-    backgroundColor: '#EF4444',
-    borderRadius: 10,
-    paddingVertical: 14,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    backgroundColor: '#EF4444', borderRadius: 10, paddingVertical: 14,
+    flexDirection: 'row', justifyContent: 'center', alignItems: 'center',
+    elevation: 2, gap: 8,
   },
-  submitButtonDisabled: {
-    backgroundColor: '#9CA3AF',
-  },
-  submitButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
-    marginLeft: 8,
-  },
+  submitButtonDisabled: { backgroundColor: '#9CA3AF' },
+  submitButtonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
 });
-
