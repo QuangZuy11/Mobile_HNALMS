@@ -52,9 +52,15 @@ export default function CreateMovingRoomRequestScreen({ navigation }) {
         const response = await getTenantRoomsAPI();
 
         if (response.success && response.data && response.data.length > 0) {
-          setCurrentRooms(response.data);
-          // Set first room as selected by default
-          setSelectedCurrentRoom(response.data[0]._id);
+          const activeRooms = response.data.filter(room => room.contractStatus === 'active');
+          if (activeRooms.length > 0) {
+            setCurrentRooms(activeRooms);
+            // Set first room as selected by default
+            setSelectedCurrentRoom(activeRooms[0]._id);
+          } else {
+            setCurrentRooms([]);
+            Alert.alert('Thông báo', 'Hợp đồng của bạn chưa có hiệu lực (đang chờ ngày bắt đầu). Không thể yêu cầu chuyển phòng.');
+          }
         } else {
           setCurrentRooms([]);
           Alert.alert('Lỗi', 'Không tìm thấy phòng hiện tại của bạn');
@@ -461,7 +467,6 @@ export default function CreateMovingRoomRequestScreen({ navigation }) {
               Lưu ý chính sách
             </Text>
             <Text style={styles.policyItem}>• Tiền cọc được bảo lưu và chuyển sang hợp đồng mới</Text>
-            <Text style={styles.policyItem}>• Tiền thuê được tính theo số ngày thực tế khi chuyển giữa tháng</Text>
             <Text style={styles.policyItem}>• Phòng mới sẽ được giữ ngay khi yêu cầu được duyệt</Text>
             <Text style={styles.policyItem}>• Bạn cần bàn giao phòng cũ cho quản lý vào ngày chuyển</Text>
           </View>
