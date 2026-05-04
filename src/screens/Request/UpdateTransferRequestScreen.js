@@ -142,7 +142,9 @@ export default function UpdateTransferRequestScreen({ navigation, route }) {
     if (!day) return;
     const date = new Date(calYear, calMonth, day);
     date.setHours(0, 0, 0, 0);
-    if (date <= today) return; // disable today and past
+    const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1); tomorrow.setHours(0, 0, 0, 0);
+    const maxDate = new Date(); maxDate.setDate(maxDate.getDate() + 7); maxDate.setHours(0, 0, 0, 0);
+    if (date < tomorrow || date > maxDate) return;
     setSelectedDateObj(date);
     const dd = String(day).padStart(2, '0');
     const mm = String(calMonth + 1).padStart(2, '0');
@@ -397,7 +399,7 @@ export default function UpdateTransferRequestScreen({ navigation, route }) {
             </Text>
             {selectedDateObj && <MaterialCommunityIcons name="check-circle" size={18} color="#F59E0B" />}
           </TouchableOpacity>
-          <Text style={styles.helperText}>Ngày chuyển bắt buộc phải là ngày mai</Text>
+          <Text style={styles.helperText}>Chọn ngày chuyển trong vòng 7 ngày kể từ hôm nay</Text>
 
           {/* Step 4: Reason */}
           <View style={[styles.stepHeader, { marginTop: 28 }]}>
@@ -520,13 +522,15 @@ export default function UpdateTransferRequestScreen({ navigation, route }) {
               {buildCalendarDays(calYear, calMonth).map((day, index) => {
                 if (!day) return <View key={`empty-${index}`} style={styles.calCell} />;
                 const cellDate = new Date(calYear, calMonth, day);
-                
+                cellDate.setHours(0, 0, 0, 0);
                 const tomorrow = new Date();
                 tomorrow.setDate(tomorrow.getDate() + 1);
                 tomorrow.setHours(0, 0, 0, 0);
-                
-                const isTomorrow = cellDate.getTime() === tomorrow.getTime();
-                const isDisabled = !isTomorrow;
+                const maxDate = new Date();
+                maxDate.setDate(maxDate.getDate() + 7);
+                maxDate.setHours(0, 0, 0, 0);
+
+                const isDisabled = cellDate < tomorrow || cellDate > maxDate;
                 
                 const isToday = cellDate.getTime() === today.getTime();
                 const isSelected = selectedDateObj &&
