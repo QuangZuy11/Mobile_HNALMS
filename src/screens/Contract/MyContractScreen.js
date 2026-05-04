@@ -111,7 +111,7 @@ export default function MyContractScreen({ navigation }) {
     const renewalStatus = preview?.renewalStatus ?? contract.renewalStatus ?? null;
 
     if (contractExpired) {
-      return { bg: '#FEE2E2', text: '#991B1B', label: 'Đã hết hạn', icon: 'clock-alert' };
+      return { bg: '#FEE2E2', text: '#991B1B', label: 'Hết Hiệu Lực', icon: 'clock-alert' };
     }
 
     if (renewalStatus === 'declined') {
@@ -137,11 +137,11 @@ export default function MyContractScreen({ navigation }) {
   // Nút "Gia hạn" — hiện khi contract active và chưa có move-out request
   const canRenewContract = (contract, preview) => {
     if (contract.status !== 'active') return false;
-    
+
     // Kiểm tra cửa sổ 30 -> 7 ngày
     const daysLeft = calculateRemainingDays(contract.endDate);
     if (daysLeft === null || daysLeft > 30 || daysLeft < 7) return false;
-    
+
     // Kiểm tra đã gia hạn hoặc đã từ chối chưa
     const renewalStatus = preview?.renewalStatus ?? contract.renewalStatus ?? null;
     if (renewalStatus === 'renewed' || renewalStatus === 'declined') return false;
@@ -155,11 +155,11 @@ export default function MyContractScreen({ navigation }) {
   // Nút "Từ chối" — chỉ hiện khi CHƯA từ chối, trong cửa sổ gia hạn, VÀ chưa có move-out request
   const canDeclineContract = (contract, preview) => {
     if (contract.status !== 'active') return false;
-    
+
     // Kiểm tra cửa sổ 30 -> 7 ngày
     const daysLeft = calculateRemainingDays(contract.endDate);
     if (daysLeft === null || daysLeft > 30 || daysLeft < 7) return false;
-    
+
     // Kiểm tra đã gia hạn hoặc đã từ chối chưa
     const renewalStatus = preview?.renewalStatus ?? contract.renewalStatus ?? null;
     if (renewalStatus === 'renewed' || renewalStatus === 'declined') return false;

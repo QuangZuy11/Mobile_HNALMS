@@ -39,8 +39,12 @@ export default function CreateComplaintRequestScreen({ navigation }) {
         setFetchingRooms(true);
         const res = await getTenantRoomsAPI();
         if (res.success && res.data && res.data.length > 0) {
-          setCurrentRooms(res.data);
-          setSelectedRoomId(res.data[0]._id);
+          // Filter only active contracts (exclude inactive/future contracts)
+          const activeRooms = res.data.filter(room => room.contractStatus === 'active');
+          setCurrentRooms(activeRooms);
+          if (activeRooms.length > 0) {
+            setSelectedRoomId(activeRooms[0]._id);
+          }
         }
       } catch {
         // Không có phòng thì vẫn cho gửi khiếu nại
@@ -74,7 +78,7 @@ export default function CreateComplaintRequestScreen({ navigation }) {
       const response = await createComplaintRequestAPI({
         content: content.trim(),
         category: category,
-        roomId: selectedRoomId || undefined,
+        roomId: selectedRoomId || null,
       });
 
       Alert.alert(
