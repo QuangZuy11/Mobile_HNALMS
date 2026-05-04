@@ -146,7 +146,7 @@ export default function RenewContractScreen({ navigation, route }) {
 
   const handleConfirmRenew = async () => {
     if (extensionMonths < 1 || extensionMonths > 24) {
-      Alert.alert('Lỗi', 'Số tháng gia hạn phải từ 1 đến 24 tháng');
+      Alert.alert('Thông Báo', 'Số tháng gia hạn phải từ 1 đến 24 tháng');
       return;
     }
     setConfirmModalVisible(false);
@@ -166,7 +166,7 @@ export default function RenewContractScreen({ navigation, route }) {
         [{ text: 'OK', onPress: () => navigation.goBack() }]
       );
     } catch (err) {
-      Alert.alert('Lỗi', err.message || 'Gia hạn thất bại. Vui lòng thử lại.');
+      Alert.alert('Thông Báo', err.message || 'Gia hạn thất bại. Vui lòng thử lại.');
     } finally {
       setSubmitting(false);
       setLoading(false);
@@ -183,7 +183,7 @@ export default function RenewContractScreen({ navigation, route }) {
       const data = await getRenewalPreviewAPI(contractId);
       setPreview(data);
     } catch (err) {
-      Alert.alert('Lỗi', err.message || 'Từ chối gia hạn thất bại. Vui lòng thử lại.');
+      Alert.alert('Thông Báo', err.message || 'Từ chối gia hạn thất bại. Vui lòng thử lại.');
     } finally {
       setSubmitting(false);
       setLoading(false);
