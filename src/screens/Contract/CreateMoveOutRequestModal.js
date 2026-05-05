@@ -487,7 +487,7 @@ export default function CreateMoveOutRequestModal({
           : 'Yêu cầu của bạn có thể bị mất cọc. Bạn có chắc chắn muốn tiếp tục?';
 
         Alert.alert(
-          isGapContractWarning ? '✅ Thông tin hoàn cọc' : '⚠️ Cảnh báo hoàn cọc',
+          isGapContractWarning ? 'Thông tin hoàn cọc' : 'Cảnh báo hoàn cọc',
           isGapContractWarning
             ? `${confirmationText}\n\nBạn có muốn tiếp tục tạo yêu cầu trả phòng không?`
             : `${confirmationText}\n\nNếu đồng ý tiếp tục, hệ thống sẽ tính "Tiền cọc hoàn = 0" vào hóa đơn thanh lý.`,
@@ -547,7 +547,7 @@ export default function CreateMoveOutRequestModal({
           : 'Yêu cầu của bạn có thể bị mất cọc. Bạn có chắc chắn muốn tiếp tục?';
 
         Alert.alert(
-          isGapContractWarning ? '✅ Thông tin hoàn cọc' : '⚠️ Cảnh báo hoàn cọc',
+          isGapContractWarning ? 'Thông tin hoàn cọc' : 'Cảnh báo hoàn cọc',
           isGapContractWarning
             ? `${confirmationText}\n\nBạn có muốn tiếp tục tạo yêu cầu trả phòng không?`
             : `${confirmationText}\n\nNếu đồng ý tiếp tục, hệ thống sẽ tính "Tiền cọc hoàn = 0" vào hóa đơn thanh lý.`,
