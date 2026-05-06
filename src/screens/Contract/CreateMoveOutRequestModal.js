@@ -756,7 +756,7 @@ export default function CreateMoveOutRequestModal({
           req.status?.toLowerCase() === 'completed') &&
           req.finalInvoiceId && (
             <View style={styles.infoSection}>
-              <Text style={styles.sectionTitle}>📄 Hóa đơn cuối</Text>
+              <Text style={styles.sectionTitle}>Hóa đơn cuối</Text>
               <View style={styles.infoBox}>
                 {req.finalInvoiceId?.invoiceCode && (
                   <InfoRow label="Mã hóa đơn" value={req.finalInvoiceId.invoiceCode} />
@@ -771,7 +771,7 @@ export default function CreateMoveOutRequestModal({
                 {req.finalInvoiceId?.status && (
                   <InfoRow
                     label="Trạng thái hóa đơn"
-                    value={req.finalInvoiceId.status === 'Paid' ? '✅ Đã thanh toán' : '⏳ Chưa thanh toán'}
+                    value={req.finalInvoiceId.status === 'Paid' ? 'Đã thanh toán' : 'Chưa thanh toán'}
                     isLast={!req.managerInvoiceNotes}
                   />
                 )}
